@@ -59,7 +59,7 @@ The app is a static Vite build; `vercel.json` already describes it (framework `v
 
 ## Technology and architecture
 
-* **Stack:** TypeScript + Vite, HTML5 Canvas 2D for rendering, plain DOM for the HUD. No runtime dependencies (≈ 34 kB gzipped JS). Vitest for tests.
+* **Stack:** TypeScript + Vite, HTML5 Canvas 2D for rendering, plain DOM for the HUD. No runtime dependencies and no image assets (≈ 44 kB gzipped JS) — all art is procedural (`src/render/art.ts`: noise-based terrain bake with shorelines/mountains, pre-rendered tree/bush/rock/building sprites; `renderer.ts`: animated characters and animals, fire, smoke, glow, smooth fog, seasonal light). Vitest for tests.
 * **Simulation is separate from rendering.** `src/sim/*` is a deterministic fixed-step (20 Hz), seeded, JSON-serializable simulation with no DOM access; it runs headlessly in tests. `src/render/*` draws a `World`; `src/ui/*` is input, HUD and the game loop.
 * **Data-driven content:** units (`src/data/units.ts`), buildings (`src/data/buildings.ts`) and the discovery network (`src/data/discoveries.ts`) are tables; objectives live in `src/sim/objectives.ts`.
 * **Saves:** `localStorage` (manual + autosave slots) in a versioned envelope `{format:"lineage-rts-save", version:1, world}`; export/import as a JSON file. Loading validates structure, version and entity ids, and reports errors instead of crashing (see `src/sim/save.ts`).
@@ -106,5 +106,6 @@ Known limitations / not yet done:
 * Rival AI is scripted and simple (no real economy; it ignores fog); trade is a single gift action.
 * Apprenticeship is simplified to a *Teach* activity at a Teaching circle; individual specialist death does not yet cause knowledge loss mid-generation.
 * Only one succession (gen 1 → 2); the second winter is mild; balance has been tuned with scripted bots, not human playtesting.
-* Visuals are deliberately simple placeholders (shapes and letters). Units never collide, they only softly separate.
+* Art is procedural, not hand-drawn; characters are small canvas-drawn figures with simple walk/work/attack animation. Units never collide, they only softly separate.
+* Rendering cost is unmeasured on real GPUs/phones. In this environment's software-rendered headless Chromium (no GPU) the game ran at roughly 16–39 fps at 3× sim speed, so expect better on real hardware, but that is **not verified**. Render resolution is capped at 1.5× device pixels.
 * Not tested on real phones/tablets; performance there has not been measured (population is small — rival capped at 22, no hard cap on yours beyond housing).
