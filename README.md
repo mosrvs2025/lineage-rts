@@ -83,14 +83,14 @@ scripts/     e2e.cjs (Playwright browser check)
 
 ## What was verified, and how
 
-Verified in this environment (Linux, headless **Chromium 141 via Playwright**):
+Verified in this environment (Linux, headless **Chromium 141 via Playwright**, WebGL provided by software SwiftShader — no GPU):
 
 | Check | Result |
 |---|---|
 | `npm run typecheck`, `npm run build` | clean |
 | `npm test` — 17 tests: economy, building, training, orders, hit-testing, discovery/teaching/succession, save round-trip and invalid-save rejection, discovery effects, winter spoilage, racks, wolves vs torches, truce, outpost rules, determinism | pass |
 | Scripted-bot full playthrough (`tests/playthrough.test.ts`): gather → build → discover → teach → survive winter → succeed → expedition → victory, for **both** species | wins at ≈ 13.6 min and ≈ 21 min of game time |
-| Browser flow `scripts/e2e.cjs` — 43 checks through the real input path: start, select, order gather, build panel + placement, construction, training, discovery panel + investigation, pause/speed, save → mutate → load, corrupt-save handling, winter, succession dialog, victory screen, restart, box-select, wheel/pinch zoom, one-finger pan, drag-select mode, no console errors | 43 / 43 pass (3 consecutive runs) |
+| Browser flow `scripts/e2e.cjs` — 43 checks through the real input path: start, select, order gather, build panel + placement, construction, training, discovery panel + investigation, pause/speed, save → mutate → load, corrupt-save handling, winter, succession dialog, victory screen, restart, box-select, wheel/pinch zoom, one-finger pan, drag-select mode, no console errors | 43 / 43 pass on the 3D renderer (one earlier run timed out only because two heavy jobs were sharing the software-rendered browser; the clean re-run passed). The run takes several minutes because 3D is drawn in software here |
 
 Viewports exercised: **desktop 1280×800 (mouse)** and **phone landscape 844×390 @2× (touch)**.
 
@@ -107,5 +107,5 @@ Known limitations / not yet done:
 * Apprenticeship is simplified to a *Teach* activity at a Teaching circle; individual specialist death does not yet cause knowledge loss mid-generation.
 * Only one succession (gen 1 → 2); the second winter is mild; balance has been tuned with scripted bots, not human playtesting.
 * Art is procedural, not hand-drawn; characters are small canvas-drawn figures with simple walk/work/attack animation. Units never collide, they only softly separate.
-* Rendering cost is unmeasured on real GPUs/phones. In this environment's software-rendered headless Chromium (no GPU) the game ran at roughly 16–39 fps at 3× sim speed, so expect better on real hardware, but that is **not verified**. Render resolution is capped at 1.5× device pixels.
+* The game now **requires WebGL** (a clear message is shown if it is unavailable). Real-GPU and phone performance is **unmeasured** — this environment only has software rendering, which is far slower than hardware. Render resolution is capped at 1.5× device pixels, shadow maps shrink on small screens, and the bundle is ≈ 617 kB (≈ 160 kB gzipped) because of Three.js.
 * Not tested on real phones/tablets; performance there has not been measured (population is small — rival capped at 22, no hard cap on yours beyond housing).
