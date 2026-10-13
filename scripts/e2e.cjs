@@ -10,7 +10,7 @@ const results = [];
 const ok = (name, cond, extra = '') => { results.push({ name, pass: !!cond, extra }); console.log(`${cond ? 'PASS' : 'FAIL'}  ${name} ${extra}`); };
 
 async function launch() {
-  return chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox'] });
+  return chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox', '--use-angle=swiftshader', '--use-gl=angle', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 }
 const G = (p, fn, arg) => p.evaluate(fn, arg);
 
@@ -188,7 +188,7 @@ async function common(p, label, input) {
     const box = await G(p, () => {
       const g = window.game, pts = g.world.units.filter((u) => u.owner === 0).map((u) => g.cam.toScreen(u.x, u.y));
       const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
-      return { x0: Math.min(...xs) - 14, y0: Math.min(...ys) - 14, x1: Math.max(...xs) + 14, y1: Math.min(Math.max(...ys) + 14, window.innerHeight - 60) };
+      return { x0: Math.min(...xs) - 50, y0: Math.min(...ys) - 60, x1: Math.max(...xs) + 50, y1: Math.min(Math.max(...ys) + 20, window.innerHeight - 60) };
     });
     await touch('touchStart', [{ x: box.x0, y: box.y0 }]);
     for (let i = 1; i <= 10; i++) await touch('touchMove', [{ x: box.x0 + ((box.x1 - box.x0) * i) / 10, y: box.y0 + ((box.y1 - box.y0) * i) / 10 }]);

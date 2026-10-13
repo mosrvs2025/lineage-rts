@@ -195,7 +195,7 @@ export class Game {
       this.hud.tick(now);
       if (w.status !== 'playing' && !this.endShown) { this.endShown = true; this.hud.showEnd(); }
     } else {
-      const g = this.renderer.ctx; g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = '#10130f'; g.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.renderer.clear();
     }
     requestAnimationFrame((t) => this.frame(t));
   }

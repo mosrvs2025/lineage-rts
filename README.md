@@ -30,7 +30,7 @@ Defeat: the clan hearth is destroyed or everyone dies.
 |---|---|---|
 | Select | Tap unit/building; double-tap = all of that type on screen; **Drag-select** toggle for box select; *Idle* / *Army* buttons | Click; drag box; Ctrl+1–9 sets / 1–9 recalls groups; `.` idle gatherer |
 | Order | With units selected, tap: ground = move, tree/berry/rock = gather, enemy = attack, building site = build | Right-click (same contexts); or press **Move / Attack** then left-click; `M` `A` `H` `S` `R` |
-| Camera | One-finger drag pans, pinch zooms | Wheel zoom; middle/right drag, WASD, arrows or screen edge pan |
+| Camera | One-finger drag pans, pinch zooms (tilted 3D view) | Wheel zoom; middle/right drag, WASD, arrows or screen edge pan |
 | Build | **Build** → choose → drag the ghost → **Place** | **Build** (`B`) → choose → click to place (palisades keep placing; `Esc` cancels) |
 | Other | Jobs popover, Discoveries (`D`), Pause/speed 1–3×, Menu (save/load/export/import/restart) | `Space` pause |
 
@@ -59,8 +59,8 @@ The app is a static Vite build; `vercel.json` already describes it (framework `v
 
 ## Technology and architecture
 
-* **Stack:** TypeScript + Vite, HTML5 Canvas 2D for rendering, plain DOM for the HUD. No runtime dependencies and no image assets (≈ 44 kB gzipped JS) — all art is procedural (`src/render/art.ts`: noise-based terrain bake with shorelines/mountains, pre-rendered tree/bush/rock/building sprites; `renderer.ts`: animated characters and animals, fire, smoke, glow, smooth fog, seasonal light). Vitest for tests.
-* **Simulation is separate from rendering.** `src/sim/*` is a deterministic fixed-step (20 Hz), seeded, JSON-serializable simulation with no DOM access; it runs headlessly in tests. `src/render/*` draws a `World`; `src/ui/*` is input, HUD and the game loop.
+* **Stack:** TypeScript + Vite; **Three.js (WebGL)** for a tilted-perspective 3D view; plain DOM for the HUD and a 2D overlay canvas for health bars and order lines. No image assets: terrain texture, height field and all models (low-poly trees, tents, longhouse, watch tower, people, deer, wolves) are generated in code (`src/render/art.ts`, `models.ts`). Vitest for tests.
+* **Simulation is separate from rendering.** `src/sim/*` is a deterministic fixed-step (20 Hz), seeded, JSON-serializable simulation with no DOM access; it runs headlessly in tests. `src/render/*` draws a `World` in 3D (it never changes it); `src/ui/*` is input, HUD and the game loop.
 * **Data-driven content:** units (`src/data/units.ts`), buildings (`src/data/buildings.ts`) and the discovery network (`src/data/discoveries.ts`) are tables; objectives live in `src/sim/objectives.ts`.
 * **Saves:** `localStorage` (manual + autosave slots) in a versioned envelope `{format:"lineage-rts-save", version:1, world}`; export/import as a JSON file. Loading validates structure, version and entity ids, and reports errors instead of crashing (see `src/sim/save.ts`).
 
@@ -68,7 +68,7 @@ The app is a static Vite build; `vercel.json` already describes it (framework `v
 src/
   data/      units, buildings, discoveries (data tables)
   sim/       world, step, units (orders/combat/gathering), econ, discovery, succession, ai, fog, grid (A*), save
-  render/    camera, canvas renderer + minimap
+  render/    perspective camera, Three.js renderer, procedural terrain + models, minimap
   ui/        game loop, input (mouse/touch), HUD and panels
 tests/       vitest: rules, save/load, and full scripted playthroughs
 scripts/     e2e.cjs (Playwright browser check)

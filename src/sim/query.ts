@@ -62,3 +62,13 @@ export function unitsInRect(w: World, x0: number, y0: number, x1: number, y1: nu
   return w.units.filter((u) => u.owner === 0 && u.hp > 0 && u.x >= lx && u.x <= hx && u.y >= ly && u.y <= hy);
 }
 
+
+/** Units whose on-screen position lies inside a screen-space rectangle (works with a perspective camera). */
+export function unitsInScreenRect(w: World, project: (x: number, y: number) => { x: number; y: number }, x0: number, y0: number, x1: number, y1: number): Unit[] {
+  const lx = Math.min(x0, x1), hx = Math.max(x0, x1), ly = Math.min(y0, y1), hy = Math.max(y0, y1);
+  return w.units.filter((u) => {
+    if (u.owner !== 0 || u.hp <= 0) return false;
+    const p = project(u.x, u.y);
+    return p.x >= lx && p.x <= hx && p.y >= ly && p.y <= hy;
+  });
+}

@@ -1,5 +1,5 @@
 import { cmdHold, cmdRetreat, cmdStop, cmdMove } from '../sim/commands';
-import { entityAt, targetAt, unitsInRect } from '../sim/query';
+import { entityAt, targetAt, unitsInScreenRect } from '../sim/query';
 import type { Game } from './game';
 
 interface Ptr { x: number; y: number; sx: number; sy: number; type: string; button: number; moved: boolean; t: number }
@@ -101,8 +101,7 @@ export class Input {
     if (!s || !g.world) return;
     const wasMulti = this.ptrs.size > 0;
     if (this.boxing && g.box) {
-      const a = g.cam.toWorld(g.box.x0, g.box.y0), b = g.cam.toWorld(g.box.x1, g.box.y1);
-      const ids = unitsInRect(g.world, a.x, a.y, b.x, b.y).map((u) => u.id);
+      const ids = unitsInScreenRect(g.world, (x, y) => g.cam.toScreen(x, y, 0.5), g.box.x0, g.box.y0, g.box.x1, g.box.y1).map((u) => u.id);
       g.box = null; this.boxing = false;
       if (ids.length) g.selectUnits(ids, e.shiftKey);
       return;
@@ -145,8 +144,7 @@ export class Input {
       if (!(hasUnits && touch && tgt && !exact)) {
         const now = performance.now();
         if (now - this.lastTap.t < 350 && this.lastTap.id === hit.unit.id) {
-          const a = g.cam.toWorld(0, 0), b = g.cam.toWorld(g.cam.vw, g.cam.vh);
-          g.selectUnits(unitsInRect(w, a.x, a.y, b.x, b.y).filter((u) => u.kind === hit.unit.kind).map((u) => u.id));
+          g.selectUnits(unitsInScreenRect(w, (x, y) => g.cam.toScreen(x, y, 0.5), 0, 0, g.cam.vw, g.cam.vh).filter((u) => u.kind === hit.unit.kind).map((u) => u.id));
         } else g.selectUnits([hit.unit.id], e.shiftKey || e.ctrlKey);
         this.lastTap = { t: now, id: hit.unit.id };
         return;
