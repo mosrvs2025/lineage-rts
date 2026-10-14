@@ -5,6 +5,7 @@ export class Camera {
   x = 12; y = 24;          // ground focus point, in tiles
   zoom = 30;
   vw = 800; vh = 600;      // viewport CSS pixels
+  yaw = 0;                 // orbit angle (only used by the title-screen showcase)
   insetT = 0; insetB = 0;  // pixels covered by the HUD at the top / bottom
   worldW = 72; worldH = 48;
   readonly three = new THREE.PerspectiveCamera(30, 1, 1, 300);
@@ -16,13 +17,14 @@ export class Camera {
   private v = new THREE.Vector3();
 
   private sync() {
-    const k = `${this.x}|${this.y}|${this.zoom}|${this.vw}|${this.vh}|${this.insetT}|${this.insetB}`;
+    const k = `${this.x}|${this.y}|${this.zoom}|${this.vw}|${this.vh}|${this.insetT}|${this.insetB}|${this.yaw}`;
     if (k === this.key) return;
     this.key = k;
     const c = this.three, fov = (c.fov * Math.PI) / 180;
     const dist = this.vh / (2 * Math.tan(fov / 2) * this.zoom);
     const P = Camera.PITCH;
-    c.position.set(this.x, Math.sin(P) * dist, this.y + Math.cos(P) * dist);
+    const hd = Math.cos(P) * dist;
+    c.position.set(this.x + Math.sin(this.yaw) * hd, Math.sin(P) * dist, this.y + Math.cos(this.yaw) * hd);
     c.lookAt(this.x, 0, this.y);
     c.aspect = this.vw / this.vh;
     const shift = (this.insetT - this.insetB) / 2;
