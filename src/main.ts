@@ -1,7 +1,11 @@
 import './style.css';
+import { inject } from '@vercel/analytics';
 import { placeCheck } from './sim/commands';
 import { Game } from './ui/game';
 import { renderMoodStats } from './ui/music';
+
+// Initialize Vercel Web Analytics
+inject();
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const minimap = document.getElementById('minimap') as HTMLCanvasElement;
