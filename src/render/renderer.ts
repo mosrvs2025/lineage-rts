@@ -223,7 +223,7 @@ export class Renderer {
     this.smokeMat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, uniforms: { uScale: { value: 600 } },
       vertexShader: 'attribute float aT; varying float vA; uniform float uScale; void main(){ vec4 mv = modelViewMatrix*vec4(position,1.0); gl_Position = projectionMatrix*mv; gl_PointSize = (0.4+aT*1.3)*uScale/-mv.z; vA = (1.0-aT)*smoothstep(0.0,0.1,aT)*0.55; }',
-      fragmentShader: 'varying float vA; void main(){ float d=length(gl_PointCoord-0.5); gl_FragColor=vec4(0.82,0.83,0.86,smoothstep(0.5,0.05,d)*vA); #include <tonemapping_fragment>\n#include <colorspace_fragment>\n }',
+      fragmentShader: 'varying float vA; void main(){ float d=length(gl_PointCoord-0.5); gl_FragColor=vec4(0.82,0.83,0.86,smoothstep(0.5,0.05,d)*vA); \n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n }',
     });
     this.smoke = new THREE.Points(sg, this.smokeMat); this.smoke.frustumCulled = false; this.smoke.renderOrder = 3; this.root.add(this.smoke);
     const SN = 1600, snp = new Float32Array(SN * 3);

@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 
 const PVERT = 'attribute vec3 aCol; attribute float aSize; attribute float aAlpha; varying vec3 vC; varying float vA; uniform float uScale; void main(){ vec4 mv=modelViewMatrix*vec4(position,1.0); gl_Position=projectionMatrix*mv; gl_PointSize=aSize*uScale/max(0.1,-mv.z); vC=aCol; vA=aAlpha; }';
-const PFRAG = 'varying vec3 vC; varying float vA; void main(){ float d=length(gl_PointCoord-0.5); float a=smoothstep(0.5,0.12,d)*vA; if(a<0.01) discard; gl_FragColor=vec4(vC,a); #include <tonemapping_fragment>\n#include <colorspace_fragment>\n }';
+const PFRAG = 'varying vec3 vC; varying float vA; void main(){ float d=length(gl_PointCoord-0.5); float a=smoothstep(0.5,0.12,d)*vA; if(a<0.01) discard; gl_FragColor=vec4(vC,a); \n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n }';
 
 export class Particles {
   readonly points: THREE.Points;
@@ -117,13 +117,13 @@ export class AmbientLife {
     this.leafMat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, uniforms: { uFocus: { value: new THREE.Vector3() }, uTime: { value: 0 }, uLevel: { value: 0 }, uScale: { value: 600 } },
       vertexShader: 'attribute vec3 aCol; varying vec3 vC; uniform vec3 uFocus; uniform float uTime; uniform float uScale; void main(){ vec3 p=position; float sp=0.5+fract(p.x*3.7)*0.5; float fall=mod(p.y-uTime*sp,14.0); vec2 xz=mod(p.xz-uFocus.xz+25.0,50.0)-25.0+uFocus.xz; xz+=vec2(sin(uTime*0.9+p.z*2.0),cos(uTime*0.7+p.x*2.0))*0.8; vec4 mv=viewMatrix*vec4(xz.x,fall,xz.y,1.0); gl_Position=projectionMatrix*mv; gl_PointSize=0.16*uScale/-mv.z; vC=aCol; }',
-      fragmentShader: 'varying vec3 vC; uniform float uLevel; void main(){ vec2 c=gl_PointCoord-0.5; float a=step(abs(c.x)+abs(c.y)*1.6,0.48)*uLevel; if(a<0.01) discard; gl_FragColor=vec4(vC,a); #include <tonemapping_fragment>\n#include <colorspace_fragment>\n }',
+      fragmentShader: 'varying vec3 vC; uniform float uLevel; void main(){ vec2 c=gl_PointCoord-0.5; float a=step(abs(c.x)+abs(c.y)*1.6,0.48)*uLevel; if(a<0.01) discard; gl_FragColor=vec4(vC,a); \n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n }',
     });
     this.leaves = new THREE.Points(mkPts(260, (i) => leafCols[i % 4], 50), this.leafMat); this.leaves.frustumCulled = false; this.leaves.renderOrder = 5;
     this.flyMat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uFocus: { value: new THREE.Vector3() }, uTime: { value: 0 }, uLevel: { value: 0 }, uScale: { value: 600 } },
       vertexShader: 'attribute vec3 aCol; varying float vB; uniform vec3 uFocus; uniform float uTime; uniform float uScale; void main(){ vec3 p=position; float h=fract(p.x*5.3+p.z*1.7); vec2 xz=mod(p.xz-uFocus.xz+22.0,44.0)-22.0+uFocus.xz; xz+=vec2(sin(uTime*0.5+h*20.0),cos(uTime*0.4+h*17.0))*1.6; float y=0.4+mod(p.y,1.6)+sin(uTime*0.8+h*9.0)*0.3; vec4 mv=viewMatrix*vec4(xz.x,y,xz.y,1.0); gl_Position=projectionMatrix*mv; gl_PointSize=0.2*uScale/-mv.z; vB=0.35+0.65*pow(0.5+0.5*sin(uTime*(1.5+h*2.0)+h*30.0),3.0); }',
-      fragmentShader: 'varying float vB; uniform float uLevel; void main(){ float d=length(gl_PointCoord-0.5); float a=smoothstep(0.5,0.0,d)*vB*uLevel; if(a<0.01) discard; gl_FragColor=vec4(0.75,1.0,0.35,a); #include <tonemapping_fragment>\n#include <colorspace_fragment>\n }',
+      fragmentShader: 'varying float vB; uniform float uLevel; void main(){ float d=length(gl_PointCoord-0.5); float a=smoothstep(0.5,0.0,d)*vB*uLevel; if(a<0.01) discard; gl_FragColor=vec4(0.75,1.0,0.35,a); \n#include <tonemapping_fragment>\n#include <colorspace_fragment>\n }',
     });
     this.flies = new THREE.Points(mkPts(160, () => [1, 1, 1], 44), this.flyMat); this.flies.frustumCulled = false; this.flies.renderOrder = 6;
     const wing = new THREE.BufferGeometry(); wing.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0.12, -0.4, 0, -0.05, 0, 0, -0.02, 0, 0, 0.12, 0.4, 0, -0.05, 0, 0, -0.02], 3)); wing.computeVertexNormals();
