@@ -123,7 +123,7 @@ export function cmdPlace(w: World, kind: BuildingKind, tx: number, ty: number, b
   if (outpost) w.res.provisions -= OUTPOST_COST;
   const b = {
     id: w.nextId++, kind, owner: 0 as const, x: tx, y: ty, w: d.w, h: d.h,
-    hp: Math.max(1, d.hp * 0.1), maxHp: d.hp, progress: 0, done: false, queue: [], tick: 0, outpost,
+    hp: Math.max(1, d.hp * 0.1), maxHp: d.hp, progress: 0, done: false, queue: [], tick: 0, tier: 0, outpost,
   };
   w.buildings.push(b); w._b?.set(b.id, b);
   rebuildBlocked(w);
@@ -158,6 +158,8 @@ export function trainCheck(w: World, bId: number, kind: UnitKind): Check {
   const b = buildingById(w, bId), d = UNITS[kind];
   if (!b || b.owner !== 0 || !b.done) return { ok: false, reason: 'Building not ready.' };
   if (!BUILDINGS[b.kind].trains.includes(kind)) return { ok: false, reason: 'Cannot train here.' };
+  if (d.only && d.only !== w.species) return { ok: false, reason: `Only the ${d.only === 'human' ? 'Humans' : 'Neanderthals'} train ${d.name}s.` };
+  if (d.needsTier && b.tier < d.needsTier) return { ok: false, reason: `Needs a War lodge (upgrade the ${BUILDINGS[b.kind].name}).` };
   if (d.needs && !w.buildings.some((x) => x.owner === 0 && x.kind === d.needs && x.done)) return { ok: false, reason: `Needs a ${BUILDINGS[d.needs as BuildingKind].name}.` };
   if (b.queue.length >= 5) return { ok: false, reason: 'Queue is full.' };
   if (popCount(w) + queuedCount(w) >= popCap(w)) return { ok: false, reason: 'Population limit — build shelters.' };

@@ -246,3 +246,23 @@ kbd { font: 600 10px var(--ui); padding: 1px 5px; border-radius: 4px; background
 .switch { display: inline-flex; align-items: center; gap: 10px; background: none; border: none; padding: 0; box-shadow: none; } .switch i { width: 46px; height: 24px; border-radius: 12px; background: #0d0b08; border: 1px solid var(--edge); position: relative; transition: background .2s; } .switch i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #8a7f68; transition: transform .2s, background .2s; }
 .switch.on i { background: #3a2f12; border-color: var(--gold); } .switch.on i::after { transform: translateX(22px); background: var(--gold); box-shadow: 0 0 8px var(--gold); }
 @media (max-width: 899px), (max-height: 559px) { .srow { grid-template-columns: 120px 1fr 34px; gap: 8px; padding: 6px 0; } .srow label { font-size: 12px; } }
+
+/* ---- upgrades, research, ranks */
+.tiers{display:inline-flex;gap:3px;margin-left:8px;vertical-align:middle}
+.tiers i{width:8px;height:8px;border-radius:2px;border:1px solid var(--gold,#d9a441);opacity:.55}
+.tiers i.on{background:var(--gold,#d9a441);opacity:1;box-shadow:0 0 6px rgba(217,164,65,.7)}
+.job{margin:6px 0 2px}
+.job small{display:block;font-size:11px;opacity:.85;margin-bottom:3px}
+.jbar{height:6px;border-radius:3px;background:rgba(0,0,0,.45);overflow:hidden}
+.jbar i{display:block;height:100%;background:linear-gradient(90deg,#d9a441,#f2d27a);transition:width .3s}
+/* command card grows to fit upgrade / research / extra unit buttons */
+#cmdcard { height: auto; min-height: 162px; max-height: 300px; overflow-y: auto; }
+#cmds { grid-auto-rows: 80px; }
+.cb .cr { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 2px; max-width: 100%; }
+.cb .cl { max-width: 100%; text-align: center; overflow: hidden; }
+@media (max-width: 900px), (max-height: 520px) { #cmdcard { height: auto; min-height: 104px; max-height: 190px; } #cmds { grid-auto-rows: 54px; } }
+#cmdcard { width: 352px; }
+#cmds { grid-template-columns: repeat(5, 62px); grid-auto-rows: 74px; }
+.cb .cr { flex-wrap: nowrap; gap: 3px; } .cb .cc { font-size: 9px; padding: 0 2px 0 1px; } .cb .cc .ic { font-size: 10px; }
+.cb .cl { flex: none; font-size: 9px; }
+@media (max-width: 900px), (max-height: 520px) { #cmdcard { width: 262px; } #cmds { grid-template-columns: repeat(5, 46px); grid-auto-rows: 50px; } }

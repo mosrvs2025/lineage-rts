@@ -1,6 +1,6 @@
 import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
-import { visionOf } from './rules';
+import { tierBonus, visionOf } from './rules';
 import type { World } from './types';
 
 export function ensureFog(w: World) {
@@ -25,7 +25,7 @@ export function updateFog(w: World) {
     }
   };
   for (const u of w.units) if (u.owner === 0) reveal(u.x, u.y, visionOf(w, u, UNITS[u.kind].vision));
-  for (const b of w.buildings) if (b.owner === 0) reveal(b.x + b.w / 2, b.y + b.h / 2, BUILDINGS[b.kind].vision + (b.done ? 0 : -2));
+  for (const b of w.buildings) if (b.owner === 0) reveal(b.x + b.w / 2, b.y + b.h / 2, BUILDINGS[b.kind].vision + (b.done ? tierBonus(b, 'vision') : -2));
 }
 
 export function packExplored(w: World) {

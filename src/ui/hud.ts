@@ -1,12 +1,14 @@
 import { BUILDINGS, BUILD_ORDER } from '../data/buildings';
 import { DISCOVERIES, DISC_ORDER } from '../data/discoveries';
 import { UNITS } from '../data/units';
+import { TECHS, techsFor } from '../data/techs';
 import {
   cmdCancelSite, cmdGift, cmdHold, cmdInvestigate, cmdJob, cmdRally, cmdRetreat, cmdStop, cmdTeach, cmdTrain, jobCounts, trainCheck,
 } from '../sim/commands';
 import { discCost, discTime, investigateCheck, teachCheck } from '../sim/discovery';
 import { objectiveList } from '../sim/objectives';
-import { hasDisc, popCap, popCount } from '../sim/rules';
+import { hasDisc, hasTech, popCap, popCount, rankOf, FIGHTERS } from '../sim/rules';
+import { cancelResearch, cancelUpgrade, cmdResearch, cmdUpgrade, nextUpgrade, researchCheck, upgradeCheck } from '../sim/upgrades';
 import { advanceGeneration, canSucceed, inheritancePreview, successorCandidates } from '../sim/succession';
 import type { BuildingKind, DiscoveryId, Res, Species, UnitKind, World } from '../sim/types';
 import { bCenter, fmtTime, isWinter, nodeById } from '../sim/util';
@@ -23,7 +25,7 @@ const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
 type PanelId = 'build' | 'disc' | null;
 type Cost = Partial<Record<string, number>>;
 
-const KIND_ICON: Record<string, string> = { gatherer: 'gatherer', scout: 'scout', hunter: 'hunter', guard: 'guard', raider: 'raider', leader: 'leader', deer: 'deer', wolf: 'wolf' };
+const KIND_ICON: Record<string, string> = { gatherer: 'gatherer', scout: 'scout', hunter: 'hunter', guard: 'guard', raider: 'raider', leader: 'leader', elder: 'elder', slinger: 'slinger', brute: 'brute', champion: 'champion', deer: 'deer', wolf: 'wolf' };
 const DISC_ICON: Record<DiscoveryId, string> = { cooking: 'food', preservation: 'rack', portable: 'discover', heat: 'build' };
 
 function chips(cost: Cost, w?: World): string {
@@ -33,6 +35,8 @@ function chips(cost: Cost, w?: World): string {
 }
 
 interface BtnOpts { act: string; ic: string; label: string; key?: string; why?: string; on?: boolean; badge?: string; cost?: Cost; w?: World; tip?: { t: string; d: string; k?: string; cost?: Cost }; cls?: string }
+const buildingTitle = (b: { kind: BuildingKind; tier: number }) => (b.tier > 0 ? BUILDINGS[b.kind].upgrades![b.tier - 1].name : BUILDINGS[b.kind].name);
+
 function cbtn(o: BtnOpts): string {
   const tip = o.tip ? ` data-tip="${esc(JSON.stringify({ t: o.tip.t, d: o.tip.d, k: o.tip.k ?? o.key, c: o.tip.cost ?? o.cost }))}"` : '';
   return `<button class="cb ${o.on ? 'on' : ''} ${o.why ? 'dis' : ''} ${o.cls ?? ''}" data-act="${o.act}" ${o.why ? `data-why="${esc(o.why)}"` : ''}${tip}>
@@ -169,7 +173,7 @@ export class Hud {
       }
       case 'army': {
         if (!w) break;
-        const army = w.units.filter((u) => u.owner === 0 && ['hunter', 'guard', 'raider', 'leader', 'scout'].includes(u.kind));
+        const army = w.units.filter((u) => u.owner === 0 && ['scout', ...FIGHTERS].includes(u.kind));
         if (!army.length) { this.toast('No scouts or fighters yet.'); break; }
         g.selectUnits(army.map((u) => u.id)); break;
       }
@@ -178,6 +182,10 @@ export class Hud {
         if (!w || g.selB === null) break;
         const r = cmdTrain(w, g.selB, arg as UnitKind); if (!r.ok) { sfx.error(); this.toast(r.reason, 'bad'); } break;
       }
+      case 'upgrade': { if (!w || g.selB === null) break; const r = cmdUpgrade(w, g.selB); if (!r.ok) { sfx.error(); this.toast(r.reason, 'bad'); } else { sfx.place(); this.toast('Upgrade begun.', 'good'); } break; }
+      case 'cancelupg': if (w && g.selB !== null) { cancelUpgrade(w, g.selB); this.toast('Upgrade cancelled (75% refunded).'); } break;
+      case 'research': { if (!w || g.selB === null) break; const r = cmdResearch(w, g.selB, arg); if (!r.ok) { sfx.error(); this.toast(r.reason, 'bad'); } else this.toast(`Researching ${TECHS[arg].name}.`, 'good'); break; }
+      case 'cancelres': if (w && g.selB !== null) { cancelResearch(w, g.selB); this.toast('Research cancelled (75% refunded).'); } break;
       case 'cancelsite': if (w && g.selB !== null) { cmdCancelSite(w, g.selB); g.clearSelection(); this.toast('Construction cancelled (75% refunded).'); } break;
       case 'gift': { if (!w) break; const r = cmdGift(w); if (!r.ok) { sfx.error(); this.toast(r.reason, 'bad'); } break; }
       case 'inv': { if (!w) break; const r = cmdInvestigate(w, arg as DiscoveryId); if (!r.ok) this.toast(r.reason, 'bad'); else this.toast('A gatherer begins investigating.', 'good'); break; }
@@ -466,7 +474,7 @@ export class Hud {
         const doing = o.t === 'gather' ? `Gathering ${nodeById(w, o.node)?.res ?? ''}` : o.t === 'idle' ? 'Idle' : o.t === 'research' ? 'Researching' : o.t === 'build' ? 'Building' : o.t === 'attack' ? 'Fighting' : o.t === 'move' ? 'Moving' : o.t === 'amove' ? 'Attack-moving' : o.t === 'hold' ? 'Holding' : o.t;
         const pct = Math.max(0, u.hp / u.maxHp) * 100;
         html = `<div class="sp"><div class="pf">${icon(KIND_ICON[u.kind])}</div>
-          <div class="si"><h3>${esc(u.name)}<small>${d.name}${u.gen > 1 ? ' · Gen ' + ROMAN[u.gen] : ''}</small></h3>
+          <div class="si"><h3>${esc(u.name)}<small>${['', 'Veteran ', 'Elite '][rankOf(u)]}${d.name}${u.gen > 1 ? ' · Gen ' + ROMAN[u.gen] : ''}${u.kills ? ` · ${u.kills} kills` : ''}</small></h3>
           <div class="hp ${pct < 35 ? 'low' : ''}"><i style="width:${pct}%"></i><span>${icon('heart')}${Math.ceil(u.hp)} / ${u.maxHp}</span></div>
           <div class="stats"><span>${icon('attack')}${d.dmg}</span><span>${icon('move')}${d.speed.toFixed(1)}</span>${u.carry.n ? `<span>${icon(u.carry.res!)}${u.carry.n}</span>` : ''}<span class="st">${doing}</span></div>
           <p class="desc">${esc(d.desc)}</p></div></div>`;
@@ -477,10 +485,13 @@ export class Hud {
     } else if (g.selB !== null && w._b?.get(g.selB)) {
       const b = w._b.get(g.selB)!, d = BUILDINGS[b.kind], pct = (b.hp / b.maxHp) * 100;
       const q = Array.from({ length: 5 }, (_, i) => { const it = b.queue[i]; return `<span class="qs ${it ? 'full' : ''}">${it ? icon(KIND_ICON[it.kind]) : ''}${i === 0 && it ? `<i style="height:${Math.max(0, Math.min(100, (1 - it.t / UNITS[it.kind].time) * 100))}%"></i>` : ''}</span>`; }).join('');
+      const prog = (label: string, t: number, total: number) => `<div class="job"><small>${label}</small><div class="jbar"><i style="width:${Math.max(0, Math.min(100, (1 - t / total) * 100))}%"></i></div></div>`;
+      const tiers = d.upgrades?.length ? `<span class="tiers">${d.upgrades.map((_, i) => `<i class="${i < b.tier ? 'on' : ''}"></i>`).join('')}</span>` : '';
+      const jobs = (b.upg ? prog(`Upgrading to ${nextUpgrade(b)!.name}`, b.upg.t, b.upg.total) : '') + (b.research ? prog(`Researching ${TECHS[b.research.tech].name}`, b.research.t, b.research.total) : '');
       html = `<div class="sp"><div class="pf bld">${icon(b.kind)}</div>
-        <div class="si"><h3>${d.name}<small>${b.done ? 'Complete' : `Under construction ${Math.floor(b.progress * 100)}%`}</small></h3>
+        <div class="si"><h3>${esc(buildingTitle(b))}${tiers}<small>${b.done ? 'Complete' : `Under construction ${Math.floor(b.progress * 100)}%`}</small></h3>
         <div class="hp"><i style="width:${pct}%"></i><span>${icon('heart')}${Math.ceil(b.hp)} / ${b.maxHp}</span></div>
-        <p class="desc">${esc(d.desc)}</p>${d.trains.length && b.done ? `<div class="queue"><small>Training</small>${q}</div>` : ''}</div></div>`;
+        <p class="desc">${esc(d.desc)}</p>${jobs}${d.trains.length && b.done ? `<div class="queue"><small>Training</small>${q}</div>` : ''}</div></div>`;
     } else {
       html = `<div class="sp empty"><div class="eh">${icon('info')}</div><p><b>Nothing selected</b>Tap a unit or building. Drag to pan, pinch or scroll to zoom. <span class="muted">Use the buttons on the right for Build and Discoveries.</span></p></div>`;
     }
@@ -506,10 +517,20 @@ export class Hud {
       if (b.done) {
         for (const k of d.trains) {
           const ud = UNITS[k as UnitKind], c = trainCheck(w, b.id, k as UnitKind);
+          if (ud.only && ud.only !== w.species) continue;
           h += cbtn({ act: `train:${k}`, ic: KIND_ICON[k], label: ud.name, cost: ud.cost, w, why: c.ok ? undefined : c.reason, tip: { t: ud.name, d: ud.desc, cost: ud.cost } });
         }
+        const up = nextUpgrade(b);
+        if (b.upg) h += cbtn({ act: 'cancelupg', ic: 'close', label: 'Cancel', tip: { t: 'Cancel upgrade', d: '75% of the cost is refunded.' } });
+        else if (up) { const c = upgradeCheck(w, b.id); h += cbtn({ act: 'upgrade', ic: 'upgrade', label: up.name, cost: up.cost, w, cls: 'gold', why: c.ok ? undefined : c.reason, tip: { t: `Upgrade: ${up.name}`, d: up.desc, cost: up.cost } }); }
+        if (b.research) h += cbtn({ act: 'cancelres', ic: 'close', label: 'Cancel', tip: { t: 'Cancel research', d: '75% of the cost is refunded.' } });
+        else for (const t of techsFor(b.kind)) {
+          if (hasTech(w, t.id)) continue;
+          const c = researchCheck(w, b.id, t.id);
+          h += cbtn({ act: `research:${t.id}`, ic: 'tech', label: t.name, cost: t.cost, w, why: c.ok ? undefined : c.reason, tip: { t: t.name, d: t.desc, cost: t.cost } });
+        }
         if (b.kind === 'circle') h += cbtn({ act: 'disc', ic: 'knowledge', label: 'Teach', tip: { t: 'Teach', d: 'Preserve discoveries for future generations.' } });
-        if (['toolshelter', 'hearth'].includes(b.kind)) h += cbtn({ act: 'disc', ic: 'discover', label: 'Research', tip: { t: 'Research', d: 'Investigate discoveries that use this facility.' } });
+        if (['toolshelter', 'hearth'].includes(b.kind)) h += cbtn({ act: 'disc', ic: 'discover', label: 'Discover', tip: { t: 'Discoveries', d: 'Investigate discoveries that use this facility.' } });
       } else h += cbtn({ act: 'cancelsite', ic: 'close', label: 'Cancel', tip: { t: 'Cancel construction', d: '75% of the cost is refunded.' } });
     }
     if (h !== this.lastCmds) { $('cmds').innerHTML = h; this.lastCmds = h; }

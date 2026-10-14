@@ -1,11 +1,13 @@
-import type { Res, UnitKind } from '../sim/types';
+import type { CostMap, Species, UnitKind } from '../sim/types';
 
 export interface UnitDef {
   name: string; glyph: string; desc: string;
   hp: number; speed: number; dmg: number; range: number; cd: number;
   vision: number; carry: number; aggro: number;
-  cost: Partial<Record<Res, number>>; time: number;
+  cost: CostMap; time: number;
   needs?: string;        // building kind required to train
+  needsTier?: number;    // minimum tier of the training building
+  only?: Species;        // species-exclusive unit
   trainAt?: string;
   radius: number;
 }
@@ -29,6 +31,18 @@ export const UNITS: Record<UnitKind, UnitDef> = {
   leader: { name: 'Clan leader', glyph: 'L', desc: 'Nearby allies fight 15% harder. Rally heals and speeds nearby allies.',
     hp: 90, speed: 2.8, dmg: 12, range: 1.2, cd: 1.0, vision: 8, carry: 0, aggro: 7,
     cost: {}, time: 0, radius: 0.5 },
+  elder: { name: 'Elder', glyph: 'E', desc: 'Heals nearby clan members and speeds research at the circle. A poor fighter.',
+    hp: 45, speed: 2.2, dmg: 2, range: 0.9, cd: 1.5, vision: 6, carry: 0, aggro: 0,
+    cost: { food: 40, knowledge: 15 }, time: 22, trainAt: 'circle', radius: 0.4 },
+  slinger: { name: 'Slinger', glyph: 'X', desc: 'Human skirmisher. Hurls stones from range; cheap and quick, but fragile.',
+    hp: 30, speed: 3.0, dmg: 5, range: 7, cd: 1.1, vision: 8, carry: 0, aggro: 8,
+    cost: { food: 25, wood: 10 }, time: 12, trainAt: 'lodge', needs: 'toolshelter', only: 'human', radius: 0.4 },
+  brute: { name: 'Brute', glyph: 'B', desc: 'Neanderthal heavy. Slow and tough, crushes palisades and buildings.',
+    hp: 135, speed: 2.1, dmg: 14, range: 1.3, cd: 1.4, vision: 6, carry: 0, aggro: 7,
+    cost: { food: 55, wood: 20 }, time: 24, trainAt: 'lodge', needs: 'toolshelter', only: 'neanderthal', radius: 0.55 },
+  champion: { name: 'Champion', glyph: 'C', desc: 'Elite spear-warrior. Needs a War lodge.',
+    hp: 155, speed: 2.7, dmg: 17, range: 1.3, cd: 1.0, vision: 7, carry: 0, aggro: 8,
+    cost: { food: 60, stone: 30 }, time: 28, trainAt: 'lodge', needs: 'toolshelter', needsTier: 1, radius: 0.5 },
   deer: { name: 'Deer', glyph: 'd', desc: 'Wildlife. Hunt for meat.',
     hp: 25, speed: 3.4, dmg: 0, range: 0, cd: 1, vision: 6, carry: 0, aggro: 0,
     cost: {}, time: 0, radius: 0.4 },
@@ -37,4 +51,4 @@ export const UNITS: Record<UnitKind, UnitDef> = {
     cost: {}, time: 0, radius: 0.4 },
 };
 
-export const TRAINABLE: UnitKind[] = ['gatherer', 'scout', 'hunter', 'guard', 'raider'];
+export const TRAINABLE: UnitKind[] = ['gatherer', 'scout', 'hunter', 'guard', 'raider', 'slinger', 'brute', 'champion', 'elder'];

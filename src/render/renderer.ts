@@ -11,6 +11,7 @@ import type { Camera } from './camera';
 import { Arrows, AmbientLife, Particles, Rings } from './effects';
 import { Grass } from './grass';
 import type { BuildingModel } from './models';
+import { RANK_KILLS } from '../sim/rules';
 import { MAT, TREE_VARIANTS, buildBuilding, enhance, makeBushGeo, makeCarcassGeo, makeRockGeos, makeTreeGeos, merge, shared } from './models';
 import { Post } from './post';
 import type { Rig } from './rigs';
@@ -25,7 +26,7 @@ export interface Overlay {
   pings: { x: number; y: number; age: number; c: string }[];
 }
 
-interface BEntry { model: BuildingModel; scaffold: THREE.Object3D; ring?: THREE.Mesh; done: boolean; phase: number; pop: number; cx: number; cz: number }
+interface BEntry { model: BuildingModel; scaffold: THREE.Object3D; ring?: THREE.Mesh; tier: number; done: boolean; phase: number; pop: number; cx: number; cz: number }
 interface Floater { x: number; y: number; text: string; color: string; age: number; life: number; big?: boolean }
 interface FallingTree { mesh: THREE.Mesh; t: number; dx: number; dz: number; landed: boolean }
 type Q = 'high' | 'medium' | 'low';
@@ -292,6 +293,15 @@ export class Renderer {
         case 'felled': { this.felTree(e.x, e.y, time); break; }
         case 'rally': this.rings.burst(e.x, h, e.y, 6.5, 0xffd54a, 1.1); for (let i = 0; i < 14; i++) S.spawn(e.x + (r() - 0.5) * 6, h + 0.3, e.y + (r() - 0.5) * 6, 0, 1 + r(), 0, 1, 0.14, 0.02, 0xffe27a, -0.3, 0.5, 1); break;
         case 'discover': case 'preserved': this.rings.burst(e.x, h, e.y, 3.2, e.k === 'discover' ? 0xffd27a : 0x9be07a, 1.4); for (let i = 0; i < 22; i++) S.spawn(e.x + (r() - 0.5) * 1.2, h + 0.3, e.y + (r() - 0.5) * 1.2, (r() - 0.5) * 0.6, 1.4 + r() * 2, (r() - 0.5) * 0.6, 1.6, 0.15, 0.02, e.k === 'discover' ? 0xffe27a : 0xb8ff9a, -0.3, 0.4, 1); this.floaters.push({ x: e.x, y: e.y - 1.2, text: e.k === 'discover' ? 'Discovery!' : 'Preserved', color: e.k === 'discover' ? '#ffd27a' : '#b8ff9a', age: 0, life: 2.4, big: true }); break;
+        case 'upgrade': {
+          dust(e.x, h + 0.2, e.y, 16, 0xd8c8a0, 0.9, 1.0); this.rings.burst(e.x, h, e.y, 4, 0xffd27a, 1.3); this.rings.burst(e.x, h, e.y, 2.4, 0xffffff, 0.9);
+          for (let i = 0; i < 26; i++) S.spawn(e.x + (r() - 0.5) * 2.4, h + 0.3, e.y + (r() - 0.5) * 2.4, (r() - 0.5) * 0.5, 2 + r() * 3, (r() - 0.5) * 0.5, 1.5, 0.15, 0.02, 0xffe27a, -0.4, 0.4, 1);
+          for (const en of this.bMap.values()) if (Math.hypot(en.cx - e.x, en.cz - e.y) < 0.3) en.pop = time;
+          this.floaters.push({ x: e.x, y: e.y - 1.4, text: 'Upgraded!', color: '#ffd27a', age: 0, life: 2.2, big: true }); break;
+        }
+        case 'tech': this.rings.burst(e.x, h, e.y, 3, 0x7fd0ff, 1.2); for (let i = 0; i < 16; i++) S.spawn(e.x + (r() - 0.5) * 1.5, h + 0.5, e.y + (r() - 0.5) * 1.5, 0, 1.4 + r() * 1.6, 0, 1.3, 0.13, 0.02, 0xbfe8ff, -0.3, 0.4, 1); this.floaters.push({ x: e.x, y: e.y - 1.2, text: 'Learned', color: '#9fdcff', age: 0, life: 2, big: true }); break;
+        case 'heal': S.spawn(e.x + (r() - 0.5) * 0.4, h + 0.6, e.y + (r() - 0.5) * 0.4, 0, 0.9, 0, 0.9, 0.15, 0.02, 0x8cff9a, -0.1, 0.5, 1); break;
+        case 'rank': this.rings.burst(e.x, h, e.y, 2, 0xffd54a, 1); for (let i = 0; i < 14; i++) S.spawn(e.x, h + 1.2, e.y, (r() - 0.5) * 2, 1 + r() * 2, (r() - 0.5) * 2, 1, 0.14, 0.02, 0xffd54a, -0.6, 0.5, 1); this.floaters.push({ x: e.x, y: e.y - 0.8, text: e.n === 2 ? 'Elite!' : 'Veteran!', color: '#ffd54a', age: 0, life: 1.8, big: true }); break;
         default: break;
       }
     }
@@ -432,8 +442,9 @@ export class Renderer {
     for (const b of w.buildings) {
       seen.add(b.id);
       let e = this.bMap.get(b.id);
+      if (e && e.tier !== b.tier) { this.root.remove(e.model.group); this.bMap.delete(b.id); e = undefined; }
       if (!e) {
-        const model = buildBuilding(b.kind, b.owner === 0 ? 0 : 1, b.w, b.h);
+        const model = buildBuilding(b.kind, b.owner === 0 ? 0 : 1, b.w, b.h, b.tier);
         const sc = new THREE.Group();
         const poles = new THREE.Mesh(merge([[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => ({ g: new THREE.CylinderGeometry(0.04, 0.05, 1.5, 5), c: '#7a5230', p: [(sx * b.w) / 2, 0.75, (sz * b.h) / 2] as [number, number, number] }))), MAT.prop);
         sc.add(poles);
@@ -443,7 +454,7 @@ export class Renderer {
         const cx = b.x + b.w / 2, cz = b.y + b.h / 2;
         model.group.position.set(cx, this.heightAt(cx, cz), cz);
         this.root.add(model.group);
-        e = { model, scaffold: sc, done: b.done, phase: Math.random() * 6, pop: -9, cx, cz }; this.bMap.set(b.id, e);
+        e = { model, scaffold: sc, tier: b.tier, done: b.done, phase: Math.random() * 6, pop: -9, cx, cz }; this.bMap.set(b.id, e);
         if (b.done && time > 1) e.pop = time - 0.2;
       }
       const g = e.model.group;
@@ -592,6 +603,11 @@ export class Renderer {
       const x = u.ox + (u.x - u.ox) * ov.alpha, y = u.oy + (u.y - u.oy) * ov.alpha;
       const s = sel.has(u.id);
       if (u.owner === 0 && u.order.t === 'research') { const p = cam.toScreen(x, y, 2.0); ctx.fillStyle = '#ffe36e'; ctx.font = '800 16px system-ui'; ctx.textAlign = 'center'; ctx.fillText('?', p.x, p.y); }
+      if (u.owner === 0 && u.kills >= RANK_KILLS[0]) {
+        const rk = u.kills >= RANK_KILLS[1] ? 2 : 1, pr = cam.toScreen(x, y, this.heightAt(x, y) + 1.95);
+        ctx.strokeStyle = rk === 2 ? '#ffd54a' : '#e8e0c8'; ctx.lineWidth = 2;
+        for (let i = 0; i < rk; i++) { const yy = pr.y - i * 4; ctx.beginPath(); ctx.moveTo(pr.x - 4, yy); ctx.lineTo(pr.x, yy - 3); ctx.lineTo(pr.x + 4, yy); ctx.stroke(); }
+      }
       if (!s && u.hp >= u.maxHp) continue;
       const p = cam.toScreen(x, y, this.heightAt(x, y) + 1.75), bw = Math.max(24, z * 0.75);
       this.bar(p.x - bw / 2, p.y, bw, 4, u.hp / u.maxHp, u.hp / u.maxHp > 0.4 ? '#7bd36b' : '#e0604f');

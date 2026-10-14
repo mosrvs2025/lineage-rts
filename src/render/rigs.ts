@@ -41,16 +41,19 @@ export function createRig(u: Unit, w: World, time: number): Rig {
   const mk = (g: THREE.BufferGeometry) => { const m = new THREE.Mesh(g, MAT.unit); m.visible = false; m.castShadow = false; return m; };
   const axe = mk(pg.toolAxe), pick = mk(pg.toolPick), hammer = mk(pg.toolHammer);
   b.handR.add(axe, pick, hammer);
-  const hasSpear = u.kind === 'guard' || u.kind === 'leader' || u.kind === 'raider' || u.kind === 'scout';
+  const hasSpear = ARMED.includes(u.kind);
   const spear = mk(pg.spear); spear.visible = hasSpear; b.handR.add(spear);
   const bow = mk(pg.bow); bow.visible = u.kind === 'hunter'; b.handL.add(bow);
   const torch = new THREE.Group(); torch.visible = false; const tm = new THREE.Mesh(pg.torch, MAT.unit); torch.add(tm);
   const flame = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.34, 6), MAT.flame); flame.position.y = 0.45; torch.add(flame); torch.position.set(0, -0.05, 0.06); b.handL.add(torch);
   const pack = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.16), MAT.pack.food); pack.position.set(0, 0.12, -0.24); pack.visible = false; pack.castShadow = true; b.spine.add(pack);
   root.add(mesh);
-  root.scale.setScalar(sp === 'neanderthal' ? 1.42 : 1.35);
+  root.scale.setScalar((sp === 'neanderthal' ? 1.42 : 1.35) * (SCALE[u.kind] ?? 1));
   return { root, kind: 'person', unitKind: u.kind, mesh, b, pack, axe, pick, hammer, spear, bow, torch, flame, ...base };
 }
+
+const ARMED = ['guard', 'leader', 'raider', 'scout', 'elder', 'brute', 'champion', 'slinger'];
+const SCALE: Record<string, number> = { brute: 1.18, champion: 1.08, elder: 0.96 };
 
 export interface AnimCtx { time: number; dt: number; w: World; alpha: number; selected: boolean }
 
@@ -106,7 +109,7 @@ export function animateRig(r: Rig, u: Unit, c: AnimCtx): boolean {
   B.head.rotation.y = Math.sin(t * 0.45) * 0.4 * (1 - w8) * (Math.sin(t * 0.13) > 0.2 ? 1 : 0.25); B.head.rotation.x = Math.sin(t * 0.7) * 0.05;
   B.hips.rotation.z = Math.sin(t * 0.5) * 0.025 * (1 - w8);
   B.shL.rotation.z = 0.06; B.shR.rotation.z = -0.06; B.elL.rotation.x = -0.12; B.elR.rotation.x = -0.12;
-  const armed = u.kind === 'guard' || u.kind === 'leader' || u.kind === 'raider' || u.kind === 'scout';
+  const armed = ARMED.includes(u.kind);
   if (armed) { B.handR.rotation.x = Math.PI; B.shR.rotation.x = -0.12; B.elR.rotation.x = -0.55; }
   if (u.kind === 'hunter') { B.shL.rotation.x = -0.2; B.elL.rotation.x = -0.4; }
 
@@ -118,14 +121,18 @@ export function animateRig(r: Rig, u: Unit, c: AnimCtx): boolean {
   const working = !!node && !moving && Math.hypot(u.x - (node.x + 0.5), u.y - (node.y + 0.5)) < 1.9 && u.carry.n < def.carry;
   const building = o.t === 'build' && !moving;
 
-  if (fighting && (u.kind === 'guard' || u.kind === 'leader')) {
+  if (fighting && (u.kind === 'guard' || u.kind === 'leader' || u.kind === 'champion')) {
     // spear: draw back then thrust
     const windup = phase > 0.55 ? ease((phase - 0.55) / 0.45) : 0, thrust = phase < 0.22 ? 1 - phase / 0.22 : 0;
     B.handR.rotation.x = Math.PI * (1 - Math.min(1, r.atk)); r.atk += (1 - r.atk) * Math.min(1, dt * 14);
     B.shR.rotation.x = -0.35 - 1.1 * thrust + 0.5 * windup; B.elR.rotation.x = -0.4 + 0.3 * thrust - 0.5 * windup; B.shL.rotation.x = -0.7 * (0.4 + thrust); B.elL.rotation.x = -0.6;
     B.spine.rotation.x = 0.1 + 0.18 * thrust - 0.12 * windup; B.spine.rotation.y = -0.3 * windup + 0.4 * thrust; B.hips.rotation.y = 0.15 * windup - 0.15 * thrust;
     B.hipL.rotation.x = -0.35; B.hipR.rotation.x = 0.35; B.kneeL.rotation.x = 0.25; B.kneeR.rotation.x = 0.15; busy = true;
-  } else if (fighting && u.kind === 'raider') {
+  } else if (fighting && u.kind === 'slinger') {
+    const spin = t * 14 + phase * 6;
+    B.handR.rotation.x = 0; B.shR.rotation.x = -2.1 + Math.sin(spin) * 0.5; B.shR.rotation.z = -0.3 + Math.cos(spin) * 0.5; B.elR.rotation.x = -0.4; B.shL.rotation.x = -0.6; B.elL.rotation.x = -0.5;
+    B.spine.rotation.y = Math.sin(spin) * 0.15; B.spine.rotation.x = 0.05; B.hipL.rotation.x = -0.3; B.hipR.rotation.x = 0.3; B.kneeL.rotation.x = 0.2; busy = true;
+  } else if (fighting && (u.kind === 'raider' || u.kind === 'brute')) {
     const windup = phase > 0.5 ? ease((phase - 0.5) / 0.5) : 0, strike = phase < 0.25 ? 1 - phase / 0.25 : 0;
     B.handR.rotation.x = 0; B.shR.rotation.x = -0.4 - 2.0 * windup + 1.7 * strike * 0 - 0.6 * strike; B.elR.rotation.x = -0.5 - 0.6 * windup; B.shL.rotation.x = -0.5; B.elL.rotation.x = -0.6;
     B.spine.rotation.x = 0.1 - 0.15 * windup + 0.4 * strike; B.hipL.rotation.x = -0.4; B.hipR.rotation.x = 0.4; B.kneeL.rotation.x = 0.3; busy = true;

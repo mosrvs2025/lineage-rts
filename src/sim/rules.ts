@@ -6,6 +6,22 @@ export const SUPPLY_RANGE = 34;
 
 export const hasDisc = (w: World, id: DiscoveryId) => w.disc[id] === 'known' || w.disc[id] === 'preserved';
 
+export const hasTech = (w: World, id: string) => !!w.techs?.[id];
+
+/** Sum a numeric upgrade bonus over the tiers a building has reached. */
+export function tierBonus(b: Building, key: 'pop' | 'warmth' | 'knowledge' | 'vision'): number {
+  const ups = BUILDINGS[b.kind].upgrades; let s = 0;
+  if (ups) for (let i = 0; i < b.tier && i < ups.length; i++) s += ups[i][key] ?? 0;
+  return s;
+}
+export const anyTier = (w: World, kind: Building['kind'], tier: number) =>
+  w.buildings.some((b) => b.owner === 0 && b.kind === kind && b.done && b.tier >= tier);
+
+/** Veteran rank from kills: 0 recruit, 1 veteran, 2 elite. */
+export const RANK_KILLS = [3, 7];
+export const rankOf = (u: Unit) => (u.kills >= RANK_KILLS[1] ? 2 : u.kills >= RANK_KILLS[0] ? 1 : 0);
+export const FIGHTERS = ['hunter', 'guard', 'raider', 'leader', 'slinger', 'brute', 'champion'];
+
 export function hostile(w: World, a: Owner, b: Owner): boolean {
   if (a === b) return false;
   if (a === 2 || b === 2) return true;
@@ -17,7 +33,7 @@ export function queuedCount(w: World) {
   let n = 0; for (const b of w.buildings) if (b.owner === 0) n += b.queue.length; return n;
 }
 export function popCap(w: World) {
-  let c = 0; for (const b of w.buildings) if (b.owner === 0 && b.done) c += BUILDINGS[b.kind].pop; return c;
+  let c = 0; for (const b of w.buildings) if (b.owner === 0 && b.done) c += BUILDINGS[b.kind].pop + tierBonus(b, 'pop'); return c;
 }
 
 export function gatherRate(w: World, u: Unit, res: 'food' | 'wood' | 'stone', carcass: boolean): number {
@@ -26,6 +42,7 @@ export function gatherRate(w: World, u: Unit, res: 'food' | 'wood' | 'stone', ca
     if (w.species === 'human') r *= 1.1;
     if (w.trait === 'logistics') r *= 1.15;
     if (res !== 'food' && w.buildings.some((b) => b.owner === 0 && b.kind === 'toolshelter' && b.done)) r *= 1.15;
+    if (res !== 'food' && anyTier(w, 'toolshelter', 1)) r *= 1.15;
     if (w._starving) r *= 0.7;
   }
   return r;
@@ -47,8 +64,9 @@ export function isWarm(w: World, x: number, y: number): boolean {
   for (const b of w.buildings) {
     if (b.owner !== 0 || !b.done) continue;
     const r = BUILDINGS[b.kind].warmth; if (!r) continue;
+    const rr = r + tierBonus(b, 'warmth');
     const c = bCenter(b);
-    if (Math.hypot(c.x - x, c.y - y) <= r + Math.max(b.w, b.h) / 2) return true;
+    if (Math.hypot(c.x - x, c.y - y) <= rr + Math.max(b.w, b.h) / 2) return true;
   }
   return false;
 }

@@ -1,6 +1,6 @@
 import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
-import { isWarm, isSupplied, popCap, popCount, supplyCenters, hasDisc } from './rules';
+import { isWarm, isSupplied, popCap, popCount, supplyCenters, hasDisc, hasTech, tierBonus, anyTier } from './rules';
 import { nearestFree } from './grid';
 import type { World } from './types';
 import { autoWork, DT, setOrder } from './units';
@@ -14,6 +14,7 @@ export function economySecond(w: World) {
   for (const b of owners) {
     if (b.kind === 'hearth') w.res.knowledge += 0.25;
     if (b.kind === 'circle') w.res.knowledge += 0.5;
+    w.res.knowledge += tierBonus(b, 'knowledge');
   }
   const mine = w.units.filter((u) => u.owner === 0);
 
@@ -30,7 +31,7 @@ export function economySecond(w: World) {
 
   // winter spoilage: loose food rots, smoked provisions do not
   if (winter && w.res.food > 30) {
-    const loss = (w.res.food - 30) * 0.012;
+    const loss = (w.res.food - 30) * 0.012 * (anyTier(w, 'stockpile', 1) ? 0.55 : 1);
     w.res.food -= loss; w.stats.spoiled += loss;
   }
 
@@ -40,7 +41,7 @@ export function economySecond(w: World) {
       if (b.kind !== 'rack') continue;
       b.tick += 1;
       if (b.tick >= 6 && w.res.food >= 6 && w.res.provisions < 300) {
-        b.tick = 0; w.res.food -= 6; w.res.provisions += 6;
+        b.tick = 0; w.res.food -= 6; w.res.provisions += b.tier >= 1 ? 9 : 6;
       }
     }
   }
@@ -53,7 +54,7 @@ export function economySecond(w: World) {
     if (warm && u.hp < u.maxHp && !w._starving) u.hp = Math.min(u.maxHp, u.hp + 0.4);
     if (w._starving && u.hp > u.maxHp * 0.4) u.hp -= 0.25;
     if (winter && !warm) {
-      const resist = w.species === 'neanderthal' ? 0.65 : 1;
+      const resist = (w.species === 'neanderthal' ? 0.65 : 1) * (hasTech(w, 'hardy') ? 0.6 : 1);
       if (u.hp > u.maxHp * 0.15) u.hp -= 0.6 * resist;
     }
     if (!isSupplied(centers, u.x, u.y)) exposed++;

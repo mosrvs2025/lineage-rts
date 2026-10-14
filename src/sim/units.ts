@@ -2,7 +2,7 @@ import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
 import { findPath, isBlocked, nearestFree, rebuildBlocked } from './grid';
 import type { Rect } from './grid';
-import { foodMult, gatherRate, hasDisc, hostile, isExplored, nearestDropoff } from './rules';
+import { FIGHTERS, foodMult, gatherRate, hasDisc, hasTech, hostile, isExplored, nearestDropoff, rankOf, anyTier } from './rules';
 import type { Building, Pt, ResNode, Unit, World } from './types';
 import { bCenter, bRadius, buildingById, dist, emit, log, nodeById, rand, unitById } from './util';
 
@@ -26,6 +26,7 @@ function speedOf(w: World, u: Unit) {
   if (u.owner === 0) {
     if (u.kind === 'scout') s *= w.trait === 'recon' ? 1.2 : 1;
   }
+  if (u.owner === 0 && hasTech(w, 'fleet') && (u.kind === 'scout' || u.kind === 'raider' || u.kind === 'slinger')) s *= 1.15;
   if (u.buff > 0) s *= 1.35;
   return s;
 }
@@ -99,14 +100,21 @@ function damageOf(w: World, u: Unit, t: Target): number {
   let dmg = d.dmg;
   if (leaderNear(w, u)) dmg *= 1.15;
   if (u.buff > 0) dmg *= 1.3;
+  if (u.owner === 0 && FIGHTERS.includes(u.kind)) {
+    if (hasTech(w, 'flint')) dmg *= 1.15;
+    if (anyTier(w, 'toolshelter', 2) && d.range < 2) dmg *= 1.1;
+    dmg *= 1 + 0.1 * rankOf(u);
+  }
   if (u.owner === 0 && hasDisc(w, 'heat') && ['hunter', 'guard', 'raider', 'leader'].includes(u.kind)) dmg *= 1.25;
   if (u.owner === 0 && hasDisc(w, 'portable') && !isBuilding(t) && t.kind === 'wolf' && (u.kind === 'hunter' || u.kind === 'guard')) dmg *= 1.4;
-  if (isBuilding(t) && t.kind === 'palisade' && u.kind === 'raider') dmg *= 1.5;
+  if (isBuilding(t) && t.kind === 'palisade' && (u.kind === 'raider' || u.kind === 'brute')) dmg *= 1.5;
+  if (isBuilding(t) && u.kind === 'brute') dmg *= 1.5;
   return dmg;
 }
 
 export function damage(w: World, t: Target, amount: number, from?: Unit) {
   t.hp -= amount;
+  if (from && !isBuilding(t)) t.lastHit = from.id;
   if (!isBuilding(t)) {
     if (t.kind === 'deer' && t.hp > 0 && from) {
       const dx = t.x - from.x, dy = t.y - from.y, d = Math.hypot(dx, dy) || 1;
@@ -178,7 +186,7 @@ function removeNode(w: World, n: ResNode) {
 function doGather(w: World, u: Unit) {
   const o = u.order as { t: 'gather'; node: number };
   const node = nodeById(w, o.node);
-  const cap = UNITS[u.kind].carry;
+  const cap = Math.round(UNITS[u.kind].carry * (u.owner === 0 && hasTech(w, 'baskets') ? 1.5 : 1));
   const gone = !node || node.amount < 1;
   if (u.carry.n >= cap || (gone && u.carry.n > 0)) {
     const drop = nearestDropoff(w, u);

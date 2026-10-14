@@ -8,6 +8,7 @@ import type { World } from './types';
 import { carcassAt, DT, separate, updateUnit } from './units';
 import { emit, log, rand, reindex } from './util';
 import { makeUnit } from './world';
+import { creditKill, eldersSecond, upgradesTick } from './upgrades';
 
 export const TICKS_PER_SEC = Math.round(1 / DT);
 
@@ -22,6 +23,7 @@ function cleanup(w: World) {
     w.units.splice(w.units.indexOf(u), 1);
     emit(w, { k: 'death', x: u.x, y: u.y, owner: u.owner, kind: u.kind });
     if (u.kind === 'deer') carcassAt(w, u);
+    creditKill(w, u);
     if (u.owner === 0) { w.stats.lost++; log(w, `${u.name} the ${u.kind} has fallen.`, 'bad'); }
     else if (u.owner === 1) w.stats.kills++;
   }
@@ -57,12 +59,14 @@ export function step(w: World) {
   for (const u of w.units) updateUnit(w, u);
   separate(w);
   trainingTick(w);
+  upgradesTick(w);
   activitiesTick(w);
   // projectile / hit effects
   for (const f of w._fx) f.t -= DT;
   w._fx = w._fx.filter((f) => f.t > 0);
   if (w.tick % TICKS_PER_SEC === 0) {
     economySecond(w);
+    eldersSecond(w);
     aiSecond(w);
     regrow(w);
     updateObjectives(w);

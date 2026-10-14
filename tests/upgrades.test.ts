@@ -1,0 +1,98 @@
+import { UNITS } from "../src/data/units";
+import { describe, expect, it } from 'vitest';
+import { cmdTrain, trainCheck } from '../src/sim/commands';
+import { cmdUpgrade, cmdResearch, upgradeCheck, cancelUpgrade } from '../src/sim/upgrades';
+import { popCap, hasTech } from '../src/sim/rules';
+import { makeBuilding, makeUnit } from '../src/sim/world';
+import { newWorld, run } from './helpers';
+
+const rich = (w: ReturnType<typeof newWorld>) => { w.res.food = w.res.wood = w.res.stone = w.res.knowledge = 500; };
+const first = (w: ReturnType<typeof newWorld>, kind: string) => w.buildings.find((b) => b.owner === 0 && b.kind === kind)!;
+
+describe('building upgrades', () => {
+  it('upgrades a shelter into a longhouse: more housing, more health, costs resources', () => {
+    const w = newWorld(); rich(w);
+    const s = makeBuilding(w, 'shelter', 0, 20, 28, true);
+    const cap = popCap(w), hp = s.maxHp, wood = w.res.wood;
+    expect(cmdUpgrade(w, s.id).ok).toBe(true);
+    expect(w.res.wood).toBeLessThan(wood);
+    expect(cmdUpgrade(w, s.id).ok).toBe(false); // already upgrading
+    run(w, 25);
+    expect(s.tier).toBe(1);
+    expect(popCap(w)).toBe(cap + 4);
+    expect(s.maxHp).toBeGreaterThan(hp);
+    expect(upgradeCheck(w, s.id).reason).toMatch(/Fully/);
+  });
+  it('gates hearth upgrades behind discoveries and refunds on cancel', () => {
+    const w = newWorld(); rich(w);
+    const h = first(w, 'hearth');
+    expect(upgradeCheck(w, h.id).ok).toBe(false);
+    w.disc.cooking = 'known';
+    const k = w.res.knowledge;
+    expect(cmdUpgrade(w, h.id).ok).toBe(true);
+    cancelUpgrade(w, h.id);
+    expect(h.upg).toBeUndefined();
+    expect(w.res.knowledge).toBeGreaterThan(k - 25);
+  });
+});
+
+describe('new units', () => {
+  it('gates champions behind a war lodge and species units behind species', () => {
+    const w = newWorld(); rich(w);
+    makeBuilding(w, 'toolshelter', 0, 24, 30, true);
+    const l = makeBuilding(w, 'lodge', 0, 28, 30, true);
+    expect(trainCheck(w, l.id, 'champion').ok).toBe(false);
+    expect(trainCheck(w, l.id, 'slinger').ok).toBe(true);
+    expect(trainCheck(w, l.id, 'brute').ok).toBe(false);
+    cmdUpgrade(w, l.id); run(w, 40);
+    expect(trainCheck(w, l.id, 'champion').ok).toBe(true);
+    const n = newWorld('neanderthal'); rich(n);
+    makeBuilding(n, 'toolshelter', 0, 24, 30, true);
+    const nl = makeBuilding(n, 'lodge', 0, 28, 30, true);
+    expect(trainCheck(n, nl.id, 'brute').ok).toBe(true);
+    expect(trainCheck(n, nl.id, 'slinger').ok).toBe(false);
+  });
+  it('trains an elder at the circle and heals the wounded', () => {
+    const w = newWorld(); rich(w);
+    const c = makeBuilding(w, 'circle', 0, 20, 30, true);
+    expect(cmdTrain(w, c.id, 'elder').ok).toBe(true);
+    run(w, 30);
+    const e = w.units.find((u) => u.kind === 'elder')!;
+    expect(e).toBeTruthy();
+    const g = makeUnit(w, 'guard', 0, e.x + 1, e.y); g.hp = 10;
+    run(w, 5);
+    expect(g.hp).toBeGreaterThan(14);
+  });
+});
+
+describe('research', () => {
+  it('learns a technology that changes the simulation', () => {
+    const w = newWorld(); rich(w);
+    const s = makeBuilding(w, 'stockpile', 0, 20, 28, true);
+    expect(cmdResearch(w, s.id, 'baskets').ok).toBe(true);
+    expect(cmdResearch(w, s.id, 'baskets').ok).toBe(false);
+    run(w, 30);
+    expect(hasTech(w, 'baskets')).toBe(true);
+  });
+});
+
+describe('archer post & veterancy', () => {
+  it('an upgraded watch post shoots wolves and promotes nothing', () => {
+    const w = newWorld(); rich(w);
+    const t = makeBuilding(w, 'watch', 0, 20, 28, true);
+    cmdUpgrade(w, t.id); run(w, 30);
+    const wolf = makeUnit(w, 'wolf', 2, 24, 29);
+    wolf.order = { t: 'idle' }; wolf.home = { x: 24, y: 29 };
+    const hp = wolf.hp; run(w, 4);
+    expect(wolf.hp).toBeLessThan(hp);
+  });
+  it('promotes a unit after kills', () => {
+    const w = newWorld();
+    const g = makeUnit(w, 'guard', 0, 30, 30);
+    for (let i = 0; i < 3; i++) {
+      const r = makeUnit(w, 'raider', 1, 31, 30); r.hp = 0; r.lastHit = g.id; run(w, 1);
+    }
+    expect(g.kills).toBe(3);
+    expect(g.maxHp).toBeGreaterThan(UNITS.guard.hp);
+  });
+});

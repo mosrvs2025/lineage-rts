@@ -2,6 +2,7 @@ import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
 import { rebuildBlocked, nearestFree } from './grid';
 import type { Building, BuildingKind, Owner, ResNode, Species, Unit, UnitKind, World } from './types';
+import { FIGHTERS } from './rules';
 import { bCenter, rand, reindex } from './util';
 
 export const SAVE_VERSION = 1;
@@ -17,13 +18,14 @@ export function makeUnit(w: World, kind: UnitKind, owner: Owner, x: number, y: n
   let maxHp = d.hp;
   const sp: Species = owner === 0 ? w.species : w.rivalSpecies;
   if (owner !== 2 && sp === 'neanderthal' && (kind === 'guard' || kind === 'raider' || kind === 'leader')) maxHp = Math.round(maxHp * 1.15);
+  if (owner === 0 && w.techs?.leather && FIGHTERS.includes(kind)) maxHp = Math.round(maxHp * 1.2);
   const u: Unit = {
     id: w.nextId++, kind, owner,
     name: owner === 2 ? d.name : NAMES[Math.floor(rand(w) * NAMES.length)],
     x, y, ox: x, oy: y, hp: maxHp, maxHp,
     order: { t: 'idle' }, path: null, pcd: 0, ptx: 0, pty: 0, cd: 0,
     carry: { res: null, n: 0 }, work: 0, tgt: -1, home: { x, y }, role: 'none',
-    gen: w.gen, born: w.time, ability: 0, buff: 0,
+    gen: w.gen, born: w.time, ability: 0, buff: 0, kills: 0,
   };
   w.units.push(u); w._u?.set(u.id, u);
   return u;
@@ -34,7 +36,7 @@ export function makeBuilding(w: World, kind: BuildingKind, owner: Owner, tx: num
   const b: Building = {
     id: w.nextId++, kind, owner, x: tx, y: ty, w: d.w, h: d.h,
     hp: done ? d.hp : Math.max(1, d.hp * 0.1), maxHp: d.hp, progress: done ? 1 : 0, done,
-    queue: [], tick: 0,
+    queue: [], tick: 0, tier: 0,
   };
   w.buildings.push(b); w._b?.set(b.id, b);
   return b;
@@ -67,6 +69,7 @@ export function createWorld(species: Species, seed = 1337): World {
     res: { food: 140, wood: 90, stone: 25, knowledge: 5, provisions: 0 },
     stats: { food: 0, meat: 0, kills: 0, lost: 0, spoiled: 0 },
     disc: { cooking: 'hidden', preservation: 'hidden', portable: 'hidden', heat: 'hidden' },
+    techs: {},
     activities: [], explored: '0'.repeat(W * H),
     landmarks: [
       { id: 'cave', name: 'Ember Cave', x: 18, y: 8, visited: false },
