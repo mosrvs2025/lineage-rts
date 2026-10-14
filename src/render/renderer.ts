@@ -103,7 +103,7 @@ export class Renderer {
     this.ctx = this.overlay.getContext('2d')!;
     this.cols = {
       sunDay: new THREE.Color(0xfff0d6), sunDusk: new THREE.Color(0xff9a5a), sunNight: new THREE.Color(0x8fa6ff), sunW: new THREE.Color(0xcfe0ff),
-      skyDay: new THREE.Color(0xbcd4ff), skyNight: new THREE.Color(0x3a4f90), bgDay: new THREE.Color(0x9db0c4), bgDusk: new THREE.Color(0xc98a6a), bgNight: new THREE.Color(0x0f1626), bgW: new THREE.Color(0xc9d6e4),
+      skyDay: new THREE.Color(0xbcd4ff), skyNight: new THREE.Color(0x5a74b8), bgDay: new THREE.Color(0x9db0c4), bgDusk: new THREE.Color(0xc98a6a), bgNight: new THREE.Color(0x0f1626), bgW: new THREE.Color(0xc9d6e4),
     };
     this.buildEnvironment();
     this.quality = this.pickQuality(); this.applyQuality();
@@ -322,10 +322,10 @@ export class Renderer {
     const dusk = Math.exp(-(((sunAlt - 0.05) / 0.2) ** 2)) * (1 - this.night * 0.5);
     const N = this.night, C = this.cols;
     this.sun.color.copy(C.sunDay).lerp(C.sunDusk, dusk * 0.9).lerp(C.sunNight, N).lerp(C.sunW, L * 0.6 * (1 - N));
-    this.sun.intensity = (2.3 - 0.5 * L) * (1 - N) + 0.55 * N;
-    this.hemi.color.copy(C.skyDay).lerp(C.skyNight, N); this.hemi.intensity = (0.6 + 0.2 * L) * (1 - N) + 0.3 * N;
+    this.sun.intensity = (2.3 - 0.5 * L) * (1 - N) + 1.15 * N;
+    this.hemi.color.copy(C.skyDay).lerp(C.skyNight, N); this.hemi.intensity = (0.6 + 0.2 * L) * (1 - N) + 0.62 * N;
     (this.scene.fog as THREE.Fog).color.copy(C.bgDay).lerp(C.bgDusk, dusk * 0.8).lerp(C.bgW, L * 0.7).lerp(C.bgNight, N);
-    this.scene.environmentIntensity = 0.45 * (1 - N * 0.75);
+    this.scene.environmentIntensity = 0.45 * (1 - N * 0.45);
     const height = Math.max(7, Math.abs(Math.sin(theta)) * 34);
     this.sun.position.set(cam.x + Math.cos(theta) * 30, height, cam.y + 11); this.sun.target.position.set(cam.x, 0, cam.y);
     this.waterNormal.offset.x = time * 0.012; this.waterNormal.offset.y = time * 0.006;
