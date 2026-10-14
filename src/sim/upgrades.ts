@@ -62,6 +62,7 @@ export function cancelResearch(w: World, bId: number) {
 /** Per-tick progress of upgrades, research and tower fire. */
 export function upgradesTick(w: World) {
   for (const b of w.buildings) {
+    if (b.owner === 1 && b.kind === 'watch' && b.tier >= 1 && b.done) towerFire(w, b);
     if (b.owner !== 0 || !b.done) continue;
     if (b.upg) {
       b.upg.t -= DT;
@@ -97,16 +98,17 @@ function towerFire(w: World, b: Building) {
   const range = b.tier >= 2 ? 11 : 9, dmg = b.tier >= 2 ? 9 : 6;
   let best: { x: number; y: number; hp: number } | undefined, bd = range;
   for (const u of w.units) {
-    if (u.owner === 0 || u.kind === 'deer' || u.hp <= 0) continue;
-    if (u.owner === 1 && w.time < w.truceUntil) continue;
+    if (u.owner === b.owner || u.kind === 'deer' || u.hp <= 0) continue;
+    if (u.owner !== 2 && w.time < w.truceUntil) continue;
+    if (b.owner === 1 && u.owner === 2) continue;
     const d = dist(c.x, c.y, u.x, u.y);
     if (d < bd) { bd = d; best = u; }
   }
   if (!best) return;
   b.cd = b.tier >= 2 ? 1.3 : 1.6;
   const t = best as import('./types').Unit;
-  w._fx?.push({ x1: c.x, y1: c.y, x2: t.x, y2: t.y, t: 0.18, c: '#ffd27a' });
-  emit(w, { k: 'shoot', x: c.x, y: c.y, x2: t.x, y2: t.y, owner: 0, kind: 'watch' });
+  w._fx?.push({ x1: c.x, y1: c.y, x2: t.x, y2: t.y, t: 0.18, c: b.owner === 0 ? '#ffd27a' : '#ff8a7a' });
+  emit(w, { k: 'shoot', x: c.x, y: c.y, x2: t.x, y2: t.y, owner: b.owner, kind: 'watch' });
   t.lastHit = -1;
   damage(w, t, dmg);
 }

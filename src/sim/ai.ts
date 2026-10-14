@@ -17,7 +17,11 @@ export function aiSecond(w: World) {
   const cap = 12 + Math.floor(w.time / 300) * 2;
   if (ai.supply >= 50 && w.time >= ai.nextSpawn && mine.length < Math.min(cap, 22)) {
     const garrison = mine.filter((u) => u.role === 'garrison').length;
-    const kind: UnitKind = pick(w, ['guard', 'guard', 'raider', 'raider', 'hunter']);
+    const heavy: UnitKind = w.rivalSpecies === 'human' ? 'slinger' : 'brute';
+    const roster: UnitKind[] = ['guard', 'guard', 'raider', 'raider', 'hunter'];
+    if (w.time >= 330) roster.push(heavy);
+    if (w.time >= 600) roster.push('champion', heavy);
+    const kind: UnitKind = pick(w, roster);
     const p = spawnSpot(w, hearth);
     const u = makeUnit(w, kind, 1, p.x, p.y);
     ai.supply -= 45; ai.nextSpawn = w.time + 20;
@@ -25,6 +29,11 @@ export function aiSecond(w: World) {
       u.role = 'garrison'; u.home = nearestFree(w, OUTPOST.x + rand(w) * 2, OUTPOST.y + rand(w) * 2);
       setOrder(u, { t: 'move', x: u.home.x, y: u.home.y });
     }
+  }
+  // the rival fortifies its watch post once the clan has grown
+  if (w.time >= 480) {
+    const wp = w.buildings.find((b) => b.owner === 1 && b.kind === 'watch' && b.tier === 0);
+    if (wp) { wp.tier = 1; const nm = Math.round(wp.maxHp * 1.4); wp.hp += nm - wp.maxHp; wp.maxHp = nm; log(w, 'The rival clan has fortified its watch post.', 'bad'); }
   }
   // returning warbands rejoin the pool
   const hc = bCenter(hearth);

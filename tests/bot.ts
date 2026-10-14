@@ -3,6 +3,7 @@ import { investigateCheck } from '../src/sim/discovery';
 import { advanceGeneration, canSucceed } from '../src/sim/succession';
 import { MEADOW } from '../src/sim/world';
 import { popCap } from '../src/sim/rules';
+import { cmdResearch, cmdUpgrade } from '../src/sim/upgrades';
 import { autoWork } from '../src/sim/units';
 import type { BuildingKind, DiscoveryId, World } from '../src/sim/types';
 
@@ -67,6 +68,17 @@ export class Bot {
       if (this.units('guard').length < (w.gen === 1 ? 5 : 8) && w.res.food >= 35 && w.res.wood >= 15) cmdTrain(w, lodge.id, 'guard');
       if (this.units('scout').length < 2 && w.res.food >= 30) cmdTrain(w, lodge.id, 'scout');
     }
+    // spend surplus: fortify with archer posts, upgrade, research
+    if (w.time > 200 && this.count('watch') < 2 && w.res.wood >= 80 && w.res.stone >= 40) this.build('watch', hx + 9 + this.count('watch') * 3, hy - 2 + this.count('watch') * 4);
+    for (const b of w.buildings) {
+      if (b.owner !== 0 || !b.done || b.upg) continue;
+      if (b.kind === 'watch' && b.tier < 1) cmdUpgrade(w, b.id);
+      if (b.kind === 'lodge' && b.tier < 1 && w.res.wood >= 120) cmdUpgrade(w, b.id);
+      if (b.kind === 'hearth' && b.tier < 1 && w.res.wood >= 150) cmdUpgrade(w, b.id);
+      if (b.kind === 'lodge') cmdResearch(w, b.id, 'leather');
+      if (b.kind === 'toolshelter') cmdResearch(w, b.id, 'flint');
+    }
+    if (lodge && lodge.tier >= 1 && this.units('champion').length < 3 && w.res.food >= 80) cmdTrain(w, lodge.id, 'champion');
     // discoveries
     const order: DiscoveryId[] = ['preservation', 'cooking', 'portable', 'heat'];
     for (const id of order) if (investigateCheck(w, id).ok) cmdInvestigate(w, id);
