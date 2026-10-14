@@ -85,6 +85,10 @@ An RTS-style console: resource plates with live flashes and low-food warnings, a
 * **Research** (`src/data/techs.ts`): Woven baskets, Flint-edged weapons, Hide armour, Fleet-footed, Herbal remedies, Fur wraps — researched at the building that owns them; effects are read by the simulation.
 * **Veterancy:** fighters earn Veteran (3 kills) and Elite (7 kills) ranks with more damage and health, shown as chevrons.
 
+### Phone portrait layout
+
+On narrow portrait screens (≤ 560 px wide) the interface switches to a thumb-friendly layout: resources on one row, clock and controls on the next; the dock becomes a single **action bubble** you can drag anywhere (position remembered) that fans its eight actions out in an arc that always stays on screen; and the selection + commands live in a **floating card** with a drag handle, a *pin* (keeps it open with nothing selected) and a *fold* button. Construction sites show a ground progress ring, dust and wood chips; upgrades and research show their own rings. Landscape phones and desktop keep the classic console.
+
 ### Atmosphere
 
 Slow cloud shadows drift across the land, and a screen-space sun-shaft pass adds light streaks at dawn and dusk on the high quality tier. Soft contact shadows ground trees, rocks, buildings and people. Unexplored land is veiled by drifting animated mist (a fog-of-war shader with moving noise) rather than flat black, an open sea surrounds the island, and **footpaths** wear into the grass wherever your clan walks (a render-only wear texture the ground shader reads; it is not saved).

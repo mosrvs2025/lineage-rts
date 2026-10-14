@@ -26,7 +26,7 @@ export interface Overlay {
   pings: { x: number; y: number; age: number; c: string }[];
 }
 
-interface BEntry { model: BuildingModel; scaffold: THREE.Object3D; ring?: THREE.Mesh; tier: number; done: boolean; phase: number; pop: number; cx: number; cz: number }
+interface BEntry { fx?: number; model: BuildingModel; scaffold: THREE.Object3D; ring?: THREE.Mesh; tier: number; done: boolean; phase: number; pop: number; cx: number; cz: number }
 interface Floater { x: number; y: number; text: string; color: string; age: number; life: number; big?: boolean }
 interface FallingTree { mesh: THREE.Mesh; t: number; dx: number; dz: number; landed: boolean }
 type Q = 'high' | 'medium' | 'low';
@@ -505,6 +505,17 @@ export class Renderer {
       const pk = time - e.pop, pop = pk < 0.5 ? 1 + Math.sin(pk * 14) * 0.09 * (1 - pk / 0.5) : 1;
       g.scale.set(b.done ? pop : 1, b.done ? pop : 0.12 + 0.88 * b.progress, b.done ? pop : 1);
       e.scaffold.scale.y = b.done ? 1 : 1 / g.scale.y;
+      if (!b.done || b.upg) {
+        // a building site is alive: the structure shudders with each hammer blow and throws up dust and chips
+        const k = 0.012 * Math.sin(time * 17 + e.phase);
+        g.scale.x *= 1 + k; g.scale.z *= 1 - k * 0.8;
+        if (time > (e.fx ?? 0)) {
+          e.fx = time + 0.28 + Math.random() * 0.2;
+          const P = this.particles, hh = g.position.y, hw = (b.w / 2) * (0.6 + Math.random() * 0.6), a = Math.random() * 6.283;
+          P.spawn(g.position.x + Math.cos(a) * hw, hh + 0.15, g.position.z + Math.sin(a) * hw * (b.h / b.w), (Math.random() - 0.5) * 0.8, 0.5 + Math.random() * 0.6, (Math.random() - 0.5) * 0.8, 1.1, 0.2, 0.55, 0xcdbb94, -0.2, 1.6, 0.5);
+          if (Math.random() < 0.5) P.spawn(g.position.x + (Math.random() - 0.5) * b.w, hh + 0.6 + b.progress * 1.2, g.position.z + (Math.random() - 0.5) * b.h, (Math.random() - 0.5) * 1.6, 1.4, (Math.random() - 0.5) * 1.6, 0.8, 0.07, 0.04, 0xc99a5a, 6, 0.3, 1);
+        }
+      }
       const active = b.done && (b.kind !== 'rack' || (hasDisc(w, 'preservation') && w.res.food >= 6));
       e.model.flames.forEach((f, i) => { f.visible = active; const s = 0.85 + 0.25 * Math.sin(time * 11 + e!.phase + i * 2) + 0.08 * Math.sin(time * 23 + i); f.scale.set(1 + 0.08 * Math.sin(time * 9), s, 1 + 0.08 * Math.cos(time * 8)); });
       if (active) for (const p of e.model.emitters) emitters.push(p.clone().applyMatrix4(g.matrixWorld));
@@ -609,6 +620,19 @@ export class Renderer {
     ctx.beginPath();
     for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI * 2, p = cam.toScreen(wx + Math.cos(a) * r, wy + Math.sin(a) * r, this.heightAt(wx, wy)); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); }
   }
+  /** A progress ring laid on the ground around a building site. */
+  private ringArc(cx: number, cy: number, rad: number, frac: number, col: string, time: number) {
+    const { ctx } = this, cam = this.cam, N = 64;
+    const pt = (i: number) => { const a = -Math.PI / 2 + (i / N) * Math.PI * 2; return cam.toScreen(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad, this.heightAt(cx, cy) + 0.06); };
+    ctx.save(); ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 6; ctx.beginPath(); for (let i = 0; i <= N; i++) { const p = pt(i); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); } ctx.stroke();
+    const n = Math.max(1, Math.round(N * Math.max(0.02, Math.min(1, frac))));
+    ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.shadowColor = col; ctx.shadowBlur = 10 + 4 * Math.sin(time * 6);
+    ctx.beginPath(); for (let i = 0; i <= n; i++) { const p = pt(i); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); } ctx.stroke();
+    const tip = pt(n); ctx.fillStyle = '#fff'; ctx.shadowBlur = 14; ctx.beginPath(); ctx.arc(tip.x, tip.y, 3.5, 0, 6.283); ctx.fill();
+    ctx.restore();
+  }
+
   private bar(x: number, y: number, w: number, h: number, f: number, col: string) {
     const { ctx } = this;
     ctx.fillStyle = 'rgba(8,10,8,.75)'; ctx.beginPath(); ctx.roundRect(x - 1, y - 1, w + 2, h + 2, 3); ctx.fill();
@@ -631,6 +655,8 @@ export class Renderer {
     for (const b of w.buildings) {
       const e = this.bMap.get(b.id); if (!e || !e.model.group.visible) continue;
       const cx = b.x + b.w / 2, cy = b.y + b.h / 2, p = cam.toScreen(cx, cy, b.kind === 'watch' ? 4.2 : 2.0), bw = Math.max(34, b.w * z * 0.8);
+      const prog = !b.done ? b.progress : b.upg ? 1 - b.upg.t / b.upg.total : b.research ? 1 - b.research.t / b.research.total : -1;
+      if (prog >= 0) this.ringArc(cx, cy, Math.max(b.w, b.h) / 2 + 0.9, prog, !b.done ? '#ffd54a' : b.upg ? '#ffb347' : '#7fd0ff', time);
       if (!b.done) this.bar(p.x - bw / 2, p.y, bw, 6, b.progress, '#ffd54a');
       else if (b.queue.length) this.bar(p.x - bw / 2, p.y, bw, 6, 1 - b.queue[0].t / UNITS[b.queue[0].kind].time, '#7ec8ff');
       else if (b.hp < b.maxHp) this.bar(p.x - bw / 2, p.y, bw, 5, b.hp / b.maxHp, b.hp / b.maxHp > 0.4 ? '#7bd36b' : '#e0604f');

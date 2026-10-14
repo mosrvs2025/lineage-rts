@@ -18,6 +18,7 @@ import { setSetting, settings } from './settings';
 import type { Quality } from './settings';
 import type { Game, SaveSlot } from './game';
 import { icon } from './icons';
+import { Bubbles } from './bubbles';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -62,6 +63,7 @@ export class Hud {
   private lastLog = ''; private lastTick = 0; private jobsOpen = false; private objOpen: boolean | null = null;
   private springToast = false; private lastSpeed = 1;
   private pickedSuccessor = 0; private pickedSpecies: Species = 'human';
+  readonly bub: Bubbles;
   private prevRes: Record<string, number> = {}; private flash: Record<string, number> = {};
 
   constructor(private g: Game) {
@@ -92,6 +94,7 @@ export class Hud {
       (e.target as HTMLInputElement).value = '';
       if (err) this.toast(`Import failed: ${err}`, 'bad'); else { this.closeModal(); this.toast('Save imported.', 'good'); }
     });
+    this.bub = new Bubbles(() => this.layout());
     this.renderTop();
     this.layout();
   }
@@ -99,7 +102,7 @@ export class Hud {
   layout() {
     if (this.objOpen === null) this.objOpen = window.innerWidth >= 900 && window.innerHeight >= 560;
     const small = window.innerWidth < 900 || window.innerHeight < 560;
-    this.g.cam.setInsets(small ? 44 : 60, small ? 120 : 196);
+    if (this.bub?.phone) this.g.cam.setInsets(104, 96); else this.g.cam.setInsets(small ? 44 : 60, small ? 120 : 196);
   }
 
   // ------------------------------------------------------------ tooltips & toasts
@@ -366,6 +369,7 @@ export class Hud {
     this.lastTick = now;
     const w = this.g.world; if (!w) return;
     this.renderTop(); this.renderChips(w, now); this.renderClock(w); this.renderObjectives(w); this.renderDock(w); this.renderSelection(w); this.renderCommands(w);
+    this.bub.update(this.g.liveSel().length > 0 || this.g.selB !== null);
     this.renderPanel(); this.renderJobs(w); this.renderPlaceBar(); this.processLog(w);
     if (canSucceed(w) && !this.springToast) { this.springToast = true; this.toast('Spring has come. Open the objectives to advance the generation.', 'good'); sfx.good(); }
     if (!canSucceed(w)) this.springToast = w.gen > 1 || (this.springToast && w.time >= w.winter.end);
