@@ -62,13 +62,13 @@ describe('discovery & inheritance', () => {
     run(w, 2);
     expect(w.disc.preservation).toBe('clue');
     expect(investigateCheck(w, 'preservation').reason).toMatch(/Stockpile/);
-    w.buildings.push({ id: w.nextId++, kind: 'stockpile', owner: 0, x: 14, y: 30, w: 2, h: 2, hp: 100, maxHp: 100, progress: 1, done: true, queue: [], tick: 0 });
+    w.buildings.push({ id: w.nextId++, kind: 'stockpile', owner: 0, x: 14, y: 30, w: 2, h: 2, hp: 100, maxHp: 100, progress: 1, done: true, queue: [], tick: 0, tier: 0 });
     w.res.wood = 100; w.res.stone = 50; w.res.knowledge = 100;
     expect(cmdInvestigate(w, 'preservation').ok).toBe(true);
     run(w, 60);
     expect(w.disc.preservation).toBe('known');
     // teach it
-    w.buildings.push({ id: w.nextId++, kind: 'circle', owner: 0, x: 14, y: 34, w: 3, h: 3, hp: 100, maxHp: 100, progress: 1, done: true, queue: [], tick: 0 });
+    w.buildings.push({ id: w.nextId++, kind: 'circle', owner: 0, x: 14, y: 34, w: 3, h: 3, hp: 100, maxHp: 100, progress: 1, done: true, queue: [], tick: 0, tier: 0 });
     expect(cmdTeach(w, 'preservation').ok).toBe(true);
     run(w, 30);
     expect(w.disc.preservation).toBe('preserved');

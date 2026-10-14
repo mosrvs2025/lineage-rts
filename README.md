@@ -78,6 +78,13 @@ scripts/     e2e.cjs (Playwright browser check)
 
 An RTS-style console: resource plates with live flashes and low-food warnings, a season medallion with a winter timeline, a quest-style objectives tracker with contextual hints, a minimap in an ornate frame, a selection panel (portrait, health, status, training queue, grouped multi-select), a contextual **command card** of icon buttons with hotkeys, costs and tooltips (desktop), a tool dock (Build, Discover, Jobs, Idle, Army, Select, Home, Gift), a visual construction menu, a **discovery tech tree** (Observe → Investigate → Apply → Preserve), screen-edge alert flashes when you are attacked, and a cinematic title screen over a live orbiting 3D camera. Sound effects and ambient wind are synthesized in code (no audio files); the speaker button mutes.
 
+### Upgrades, units and research
+
+* **Building upgrades** (select a finished building → gold button on the command card; data in `src/data/buildings.ts` `upgrades`): Hearth → Great hearth → Clan hall (housing, warmth, knowledge; gated by Cooking / Smoke preservation) · Shelter → Longhouse · Stockpile → Storehouse (winter spoilage −45%) · Toolshelter → Flint workshop → Hafting bench · Hunting lodge → War lodge (unlocks Champions) · Teaching circle → Elders' circle (research ×1.5, +knowledge) · Smoking rack → Smokehouse (6 food → 9 provisions) · Watch post → Archer post → Great tower (the post shoots enemies) · Palisade → Reinforced. Upgraded buildings get new 3D models, and cancelling refunds 75%.
+* **New units** (`src/data/units.ts`): **Elder** (heals nearby clan members, speeds research) · **Slinger** (human ranged skirmisher) · **Brute** (Neanderthal heavy, crushes buildings) · **Champion** (elite spearman, needs a War lodge). Each has its own model and attack animation.
+* **Research** (`src/data/techs.ts`): Woven baskets, Flint-edged weapons, Hide armour, Fleet-footed, Herbal remedies, Fur wraps — researched at the building that owns them; effects are read by the simulation.
+* **Veterancy:** fighters earn Veteran (3 kills) and Elite (7 kills) ranks with more damage and health, shown as chevrons.
+
 ### How the premise is modelled
 
 * **Observe → Investigate → Apply → Preserve** is shown for every discovery in the Discoveries panel, including *why* something is blocked (missing clue, building, resource…).
@@ -92,7 +99,7 @@ Verified in this environment (Linux, headless **Chromium 141 via Playwright**, W
 | Check | Result |
 |---|---|
 | `npm run typecheck`, `npm run build` | clean |
-| `npm test` — 17 tests: economy, building, training, orders, hit-testing, discovery/teaching/succession, save round-trip and invalid-save rejection, discovery effects, winter spoilage, racks, wolves vs torches, truce, outpost rules, determinism | pass |
+| `npm test` — 24 tests (7 new for upgrades, unit gating, elders, research, archer posts and veterancy): economy, building, training, orders, hit-testing, discovery/teaching/succession, save round-trip and invalid-save rejection, discovery effects, winter spoilage, racks, wolves vs torches, truce, outpost rules, determinism | pass |
 | Scripted-bot full playthrough (`tests/playthrough.test.ts`): gather → build → discover → teach → survive winter → succeed → expedition → victory, for **both** species | wins at ≈ 13.6 min and ≈ 21 min of game time |
 | Browser flow `scripts/e2e.cjs` — 43 checks through the real input path: start, select, order gather, build panel + placement, construction, training, discovery panel + investigation, pause/speed, save → mutate → load, corrupt-save handling, winter, succession dialog, victory screen, restart, box-select, wheel/pinch zoom, one-finger pan, drag-select mode, no console errors | 43 / 43 pass on the 3D renderer (one earlier run timed out only because two heavy jobs were sharing the software-rendered browser; the clean re-run passed). The run takes several minutes because 3D is drawn in software here |
 
@@ -105,6 +112,8 @@ Viewports exercised: **desktop 1280×800 (mouse)** and **phone landscape 844×39
 Implemented: camera (pan/zoom/minimap), selection and orders (move, attack-move, attack, gather, build, hold, stop, retreat, leader rally), gathering and four resources (+ provisions), 8 placeable buildings plus the hearth (shelter, stockpile, toolmaking shelter, hunting lodge, teaching circle, smoking rack, watch post, palisade), six unit roles, training queues and population cap, fog of war, wildlife (deer, wolves), a rival AI clan (garrison at the pass + periodic warbands + gift/truce), winter pressure (spoilage, cold, hunger), the fire discovery tree, one succession with inheritance, objectives/hints, victory/defeat, pause/restart/speed, versioned local save/load + export/import, species choice (modest, explained differences).
 
 Known limitations / not yet done:
+
+* The new upgrade / unit / research systems are covered by unit tests and a visual check in headless Chromium; they are **not** yet used by the scripted bots or the rival AI (the rival does not upgrade or train the new units), and balance of the new costs is untuned.
 
 * No **gate** (palisades block everyone, including your own units); no patrol / follow / focus-target commands, formations, squad stances or morale; no close battle camera; no audio.
 * Rival AI is scripted and simple (no real economy; it ignores fog); trade is a single gift action.

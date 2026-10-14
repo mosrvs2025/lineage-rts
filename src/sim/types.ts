@@ -2,7 +2,9 @@ export type Species = 'human' | 'neanderthal';
 export type Res = 'food' | 'wood' | 'stone';
 export type UnitKind =
   | 'gatherer' | 'scout' | 'hunter' | 'guard' | 'raider' | 'leader'
+  | 'elder' | 'slinger' | 'brute' | 'champion'
   | 'deer' | 'wolf';
+export type CostMap = Partial<Record<Res | 'knowledge', number>>;
 export type BuildingKind =
   | 'hearth' | 'shelter' | 'stockpile' | 'toolshelter' | 'lodge'
   | 'circle' | 'rack' | 'watch' | 'palisade';
@@ -14,7 +16,7 @@ export interface Pt { x: number; y: number }
 
 /** Transient presentation events (sounds, particles). Never serialized and never read by the simulation. */
 export interface GameEvent {
-  k: 'hit' | 'shoot' | 'chop' | 'mine' | 'pick' | 'hammer' | 'death' | 'deliver' | 'spawn' | 'built' | 'howl' | 'discover' | 'preserved' | 'rally' | 'felled';
+  k: 'heal' | 'upgrade' | 'tech' | 'rank' | 'hit' | 'shoot' | 'chop' | 'mine' | 'pick' | 'hammer' | 'death' | 'deliver' | 'spawn' | 'built' | 'howl' | 'discover' | 'preserved' | 'rally' | 'felled';
   x: number; y: number;
   owner?: Owner; kind?: string; n?: number; res?: string; x2?: number; y2?: number;
 }
@@ -53,6 +55,8 @@ export interface Unit {
   born: number;
   ability: number;    // leader rally cooldown
   buff: number;       // seconds of rally buff left
+  kills: number;      // enemies defeated (veteran ranks)
+  lastHit?: number;   // id of the unit that last damaged this one
 }
 
 export interface Building {
@@ -67,6 +71,10 @@ export interface Building {
   queue: { kind: UnitKind; t: number }[];
   tick: number;         // misc timer (rack conversion)
   outpost?: boolean;
+  tier: number;                                            // upgrade level (0 = base)
+  upg?: { t: number; total: number };                       // upgrade in progress
+  research?: { tech: string; t: number; total: number };    // technology being researched here
+  cd?: number;                                              // attack cooldown (towers)
 }
 
 export interface ResNode {
@@ -119,6 +127,7 @@ export interface World {
   res: { food: number; wood: number; stone: number; knowledge: number; provisions: number };
   stats: { food: number; meat: number; kills: number; lost: number; spoiled: number };
   disc: Record<DiscoveryId, DiscState>;
+  techs: Record<string, boolean>;
   activities: Activity[];
   explored: string;
   landmarks: Landmark[];
