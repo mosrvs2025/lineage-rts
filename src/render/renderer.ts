@@ -58,6 +58,7 @@ export class Renderer {
   private fogData = new Uint8Array(4);
   private fogTex!: THREE.DataTexture;
   private fogTick = -99;
+  private wearW = 0; private wearH = 0; private wearData = new Uint8Array(1); private wearTex!: THREE.DataTexture; private wearAt = 0;
   private treeMeshes: THREE.InstancedMesh[] = [];
   private bushFull!: THREE.InstancedMesh; private bushEmpty!: THREE.InstancedMesh;
   private rockMeshes: THREE.InstancedMesh[] = [];
@@ -190,7 +191,7 @@ export class Renderer {
     geo.computeVertexNormals();
     const tex = new THREE.CanvasTexture(this.terrainCanvas);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = Math.min(8, this.three.capabilities.getMaxAnisotropy()); tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter;
-    const ground = new THREE.Mesh(geo, enhance(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.96, metalness: 0 }), { snow: 1 }));
+    const ground = new THREE.Mesh(geo, enhance(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.96, metalness: 0 }), { snow: 1, wear: true }));
     ground.receiveShadow = true; this.root.add(ground);
 
     const wp: number[] = [], wuv: number[] = [];
@@ -204,6 +205,13 @@ export class Renderer {
     this.waterNormal = this.makeWaterNormal();
     const wm = new THREE.Mesh(wg, enhance(new THREE.MeshStandardMaterial({ color: 0x2f7fae, transparent: true, opacity: 0.74, roughness: 0.06, metalness: 0.15, normalMap: this.waterNormal, normalScale: new THREE.Vector2(0.6, 0.6), depthWrite: false, envMapIntensity: 1.6 }), {}));
     wm.renderOrder = 1; this.root.add(wm);
+    // open sea around the island so the map edge never reads as a void
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(520, 520).rotateX(-Math.PI / 2), enhance(new THREE.MeshStandardMaterial({ color: 0x2a6f96, roughness: 0.2, metalness: 0.1, normalMap: this.waterNormal, normalScale: new THREE.Vector2(0.5, 0.5), envMapIntensity: 1.3 }), {}));
+    sea.position.set(W / 2, WATER_LEVEL - 0.04, H / 2); sea.renderOrder = 0; this.root.add(sea);
+    // footpaths: foot traffic is accumulated into a texture the ground shader reads
+    this.wearW = W * 4; this.wearH = H * 4; this.wearData = new Uint8Array(this.wearW * this.wearH);
+    this.wearTex = new THREE.DataTexture(this.wearData, this.wearW, this.wearH, THREE.RedFormat); this.wearTex.magFilter = THREE.LinearFilter; this.wearTex.minFilter = THREE.LinearFilter; this.wearTex.needsUpdate = true;
+    shared.wear.value = this.wearTex; this.wearAt = 0;
 
     this.fogData = new Uint8Array(W * 4 * H * 4 * 4);
     this.fogTex = new THREE.DataTexture(this.fogData, W * 4, H * 4, THREE.RGBAFormat);
@@ -345,7 +353,7 @@ export class Renderer {
     this.snowMat.uniforms.uFocus.value.set(cam.x, 0, cam.y); this.snowMat.uniforms.uTime.value = time; this.snowMat.uniforms.uLevel.value = L;
     this.snow.visible = L > 0.02;
 
-    this.updateFog(w);
+    this.updateFog(w); this.updateWear(w, time);
     this.syncNodes(w);
     const emitters: THREE.Vector3[] = [];
     this.syncBuildings(w, ov, time, emitters);
@@ -386,6 +394,23 @@ export class Renderer {
       if (f.t > 2.2) f.mesh.scale.multiplyScalar(0.92);
       if (f.t > 2.8) { this.scene.remove(f.mesh); this.falling.splice(this.falling.indexOf(f), 1); }
     }
+  }
+
+  private updateWear(w: World, time: number) {
+    if (!this.wearTex || time - this.wearAt < 0.4) return;
+    this.wearAt = time;
+    const d = this.wearData, S = 4;
+    for (const u of w.units) {
+      if (u.owner !== 0 || u.kind === 'deer' || u.kind === 'wolf') continue;
+      if (Math.hypot(u.x - u.ox, u.y - u.oy) < 0.004) continue; // only moving feet wear the grass
+      const cx = Math.floor(u.x * S), cy = Math.floor(u.y * S);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const x = cx + dx, y = cy + dy; if (x < 0 || y < 0 || x >= this.wearW || y >= this.wearH) continue;
+        const i = y * this.wearW + x, add = dx === 0 && dy === 0 ? 9 : 3;
+        d[i] = Math.min(255, d[i] + add);
+      }
+    }
+    this.wearTex.needsUpdate = true;
   }
 
   private updateFog(w: World) {

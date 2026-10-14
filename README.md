@@ -85,6 +85,10 @@ An RTS-style console: resource plates with live flashes and low-food warnings, a
 * **Research** (`src/data/techs.ts`): Woven baskets, Flint-edged weapons, Hide armour, Fleet-footed, Herbal remedies, Fur wraps — researched at the building that owns them; effects are read by the simulation.
 * **Veterancy:** fighters earn Veteran (3 kills) and Elite (7 kills) ranks with more damage and health, shown as chevrons.
 
+### Atmosphere
+
+Unexplored land is veiled by drifting animated mist (a fog-of-war shader with moving noise) rather than flat black, an open sea surrounds the island, and **footpaths** wear into the grass wherever your clan walks (a render-only wear texture the ground shader reads; it is not saved).
+
 ### How the premise is modelled
 
 * **Observe → Investigate → Apply → Preserve** is shown for every discovery in the Discoveries panel, including *why* something is blocked (missing clue, building, resource…).
