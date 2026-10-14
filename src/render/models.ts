@@ -57,6 +57,15 @@ export function enhance<T extends THREE.MeshStandardMaterial>(m: T, o: { sway?: 
   return m;
 }
 
+/** Soft radial contact shadow shared by trees, buildings and units. */
+const blobTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d')!;
+  const gr = g.createRadialGradient(32, 32, 2, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,0.85)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.38)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); return t;
+})();
+export const blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+export const blobMat = new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, opacity: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+
 const lit = (rough = 0.88) => new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: rough, metalness: 0 });
 export const MAT = {
   prop: enhance(lit(), { snow: 1 }),                      // buildings, rocks: snow on roofs

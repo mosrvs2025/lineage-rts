@@ -12,7 +12,7 @@ import { Arrows, AmbientLife, Particles, Rings } from './effects';
 import { Grass } from './grass';
 import type { BuildingModel } from './models';
 import { RANK_KILLS } from '../sim/rules';
-import { MAT, TREE_VARIANTS, buildBuilding, enhance, makeBushGeo, makeCarcassGeo, makeRockGeos, makeTreeGeos, merge, shared } from './models';
+import { MAT, blobGeo, blobMat, TREE_VARIANTS, buildBuilding, enhance, makeBushGeo, makeCarcassGeo, makeRockGeos, makeTreeGeos, merge, shared } from './models';
 import { Post } from './post';
 import type { Rig } from './rigs';
 import { animateRig, createRig } from './rigs';
@@ -59,6 +59,7 @@ export class Renderer {
   private fogTex!: THREE.DataTexture;
   private fogTick = -99;
   private wearW = 0; private wearH = 0; private wearData = new Uint8Array(1); private wearTex!: THREE.DataTexture; private wearAt = 0;
+  private blobs!: THREE.InstancedMesh;
   private treeMeshes: THREE.InstancedMesh[] = [];
   private bushFull!: THREE.InstancedMesh; private bushEmpty!: THREE.InstancedMesh;
   private rockMeshes: THREE.InstancedMesh[] = [];
@@ -226,6 +227,9 @@ export class Renderer {
     this.rockMeshes = makeRockGeos().map((g) => this.inst(g, MAT.prop, caps.rock + 4));
     this.carcass = this.inst(makeCarcassGeo(), MAT.prop, 60);
     for (const m of [...this.treeMeshes, this.bushFull, this.bushEmpty, ...this.rockMeshes, this.carcass]) { m.castShadow = true; m.receiveShadow = true; this.root.add(m); }
+
+    // soft contact shadows ground every tree, bush and rock
+    this.blobs = this.inst(blobGeo, blobMat, w.nodes.length + 8); this.blobs.renderOrder = 2; this.root.add(this.blobs);
 
     const N = 24 * 8, sg = new THREE.BufferGeometry();
     sg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3)); sg.setAttribute('aT', new THREE.BufferAttribute(new Float32Array(N).fill(1), 1));
@@ -449,14 +453,22 @@ export class Renderer {
       const k = 0.88 + hash2(n.x, n.y, 9) * 0.26; m.setColorAt(i, new THREE.Color(k, k, k));
       counts.set(m, i + 1);
     };
+    let bi = 0;
+    const blob = (x: number, z: number, rad: number, a: number) => {
+      if (bi >= this.blobs.instanceMatrix.count) return;
+      this.dummy.position.set(x, this.heightAt(x, z) + 0.04, z); this.dummy.rotation.set(0, 0, 0); this.dummy.scale.set(rad, 1, rad); this.dummy.updateMatrix();
+      this.blobs.setMatrixAt(bi, this.dummy.matrix); this.blobs.setColorAt(bi, new THREE.Color(a, a, a)); bi++;
+    };
     for (const n of w.nodes) {
       if (!isExplored(w, n.x, n.y)) continue;
       const hh = hash2(n.x, n.y, 4);
+      if (n.kind !== 'carcass') blob(n.x + 0.5, n.y + 0.5, n.kind === 'tree' ? 1.7 : n.kind === 'bush' ? 1.1 : 1.3, n.kind === 'tree' ? 0.55 : 0.4);
       if (n.kind === 'tree') put(this.treeMeshes[Math.floor(hh * TREE_VARIANTS)], n, 0.95 + hash2(n.x, n.y, 8) * 0.4);
       else if (n.kind === 'bush') put(n.amount / n.max > 0.25 ? this.bushFull : this.bushEmpty, n, 1.0 + hh * 0.2);
       else if (n.kind === 'rock') put(this.rockMeshes[Math.floor(hh * 3)], n, 1.1 + hh * 0.5);
       else put(this.carcass, n, 1.0);
     }
+    this.blobs.count = bi; this.blobs.instanceMatrix.needsUpdate = true; if (this.blobs.instanceColor) this.blobs.instanceColor.needsUpdate = true;
     for (const m of [...this.treeMeshes, this.bushFull, this.bushEmpty, ...this.rockMeshes, this.carcass]) {
       m.count = counts.get(m) ?? 0; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true;
     }
@@ -476,6 +488,7 @@ export class Renderer {
         const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(b.w, 1.4, b.h)), new THREE.LineBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.7 }));
         edge.position.y = 0.7; sc.add(edge);
         model.group.add(sc);
+        const bl = new THREE.Mesh(blobGeo, blobMat.clone()); (bl.material as THREE.MeshBasicMaterial).vertexColors = false; (bl.material as THREE.MeshBasicMaterial).opacity = 0.6; bl.scale.set(Math.max(b.w, 1.5) * 1.15, 1, Math.max(b.h, 1.5) * 1.15); bl.position.y = 0.05; bl.renderOrder = 2; model.group.add(bl);
         const cx = b.x + b.w / 2, cz = b.y + b.h / 2;
         model.group.position.set(cx, this.heightAt(cx, cz), cz);
         this.root.add(model.group);

@@ -87,7 +87,7 @@ An RTS-style console: resource plates with live flashes and low-food warnings, a
 
 ### Atmosphere
 
-Unexplored land is veiled by drifting animated mist (a fog-of-war shader with moving noise) rather than flat black, an open sea surrounds the island, and **footpaths** wear into the grass wherever your clan walks (a render-only wear texture the ground shader reads; it is not saved).
+Soft contact shadows ground trees, rocks, buildings and people. Unexplored land is veiled by drifting animated mist (a fog-of-war shader with moving noise) rather than flat black, an open sea surrounds the island, and **footpaths** wear into the grass wherever your clan walks (a render-only wear texture the ground shader reads; it is not saved).
 
 ### How the premise is modelled
 
