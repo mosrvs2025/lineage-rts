@@ -28,7 +28,7 @@ async function common(p, label, input) {
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await p.goto(base);
+  await p.goto(base, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await p.waitForSelector('[data-act="play"]');
   await p.screenshot({ path: `${out}/${label}-01-title.png` });
   await p.click('[data-act="play"]');
