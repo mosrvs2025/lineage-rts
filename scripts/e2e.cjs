@@ -19,8 +19,11 @@ async function common(p, label, input) {
   p.on('pageerror', (e) => errors.push(e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await p.goto(base);
-  await p.waitForSelector('[data-act="start"]');
+  await p.waitForSelector('[data-act="play"]');
   await p.screenshot({ path: `${out}/${label}-01-title.png` });
+  await p.click('[data-act="play"]');
+  await p.waitForSelector('[data-act="start"]');
+  await p.screenshot({ path: `${out}/${label}-01b-clan.png` });
   await p.click('[data-act="start"]');
   await p.waitForTimeout(300);
   if (await p.$('[data-act="resume"]')) await p.click('[data-act="resume"]');
@@ -188,7 +191,11 @@ async function common(p, label, input) {
     const box = await G(p, () => {
       const g = window.game, pts = g.world.units.filter((u) => u.owner === 0).map((u) => g.cam.toScreen(u.x, u.y));
       const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
-      return { x0: Math.min(...xs) - 50, y0: Math.min(...ys) - 60, x1: Math.max(...xs) + 50, y1: Math.min(Math.max(...ys) + 20, window.innerHeight - 60) };
+      const lo = { x: Math.min(...xs) - 50, y: Math.min(...ys) - 60 }, hi = { x: Math.max(...xs) + 50, y: Math.max(...ys) + 20 };
+      const free = (x, y) => document.elementFromPoint(Math.max(1, Math.min(innerWidth - 1, x)), Math.max(1, Math.min(innerHeight - 1, y)))?.id === 'game';
+      const corners = [[lo.x, lo.y, hi.x, hi.y], [hi.x, lo.y, lo.x, hi.y], [lo.x, hi.y, hi.x, lo.y], [hi.x, hi.y, lo.x, lo.y]];
+      const c = corners.find(([x, y]) => free(x, y)) ?? corners[0];
+      return { x0: c[0], y0: c[1], x1: c[2], y1: c[3] };
     });
     await touch('touchStart', [{ x: box.x0, y: box.y0 }]);
     for (let i = 1; i <= 10; i++) await touch('touchMove', [{ x: box.x0 + ((box.x1 - box.x0) * i) / 10, y: box.y0 + ((box.y1 - box.y0) * i) / 10 }]);

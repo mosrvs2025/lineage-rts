@@ -39,6 +39,7 @@ export class Game {
   private lastAuto = performance.now();
   species: Species = 'human';
   endShown = false;
+  showcase = false;        // title-screen demo world (never saved)
 
   constructor(public canvas: HTMLCanvasElement, public minimap: HTMLCanvasElement) {
     this.renderer = new Renderer(canvas, this.cam);
@@ -51,7 +52,7 @@ export class Game {
     requestAnimationFrame((t) => this.frame(t));
   }
 
-  get paused() { return this.speed === 0 || this.menuOpen; }
+  get paused() { return this.speed === 0 || (this.menuOpen && !this.showcase); }
 
   // ------------------------------------------------------------ lifecycle
   startNew(species: Species) {
@@ -63,7 +64,22 @@ export class Game {
     this.hud.showHelpOnce();
   }
 
+  /** A living, slowly orbiting world behind the title menu. */
+  startShowcase() {
+    if (this.world && !this.showcase) this.autosave();
+    const w = createWorld('human', 4242);
+    updateFog(w);
+    for (const u of w.units) if (u.owner === 0 && u.kind === 'gatherer') autoWork(w, u);
+    this.world = w; this.showcase = true;
+    this.sel = []; this.selB = null; this.mode = 'normal'; this.place = null; this.box = null; this.endShown = false;
+    this.speed = 1; this.menuOpen = true; this.acc = 0;
+    this.renderer.terrain = null;
+    document.getElementById('app')?.classList.add('noworld');
+    this.hud.closePanels();
+  }
+
   setWorld(w: World) {
+    this.showcase = false; this.cam.yaw = 0;
     this.world = w;
     document.getElementById('app')?.classList.remove('noworld');
     updateFog(w);
@@ -85,7 +101,7 @@ export class Game {
     try { localStorage.setItem(SAVE_KEYS[slot], serialize(this.world)); return true; } catch { return false; }
   }
   autosave() {
-    if (this.world && this.world.status === 'playing') this.save('auto');
+    if (this.world && !this.showcase && this.world.status === 'playing') this.save('auto');
     this.lastAuto = performance.now();
   }
   slotInfo(slot: SaveSlot): { ok: boolean; text: string } {
@@ -179,6 +195,13 @@ export class Game {
     this.input.update(dt);
     for (const p of this.pings) p.age += dt;
     this.pings = this.pings.filter((p) => p.age < 0.7);
+    if (w && this.showcase) {
+      w._vis?.fill(2); w._exp?.fill(1);
+      const t = now / 1000, h = w.buildings.find((b) => b.owner === 0 && b.kind === 'hearth');
+      this.cam.zoom = Math.max(this.cam.minZoom(), 36); this.cam.yaw = Math.sin(t * 0.07) * 0.75;
+      if (h) this.cam.centerOn(h.x + 5 + Math.cos(t * 0.05) * 3, h.y + 1 + Math.sin(t * 0.04) * 2);
+      if (w.time > 600) this.startShowcase();
+    }
     if (w) {
       if (!this.paused && w.status === 'playing') {
         this.acc += dt * this.speed;

@@ -13,7 +13,7 @@ npm install
 npm run dev          # http://localhost:5173 (also reachable from a phone on your LAN with `npm run dev -- --host`)
 ```
 
-Pick a species, press **Begin**. A "How to play" card appears on first launch and is always available from the menu.
+Press **New Campaign**, choose a clan (Humans or Neanderthals) and **Begin**. A "How to play" card appears on first launch and is always available from the menu.
 
 ### The scenario (≈ 20–30 minutes)
 
@@ -31,7 +31,7 @@ Defeat: the clan hearth is destroyed or everyone dies.
 | Select | Tap unit/building; double-tap = all of that type on screen; **Drag-select** toggle for box select; *Idle* / *Army* buttons | Click; drag box; Ctrl+1–9 sets / 1–9 recalls groups; `.` idle gatherer |
 | Order | With units selected, tap: ground = move, tree/berry/rock = gather, enemy = attack, building site = build | Right-click (same contexts); or press **Move / Attack** then left-click; `M` `A` `H` `S` `R` |
 | Camera | One-finger drag pans, pinch zooms (tilted 3D view) | Wheel zoom; middle/right drag, WASD, arrows or screen edge pan |
-| Build | **Build** → choose → drag the ghost → **Place** | **Build** (`B`) → choose → click to place (palisades keep placing; `Esc` cancels) |
+| Build | **Build** (right dock) → choose → drag the ghost → **Place** | **Build** (`B`) → choose → click to place (palisades keep placing; `Esc` cancels) |
 | Other | Jobs popover, Discoveries (`D`), Pause/speed 1–3×, Menu (save/load/export/import/restart) | `Space` pause |
 
 Mouse users are never forced to right-click, and nothing relies on hover. While placing a building, dragging moves the ghost instead of panning.
@@ -73,6 +73,10 @@ src/
 tests/       vitest: rules, save/load, and full scripted playthroughs
 scripts/     e2e.cjs (Playwright browser check)
 ```
+
+### Interface
+
+An RTS-style console: resource plates with live flashes and low-food warnings, a season medallion with a winter timeline, a quest-style objectives tracker with contextual hints, a minimap in an ornate frame, a selection panel (portrait, health, status, training queue, grouped multi-select), a contextual **command card** of icon buttons with hotkeys, costs and tooltips (desktop), a tool dock (Build, Discover, Jobs, Idle, Army, Select, Home, Gift), a visual construction menu, a **discovery tech tree** (Observe → Investigate → Apply → Preserve), screen-edge alert flashes when you are attacked, and a cinematic title screen over a live orbiting 3D camera. Sound effects and ambient wind are synthesized in code (no audio files); the speaker button mutes.
 
 ### How the premise is modelled
 
