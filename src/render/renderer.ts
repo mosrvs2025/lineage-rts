@@ -350,6 +350,7 @@ export class Renderer {
     this.scene.environmentIntensity = 0.45 * (1 - N * 0.45);
     const height = Math.max(7, Math.abs(Math.sin(theta)) * 34);
     this.sun.position.set(cam.x + Math.cos(theta) * 30, height, cam.y + 11); this.sun.target.position.set(cam.x, 0, cam.y);
+    shared.cloud.value = (1 - N) * (0.95 - 0.5 * L);
     this.waterNormal.offset.x = time * 0.012; this.waterNormal.offset.y = time * 0.006;
     const pxScale = (cam.vh * this.dpr) / (2 * FOV_TAN);
     for (const m of [this.smokeMat, this.snowMat]) m.uniforms.uScale.value = pxScale;
@@ -376,10 +377,11 @@ export class Renderer {
 
     // ---- render
     if (this.quality !== 'low') {
+      const sp = this.sun.position.clone().project(cam.three); const sunUv: [number, number] = [sp.x * 0.5 + 0.5, sp.y * 0.5 + 0.5];
       if (!this.post) this.post = new Post(this.three, this.scene, cam.three, cam.vw, cam.vh, this.dpr);
       const warm: [number, number, number] = [1 + 0.05 * (1 - N) + 0.1 * dusk - 0.1 * N, 1 + 0.01 * (1 - N) - 0.02 * N, 1 - 0.04 * (1 - N) - 0.08 * dusk + 0.14 * N];
       const t = L * 0.5; warm[0] -= t * 0.08; warm[2] += t * 0.1;
-      this.post.setLook({ bloom: this.quality === 'high', tilt: this.quality === 'high' ? 0.85 : 0.6, tint: warm, vig: 0.5, sat: 1.1 - 0.12 * L, time });
+      this.post.setLook({ bloom: this.quality === 'high', tilt: this.quality === 'high' ? 0.85 : 0.6, tint: warm, vig: 0.5, sat: 1.1 - 0.12 * L, time, sun: sunUv, shaft: this.quality === 'high' && sp.z < 1 ? (0.3 + 1.1 * dusk) * (1 - N) * (1 - 0.7 * L) : 0, sunCol: [this.sun.color.r, this.sun.color.g, this.sun.color.b] });
       this.post.bloom.strength = 0.34 + 0.35 * N; this.post.render(dt);
     } else this.three.render(this.scene, cam.three);
     this.drawOverlay(w, ov, time);

@@ -10,10 +10,11 @@ const GradeShader = {
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null }, uRes: { value: new THREE.Vector2(1, 1) }, uTilt: { value: 0.9 }, uTint: { value: new THREE.Vector3(1, 1, 1) },
     uSat: { value: 1.08 }, uVig: { value: 0.55 }, uContrast: { value: 1.06 }, uTime: { value: 0 },
+    uSun: { value: new THREE.Vector2(-0.3, 1.3) }, uShaft: { value: 0 }, uSunCol: { value: new THREE.Vector3(1, 0.85, 0.6) },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform vec2 uRes; uniform float uTilt, uSat, uVig, uContrast, uTime; uniform vec3 uTint; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform vec2 uRes; uniform float uTilt, uSat, uVig, uContrast, uTime, uShaft; uniform vec3 uTint, uSunCol; uniform vec2 uSun; varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
     void main(){
       vec2 uv = vUv;
@@ -28,6 +29,11 @@ const GradeShader = {
           acc += texture2D(tDiffuse, uv + o).rgb; acc += texture2D(tDiffuse, uv + o * 2.0).rgb * 0.6; tot += 1.6;
         }
         c = mix(c, acc / tot, clamp(m * 1.2, 0.0, 1.0));
+      }
+      if (uShaft > 0.002) {
+        vec2 dir = uSun - uv; float dl = length(dir); vec2 st = dir / 14.0 * 0.9; vec2 q = uv; float wt = 1.0; vec3 sh = vec3(0.0);
+        for (int i = 0; i < 14; i++) { q += st; vec3 s = texture2D(tDiffuse, q).rgb; float b = max(0.0, dot(s, vec3(0.33)) - 0.55); sh += s * b * wt; wt *= 0.9; }
+        c += sh * uShaft * uSunCol * 0.45 * (1.0 - smoothstep(0.0, 1.8, dl));
       }
       float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
       c = mix(vec3(l), c, uSat);
@@ -60,9 +66,10 @@ export class Post {
     this.composer.setPixelRatio(dpr); this.composer.setSize(w, h);
     this.grade.uniforms.uRes.value.set(w * dpr, h * dpr);
   }
-  setLook(opts: { bloom: boolean; tilt: number; tint: [number, number, number]; vig: number; sat: number; time: number }) {
+  setLook(opts: { bloom: boolean; tilt: number; tint: [number, number, number]; vig: number; sat: number; time: number; sun?: [number, number]; shaft?: number; sunCol?: [number, number, number] }) {
     this.bloom.enabled = opts.bloom;
     const u = this.grade.uniforms; u.uTilt.value = opts.tilt; u.uTint.value.set(...opts.tint); u.uVig.value = opts.vig; u.uSat.value = opts.sat; u.uTime.value = opts.time;
+    if (opts.sun) u.uSun.value.set(...opts.sun); u.uShaft.value = opts.shaft ?? 0; if (opts.sunCol) u.uSunCol.value.set(...opts.sunCol);
   }
   render(dt: number) { this.composer.render(dt); }
 }
