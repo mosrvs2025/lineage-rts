@@ -116,28 +116,38 @@ export class Bubbles {
 
   toggleFab() { if ($('fab').classList.contains('open')) this.closeFab(); else this.openFab(); }
 
-  /** Fan the actions toward the centre of the screen on the arc that keeps every button on screen and clear of other HUD boxes. */
+  /** Place each action on the best free spot around the bubble: nearest to the screen centre, on screen, clear of other HUD boxes and of each other (wider rings when crowded). */
   openFab() {
     const f = $('fab'), r = f.getBoundingClientRect();
     const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-    const W = window.innerWidth, H = window.innerHeight, R = 122, M = 34, ITEM = 25;
+    const W = window.innerWidth, H = window.innerHeight, M = 32, ITEM = 27;
     const toward = Math.atan2(H * 0.55 - cy, W / 2 - cx) * 180 / Math.PI;
     const boxes: DOMRect[] = [];
-    for (const id of ['objectives', 'jobs', 'bubble', 'topbar']) { const el = $(id); if (!el.classList.contains('hidden') && el.offsetParent !== null || id === 'topbar') { const b = el.getBoundingClientRect(); if (b.width > 0 && b.height > 0) boxes.push(b); } }
-    const tl = $('toasts'); if (tl.children.length) boxes.push(tl.getBoundingClientRect());
-    let best = toward, bestScore = -Infinity;
-    for (let d = 0; d < 360; d += 5) {
-      const c = toward + (d <= 180 ? d : d - 360);
-      let off = 0;
-      for (let i = 0; i < 8; i++) {
-        const a = (c - 80 + (160 / 7) * i) * Math.PI / 180, x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
-        off += Math.max(0, M - x) + Math.max(0, x - (W - M)) + Math.max(0, M - y) + Math.max(0, y - (H - M));
-        for (const b of boxes) if (x > b.left - ITEM && x < b.right + ITEM && y > b.top - ITEM && y < b.bottom + ITEM) off += 70;
-      }
-      const score = -off * 10 - Math.abs(d <= 180 ? d : 360 - d);
-      if (score > bestScore) { bestScore = score; best = c; }
+    for (const id of ['objectives', 'jobs', 'bubble', 'topbar']) {
+      const el = $(id); if (el.classList.contains('hidden')) continue;
+      const b = el.getBoundingClientRect(); if (b.width > 0 && b.height > 0) boxes.push(b);
     }
-    const dock = $('dock'); dock.style.setProperty('--start', `${best - 80}deg`); dock.style.setProperty('--step', `${160 / 7}deg`);
+    const tl = $('toasts'); if (tl.children.length) boxes.push(tl.getBoundingClientRect());
+    const placed: [number, number][] = [];
+    const ok = (x: number, y: number) => x >= M && x <= W - M && y >= M && y <= H - M
+      && !boxes.some((b) => x > b.left - ITEM && x < b.right + ITEM && y > b.top - ITEM && y < b.bottom + ITEM)
+      && placed.every((p) => Math.hypot(p[0] - x, p[1] - y) >= ITEM * 2 + 2);
+    const dock = $('dock');
+    for (let i = 0; i < 8; i++) {
+      let spot: [number, number] | null = null;
+      for (const R of [104, 152, 200, 248]) {
+        for (let k = 0; k <= 72 && !spot; k++) {            // alternate either side of the preferred direction: 0, +5, -5, +10 ...
+          const d = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 5, a = (toward + d) * Math.PI / 180;
+          const x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
+          if (ok(x, y)) spot = [x, y];
+        }
+        if (spot) break;
+      }
+      const a = (toward + (i - 3.5) * 22) * Math.PI / 180;
+      const [px, py] = spot ?? [cx + Math.cos(a) * 104, cy + Math.sin(a) * 104];
+      placed.push([px, py]);
+      dock.style.setProperty(`--x${i}`, `${Math.round(px - cx)}px`); dock.style.setProperty(`--y${i}`, `${Math.round(py - cy)}px`);
+    }
     f.classList.add('open'); this.paint();
   }
   closeFab() { const f = $('fab'); if (f.classList.contains('open')) { f.classList.remove('open'); this.paint(); } }

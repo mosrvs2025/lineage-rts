@@ -285,11 +285,11 @@ kbd { font: 600 10px var(--ui); padding: 1px 5px; border-radius: 4px; background
   .pp #dock { display: block; position: absolute; left: 29px; top: 29px; right: auto; width: 0; height: 0; z-index: 1; }
   .pp #dock .dk { position: absolute; width: 50px; height: 50px; margin: -25px 0 0 -25px; border-radius: 50%; transform: scale(.25); opacity: 0; pointer-events: none; transition: transform .24s cubic-bezier(.2, 1.5, .4, 1), opacity .16s; background: var(--noise), linear-gradient(180deg, #4a3d26, #241c11); border-color: var(--gold2); box-shadow: 0 4px 12px rgba(0,0,0,.6); }
   .pp #dock .dk .ic { font-size: 18px; } .pp #dock .dk span { font-size: 7.5px; letter-spacing: 0; }
-  .pp #fab.open #dock .dk { opacity: 1; pointer-events: auto; transform: translate(calc(cos(var(--a)) * 122px), calc(sin(var(--a)) * 122px)); }
-  .pp #dock .dk:nth-child(1) { --a: calc(var(--start) + var(--step) * 0); transition-delay: 0ms; } .pp #dock .dk:nth-child(2) { --a: calc(var(--start) + var(--step) * 1); transition-delay: 25ms; }
-  .pp #dock .dk:nth-child(3) { --a: calc(var(--start) + var(--step) * 2); transition-delay: 50ms; } .pp #dock .dk:nth-child(4) { --a: calc(var(--start) + var(--step) * 3); transition-delay: 75ms; }
-  .pp #dock .dk:nth-child(5) { --a: calc(var(--start) + var(--step) * 4); transition-delay: 100ms; } .pp #dock .dk:nth-child(6) { --a: calc(var(--start) + var(--step) * 5); transition-delay: 125ms; }
-  .pp #dock .dk:nth-child(7) { --a: calc(var(--start) + var(--step) * 6); transition-delay: 150ms; } .pp #dock .dk:nth-child(8) { --a: calc(var(--start) + var(--step) * 7); transition-delay: 175ms; }
+  .pp #fab.open #dock .dk { opacity: 1; pointer-events: auto; transform: translate(0, 0); }
+  .pp #fab.open #dock .dk:nth-child(1) { transform: translate(var(--x0), var(--y0)); transition-delay: 0ms; } .pp #fab.open #dock .dk:nth-child(2) { transform: translate(var(--x1), var(--y1)); transition-delay: 25ms; }
+  .pp #fab.open #dock .dk:nth-child(3) { transform: translate(var(--x2), var(--y2)); transition-delay: 50ms; } .pp #fab.open #dock .dk:nth-child(4) { transform: translate(var(--x3), var(--y3)); transition-delay: 75ms; }
+  .pp #fab.open #dock .dk:nth-child(5) { transform: translate(var(--x4), var(--y4)); transition-delay: 100ms; } .pp #fab.open #dock .dk:nth-child(6) { transform: translate(var(--x5), var(--y5)); transition-delay: 125ms; }
+  .pp #fab.open #dock .dk:nth-child(7) { transform: translate(var(--x6), var(--y6)); transition-delay: 150ms; } .pp #fab.open #dock .dk:nth-child(8) { transform: translate(var(--x7), var(--y7)); transition-delay: 175ms; }
   #fab { display: block; position: fixed; z-index: 8; width: 58px; height: 58px; touch-action: none; }
   #fab.hidden { display: none; }
   #fabbtn { position: relative; z-index: 2; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; color: #2a1a06; background: radial-gradient(circle at 35% 28%, #ffe7a8, #d9a441 70%, #8a6420); border: 2px solid #5a4222; box-shadow: 0 0 0 3px rgba(232,189,99,.25), 0 6px 16px rgba(0,0,0,.6); touch-action: none; cursor: grab; }
