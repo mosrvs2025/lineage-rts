@@ -4,7 +4,7 @@ import { findPath, isBlocked, nearestFree, rebuildBlocked } from './grid';
 import type { Rect } from './grid';
 import { foodMult, gatherRate, hasDisc, hostile, isExplored, nearestDropoff } from './rules';
 import type { Building, Pt, ResNode, Unit, World } from './types';
-import { bCenter, bRadius, buildingById, dist, log, nodeById, rand, unitById } from './util';
+import { bCenter, bRadius, buildingById, dist, emit, log, nodeById, rand, unitById } from './util';
 
 export const DT = 0.05;
 
@@ -126,6 +126,7 @@ function strike(w: World, u: Unit, t: Target) {
   const c = tCenter(t);
   if (d.range > 2) w._fx?.push({ x1: u.x, y1: u.y, x2: c.x, y2: c.y, t: 0.18, c: u.owner === 0 ? '#ffd27a' : '#ff8a7a' });
   else w._fx?.push({ x1: c.x, y1: c.y, x2: c.x, y2: c.y, t: 0.12, c: '#ffffff' });
+  emit(w, { k: d.range > 2 ? 'shoot' : 'hit', x: u.x, y: u.y, x2: c.x, y2: c.y, owner: u.owner, kind: u.kind });
   damage(w, t, damageOf(w, u, t), u);
 }
 
@@ -188,6 +189,7 @@ function doGather(w: World, u: Unit) {
       if (u.owner === 0 && u.carry.res) {
         const amt = u.carry.res === 'food' ? Math.round(u.carry.n * foodMult(w)) : u.carry.n;
         w.res[u.carry.res] += amt;
+        emit(w, { k: 'deliver', x: u.x, y: u.y, owner: 0, res: u.carry.res, n: amt });
         if (u.carry.res === 'food') { w.stats.food += u.carry.n; if (u.carry.meat) w.stats.meat += u.carry.n; }
       }
       u.carry = { res: null, n: 0, meat: false };
@@ -213,9 +215,10 @@ function doGather(w: World, u: Unit) {
     u.work += gatherRate(w, u, node.res, node.kind === 'carcass') * DT;
     while (u.work >= 1 && u.carry.n < cap && node.amount >= 1) {
       u.work -= 1; u.carry.res = node.res; u.carry.n++; node.amount--; u.carry.meat = node.kind === 'carcass';
+      if (u.owner === 0 && u.carry.n % 2 === 1) emit(w, { k: node.res === 'wood' ? 'chop' : node.res === 'stone' ? 'mine' : 'pick', x: node.x + 0.5, y: node.y + 0.5, owner: 0 });
       if (node.kind === 'carcass') u.work = Math.min(u.work, 0.99);
     }
-    if (node.amount < 1 && !node.regen) removeNode(w, node);
+    if (node.amount < 1 && !node.regen) { if (node.kind === 'tree') emit(w, { k: 'felled', x: node.x + 0.5, y: node.y + 0.5 }); removeNode(w, node); }
   }
 }
 
@@ -234,10 +237,12 @@ function doBuild(w: World, u: Unit, o: { t: 'build'; b: number }) {
   if (r === 'arrived') {
     const def = BUILDINGS[b.kind];
     b.progress = Math.min(1, b.progress + DT / def.time);
+    if ((w.tick + u.id) % 9 === 0) emit(w, { k: 'hammer', x: u.x, y: u.y, owner: b.owner });
     b.hp = Math.min(b.maxHp, b.maxHp * (0.1 + 0.9 * b.progress));
     if (b.progress >= 1) {
       b.done = true; b.hp = b.maxHp;
       if (b.owner === 0) log(w, `${def.name} completed.`, 'good');
+      emit(w, { k: 'built', x: c.x, y: c.y, owner: b.owner, kind: b.kind });
     }
   }
 }
@@ -264,7 +269,7 @@ function updateWolf(w: World, u: Unit) {
     }
     if ((w.tick + u.id) % 5 === 0) {
       const t = findEnemy(w, u, 7, false);
-      if (t && dist(t.x, t.y, u.home.x, u.home.y) < 18) { u.order = { t: 'attack', target: t.id }; u.path = null; return; }
+      if (t && dist(t.x, t.y, u.home.x, u.home.y) < 18) { u.order = { t: 'attack', target: t.id }; u.path = null; emit(w, { k: 'howl', x: u.x, y: u.y, owner: 2, kind: 'wolf' }); return; }
     }
     if (dist(u.x, u.y, u.home.x, u.home.y) > 3) moveTo(w, u, u.home.x, u.home.y, 1.5);
     else wander(w, u);

@@ -4,7 +4,7 @@ import { pay } from './econ';
 import { hasDisc } from './rules';
 import type { Activity, DiscoveryId, World } from './types';
 import { DT, moveTo, setOrder, autoWork } from './units';
-import { bCenter, bRadius, dist, isWinter, log, unitById } from './util';
+import { bCenter, bRadius, dist, emit, isWinter, log, unitById } from './util';
 
 export function costMultiplier(w: World, id: DiscoveryId) {
   const d = DISCOVERIES[id];
@@ -99,10 +99,10 @@ export function activitiesTick(w: World) {
       if (a.progress >= a.total) {
         w.activities.splice(w.activities.indexOf(a), 1);
         if (a.kind === 'investigate') {
-          w.disc[a.disc] = 'known';
+          w.disc[a.disc] = 'known'; emit(w, { k: 'discover', x: worker.x, y: worker.y, owner: 0 });
           log(w, `Discovery: ${DISCOVERIES[a.disc].name}! ${DISCOVERIES[a.disc].effect}`, 'good');
         } else {
-          w.disc[a.disc] = 'preserved';
+          w.disc[a.disc] = 'preserved'; emit(w, { k: 'preserved', x: worker.x, y: worker.y, owner: 0 });
           log(w, `${DISCOVERIES[a.disc].name} is now taught to apprentices — future generations will keep it.`, 'good');
         }
         setOrder(worker, { t: 'idle' }); autoWork(w, worker);

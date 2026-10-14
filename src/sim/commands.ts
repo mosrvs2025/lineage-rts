@@ -10,7 +10,7 @@ import { hasDisc, isExplored, popCap, popCount, queuedCount } from './rules';
 import type { BuildingKind, DiscoveryId, Res, Unit, UnitKind, World } from './types';
 import { nearestNode, setOrder } from './units';
 import { MEADOW, OUTPOST_COST, OUTPOST_REQUIRE } from './world';
-import { bCenter, buildingById, dist, log, nodeById, unitById } from './util';
+import { bCenter, buildingById, dist, emit, log, nodeById, unitById } from './util';
 
 const mine = (w: World, ids: number[]) => ids.map((i) => unitById(w, i)).filter((u): u is Unit => !!u && u.owner === 0 && u.hp > 0);
 
@@ -76,6 +76,7 @@ export function cmdRally(w: World, leaderId: number): Check {
   l.ability = 45;
   for (const u of w.units) if (u.owner === 0 && dist(u.x, u.y, l.x, l.y) < 6.5) { u.buff = 8; u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.2); }
   log(w, `${l.name} rallies the clan!`, 'good');
+  emit(w, { k: 'rally', x: l.x, y: l.y, owner: 0 });
   return { ok: true, reason: '' };
 }
 

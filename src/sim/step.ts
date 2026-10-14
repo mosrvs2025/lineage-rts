@@ -6,7 +6,7 @@ import { ensureFog, updateFog } from './fog';
 import { checkEnd, updateObjectives } from './objectives';
 import type { World } from './types';
 import { carcassAt, DT, separate, updateUnit } from './units';
-import { log, rand, reindex } from './util';
+import { emit, log, rand, reindex } from './util';
 import { makeUnit } from './world';
 
 export const TICKS_PER_SEC = Math.round(1 / DT);
@@ -20,6 +20,7 @@ function cleanup(w: World) {
   for (const u of [...w.units]) {
     if (u.hp > 0) continue;
     w.units.splice(w.units.indexOf(u), 1);
+    emit(w, { k: 'death', x: u.x, y: u.y, owner: u.owner, kind: u.kind });
     if (u.kind === 'deer') carcassAt(w, u);
     if (u.owner === 0) { w.stats.lost++; log(w, `${u.name} the ${u.kind} has fallen.`, 'bad'); }
     else if (u.owner === 1) w.stats.kills++;

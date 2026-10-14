@@ -1,4 +1,4 @@
-import type { Building, Pt, ResNode, Unit, World } from './types';
+import type { Building, GameEvent, Pt, ResNode, Unit, World } from './types';
 
 export function rand(w: World): number {
   // mulberry32 with serializable state
@@ -16,6 +16,12 @@ export const dist = (ax: number, ay: number, bx: number, by: number) => Math.hyp
 export function log(w: World, text: string, kind: 'info' | 'good' | 'bad' = 'info') {
   w.log.push({ t: w.time, text, kind });
   if (w.log.length > 40) w.log.shift();
+}
+
+export function emit(w: World, e: GameEvent) {
+  const q = (w._ev ??= []);
+  if (q.length > 300) q.shift();
+  q.push(e);
 }
 
 export function unitById(w: World, id: number): Unit | undefined { return w._u?.get(id); }

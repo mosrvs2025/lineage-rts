@@ -9,10 +9,14 @@ import { targetAt } from '../sim/query';
 import { step } from '../sim/step';
 import { autoWork, DT } from '../sim/units';
 import type { BuildingKind, Species, World } from '../sim/types';
+import { isVisible } from '../sim/rules';
 import { createWorld } from '../sim/world';
 import { bCenter } from '../sim/util';
+import { playEvent, setListener, updateAmbience } from './audio';
 import { Hud } from './hud';
 import { Input } from './input';
+import { music } from './music';
+import type { MoodName } from './music';
 
 export const SAVE_KEYS = { manual: 'lineage-rts:save:manual', auto: 'lineage-rts:save:auto' } as const;
 export type SaveSlot = keyof typeof SAVE_KEYS;
@@ -40,6 +44,7 @@ export class Game {
   species: Species = 'human';
   endShown = false;
   showcase = false;        // title-screen demo world (never saved)
+  private moodT = 0; private dangerUntil = 0; private stung = false;
 
   constructor(public canvas: HTMLCanvasElement, public minimap: HTMLCanvasElement) {
     this.renderer = new Renderer(canvas, this.cam);
@@ -187,6 +192,24 @@ export class Game {
     this.hud.refresh(true);
   }
 
+  /** Choose the score from what is happening: title, calm autumn, cold winter, or danger when enemies close in. */
+  private updateMusic(w: World, now: number) {
+    let mood: MoodName = 'calm';
+    if (this.showcase) mood = 'title';
+    else if (w.status !== 'playing') { mood = 'off'; if (!this.stung) { this.stung = true; music.stinger(w.status === 'won' ? 'win' : 'lose'); } }
+    else {
+      this.stung = false;
+      let near = false;
+      outer: for (const e of w.units) {
+        if (e.owner === 0 || e.hp <= 0 || e.kind === 'deer' || !isVisible(w, e.x, e.y)) continue;
+        for (const f of w.units) if (f.owner === 0 && Math.hypot(f.x - e.x, f.y - e.y) < 11) { near = true; break outer; }
+      }
+      if (near) this.dangerUntil = now + 9000;
+      mood = now < this.dangerUntil ? 'danger' : this.renderer.winterLevel > 0.5 ? 'winter' : 'calm';
+    }
+    music.setMood(mood);
+  }
+
   // ------------------------------------------------------------ loop
   private frame(now: number) {
     const dt = Math.min(0.1, (now - this.last) / 1000);
@@ -209,6 +232,13 @@ export class Game {
         while (this.acc >= DT && n < 12) { step(w); this.acc -= DT; n++; }
         if (n === 12) this.acc = 0;
       }
+      // ---- presentation events -> effects + spatial audio; ambience; adaptive music
+      const evs = w._ev ?? []; w._ev = [];
+      if (evs.length) this.renderer.onEvents(w, evs, now / 1000);
+      setListener(this.cam.x, this.cam.y, this.cam.zoom);
+      for (const e of evs) if (e.owner === 0 || e.owner === undefined || isVisible(w, e.x, e.y)) playEvent(e);
+      updateAmbience({ dt, winter: this.renderer.winterLevel, night: this.renderer.night, fire: this.renderer.fireNear(w), paused: this.paused && !this.showcase });
+      if (now - this.moodT > 1000) { this.moodT = now; this.updateMusic(w, now); }
       if (now - this.lastAuto > 30000) this.autosave();
       this.renderer.draw(w, {
         selUnits: this.liveSel(), selBuilding: this.selB, box: this.box, place: this.mode === 'place' ? this.place : null,
