@@ -25,6 +25,7 @@ const BOX = () => {
 
 
 async function common(p, label, input) {
+  p.setDefaultTimeout(120000); // software-rendered WebGL can drop below 1 fps, which stalls Playwright's actionability checks
   const errors = [];
   p.on('pageerror', (e) => errors.push(e.message));
   p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
