@@ -406,7 +406,7 @@ export class Renderer {
       const cx = Math.floor(u.x * S), cy = Math.floor(u.y * S);
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         const x = cx + dx, y = cy + dy; if (x < 0 || y < 0 || x >= this.wearW || y >= this.wearH) continue;
-        const i = y * this.wearW + x, add = dx === 0 && dy === 0 ? 5 : 2;
+        const i = y * this.wearW + x, add = dx === 0 && dy === 0 ? 9 : 3;
         d[i] = Math.min(255, d[i] + add);
       }
     }

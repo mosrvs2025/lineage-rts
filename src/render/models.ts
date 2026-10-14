@@ -40,7 +40,7 @@ export function enhance<T extends THREE.MeshStandardMaterial>(m: T, o: { sway?: 
       .replace('#include <color_fragment>', `#include <color_fragment>
         float notBlue = step(diffuseColor.b, diffuseColor.g * 1.25 + 0.04);
         ${o.wear ? `float wv = texture2D(uWear, vFogWorld.xz / uMapSize).r;
-        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.55 + vec3(0.2, 0.15, 0.09), smoothstep(0.08, 0.7, wv) * 0.8);` : ''}
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.55 + vec3(0.2, 0.15, 0.09), smoothstep(0.05, 0.5, wv) * 0.9);` : ''}
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.96, 1.0), uSnow * smoothstep(0.35, 0.85, vWNy) * notBlue * ${snow.toFixed(2)});`)
       .replace('#include <dithering_fragment>', `float fa = texture2D(uFogMap, vFogWorld.xz / uMapSize).a;
         if (fa > 0.001) {
