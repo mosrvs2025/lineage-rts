@@ -96,3 +96,14 @@ describe('archer post & veterancy', () => {
     expect(g.maxHp).toBeGreaterThan(UNITS.guard.hp);
   });
 });
+
+describe('rival clan', () => {
+  it('fortifies its watch post and fields heavier units later in the game', () => {
+    const w = newWorld();
+    const post = w.buildings.find((b) => b.owner === 1 && b.kind === 'watch')!;
+    expect(post.tier).toBe(0);
+    w.time = 700; w.ai.supply = 400; w.ai.nextSpawn = 0;
+    run(w, 3);
+    expect(post.tier).toBe(1);
+  });
+});

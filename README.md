@@ -117,7 +117,7 @@ Implemented: camera (pan/zoom/minimap), selection and orders (move, attack-move,
 
 Known limitations / not yet done:
 
-* The new upgrade / unit / research systems are covered by unit tests and a visual check in headless Chromium; they are **not** yet used by the scripted bots or the rival AI (the rival does not upgrade or train the new units), and balance of the new costs is untuned.
+* The upgrade / unit / research systems are covered by unit tests and a visual check in headless Chromium. The scripted bot uses archer posts, upgrades and research, and the rival fortifies its watch post (≈ 8 min) and fields Slingers/Brutes/Champions later; costs and difficulty are only bot-tuned, not human-playtested.
 
 * No **gate** (palisades block everyone, including your own units); no patrol / follow / focus-target commands, formations, squad stances or morale; no close battle camera; no audio.
 * Rival AI is scripted and simple (no real economy; it ignores fog); trade is a single gift action.
