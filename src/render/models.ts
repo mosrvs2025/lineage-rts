@@ -12,6 +12,7 @@ export const shared = {
   snow: { value: 0 },
   time: { value: 0 },
   wear: { value: blank as THREE.Texture },
+  cloud: { value: 0.8 },
 };
 
 /** Patch a standard material: fog-of-war darkening, winter snow on upward faces, optional wind sway on instanced meshes. */
@@ -19,7 +20,7 @@ export function enhance<T extends THREE.MeshStandardMaterial>(m: T, o: { sway?: 
   const amp = typeof o.sway === 'number' ? o.sway : 1;
   const snow = o.snow ?? 0;
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.uFogMap = shared.fogMap; sh.uniforms.uMapSize = shared.mapSize; sh.uniforms.uSnow = shared.snow; sh.uniforms.uTime = shared.time; sh.uniforms.uWear = shared.wear;
+    sh.uniforms.uFogMap = shared.fogMap; sh.uniforms.uMapSize = shared.mapSize; sh.uniforms.uSnow = shared.snow; sh.uniforms.uTime = shared.time; sh.uniforms.uWear = shared.wear; sh.uniforms.uCloud = shared.cloud;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vFogWorld;\nvarying float vWNy;\nuniform float uTime;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>\n${o.sway ? `#ifdef USE_INSTANCING
@@ -36,13 +37,16 @@ export function enhance<T extends THREE.MeshStandardMaterial>(m: T, o: { sway?: 
         vFogWorld = fwp.xyz;
         vWNy = normalize(mat3(modelMatrix) * objectNormal).y;`);
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vFogWorld;\nvarying float vWNy;\nuniform sampler2D uFogMap;\nuniform vec2 uMapSize;\nuniform float uSnow;\nuniform float uTime;\nuniform sampler2D uWear;\nfloat fh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\nfloat fn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(fh(i), fh(i + vec2(1.0, 0.0)), f.x), mix(fh(i + vec2(0.0, 1.0)), fh(i + vec2(1.0, 1.0)), f.x), f.y); }')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vFogWorld;\nvarying float vWNy;\nuniform sampler2D uFogMap;\nuniform vec2 uMapSize;\nuniform float uSnow;\nuniform float uTime;\nuniform sampler2D uWear;\nuniform float uCloud;\nfloat fh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\nfloat fn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(fh(i), fh(i + vec2(1.0, 0.0)), f.x), mix(fh(i + vec2(0.0, 1.0)), fh(i + vec2(1.0, 1.0)), f.x), f.y); }')
       .replace('#include <color_fragment>', `#include <color_fragment>
         float notBlue = step(diffuseColor.b, diffuseColor.g * 1.25 + 0.04);
         ${o.wear ? `float wv = texture2D(uWear, vFogWorld.xz / uMapSize).r;
         diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.55 + vec3(0.2, 0.15, 0.09), smoothstep(0.05, 0.5, wv) * 0.9);` : ''}
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.96, 1.0), uSnow * smoothstep(0.35, 0.85, vWNy) * notBlue * ${snow.toFixed(2)});`)
-      .replace('#include <dithering_fragment>', `float fa = texture2D(uFogMap, vFogWorld.xz / uMapSize).a;
+      .replace('#include <dithering_fragment>', `vec2 cq = vFogWorld.xz * 0.055 + vec2(uTime * 0.035, uTime * 0.014);
+        float cs = smoothstep(0.52, 0.78, fn(cq) * 0.65 + fn(cq * 2.4 + 3.0) * 0.35);
+        gl_FragColor.rgb *= 1.0 - cs * 0.42 * uCloud;
+        float fa = texture2D(uFogMap, vFogWorld.xz / uMapSize).a;
         if (fa > 0.001) {
           vec2 q = vFogWorld.xz * 0.28 + vec2(uTime * 0.045, uTime * 0.02);
           float cl = fn(q) * 0.55 + fn(q * 2.1 + 5.0) * 0.3 + fn(q * 4.3 - uTime * 0.05) * 0.15;
