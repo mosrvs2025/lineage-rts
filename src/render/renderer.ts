@@ -312,6 +312,7 @@ export class Renderer {
           this.floaters.push({ x: e.x, y: e.y - 1.4, text: 'Upgraded!', color: '#ffd27a', age: 0, life: 2.2, big: true }); break;
         }
         case 'tech': this.rings.burst(e.x, h, e.y, 3, 0x7fd0ff, 1.2); for (let i = 0; i < 16; i++) S.spawn(e.x + (r() - 0.5) * 1.5, h + 0.5, e.y + (r() - 0.5) * 1.5, 0, 1.4 + r() * 1.6, 0, 1.3, 0.13, 0.02, 0xbfe8ff, -0.3, 0.4, 1); this.floaters.push({ x: e.x, y: e.y - 1.2, text: 'Learned', color: '#9fdcff', age: 0, life: 2, big: true }); break;
+        case 'job': this.rings.burst(e.x, h, e.y, 1.4, 0x9fe0ff, 0.9); this.floaters.push({ x: e.x, y: e.y - 0.9, text: `→ ${e.res === 'food' ? 'Food' : e.res === 'wood' ? 'Wood' : 'Stone'}`, color: RES_COL[e.res ?? 'food'] ?? '#fff', age: 0, life: 1.8, big: true }); break;
         case 'heal': S.spawn(e.x + (r() - 0.5) * 0.4, h + 0.6, e.y + (r() - 0.5) * 0.4, 0, 0.9, 0, 0.9, 0.15, 0.02, 0x8cff9a, -0.1, 0.5, 1); break;
         case 'rank': this.rings.burst(e.x, h, e.y, 2, 0xffd54a, 1); for (let i = 0; i < 14; i++) S.spawn(e.x, h + 1.2, e.y, (r() - 0.5) * 2, 1 + r() * 2, (r() - 0.5) * 2, 1, 0.14, 0.02, 0xffd54a, -0.6, 0.5, 1); this.floaters.push({ x: e.x, y: e.y - 0.8, text: e.n === 2 ? 'Elite!' : 'Veteran!', color: '#ffd54a', age: 0, life: 1.8, big: true }); break;
         default: break;

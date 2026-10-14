@@ -64,6 +64,7 @@ export class Hud {
   private springToast = false; private lastSpeed = 1;
   private pickedSuccessor = 0; private pickedSpecies: Species = 'human';
   readonly bub: Bubbles;
+  private placeN = 0;
   private prevRes: Record<string, number> = {}; private flash: Record<string, number> = {};
 
   constructor(private g: Game) {
@@ -94,7 +95,11 @@ export class Hud {
       (e.target as HTMLInputElement).value = '';
       if (err) this.toast(`Import failed: ${err}`, 'bad'); else { this.closeModal(); this.toast('Save imported.', 'good'); }
     });
-    this.bub = new Bubbles(() => this.layout());
+    this.bub = new Bubbles(() => this.layout(), { subOpen: () => this.panelOpen(), closeSub: () => this.closePanels(), notify: (m) => this.toast(m) });
+    // HUD boxes never let a touch fall through to the map underneath
+    for (const id of ['topbar', 'objectives', 'toasts', 'fab', 'bubble', 'jobs', 'panel', 'hud', 'dock', 'placebar', 'modal']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
+    // the first map touch while a transient window is open only dismisses it (it never also selects units)
+    $('game').addEventListener('pointerdown', (e) => { if (this.dismissTransient()) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
     this.renderTop();
     this.layout();
   }
@@ -134,6 +139,17 @@ export class Hud {
     const a = $('alert'); a.classList.remove('on'); void a.offsetWidth; a.classList.add('on');
   }
 
+  /** Close fan menu, an unpinned Jobs window and any sheet; returns whether something was dismissed. */
+  private dismissTransient(): boolean {
+    if (this.g.menuOpen) return false;
+    let closed = false;
+    if ($('fab').classList.contains('open')) { this.bub.closeFab(); closed = true; }
+    if (this.jobsOpen && !this.bub.jobsPinned) { this.closeJobs(); closed = true; }
+    if (this.panel && this.g.mode !== 'place') { this.panel = null; this.renderPanel(true); closed = true; }
+    return closed;
+  }
+  private closeJobs() { this.jobsOpen = false; this.lastJobs = ''; $('jobs').classList.add('hidden'); }
+
   panelOpen() { return this.panel !== null || this.jobsOpen; }
   closePanels() { this.panel = null; this.jobsOpen = false; this.renderPanel(true); this.lastJobs = ''; $('jobs').classList.add('hidden'); }
   togglePanel(p: Exclude<PanelId, null>) {
@@ -152,11 +168,14 @@ export class Hud {
       case 'speed': g.speed = g.speed === 0 ? 1 : g.speed >= 3 ? 1 : g.speed + 1; this.lastSpeed = g.speed; break;
       case 'sound': setSetting('muted', !settings.muted); this.renderTop(); break;
       case 'menu': this.openMenu(); break;
-      case 'build': this.togglePanel('build'); break;
-      case 'disc': this.togglePanel('disc'); break;
+      case 'build': this.bub.closeFab(); this.togglePanel('build'); break;
+      case 'disc': this.bub.closeFab(); this.togglePanel('disc'); break;
       case 'closepanel': this.closePanels(); break;
-      case 'jobs': this.panel = null; this.renderPanel(true); this.jobsOpen = !this.jobsOpen; this.lastJobs = ''; $('jobs').classList.toggle('hidden', !this.jobsOpen); break;
+      case 'jobs': this.bub.closeFab(); this.panel = null; this.renderPanel(true); this.jobsOpen = !this.jobsOpen; this.lastJobs = ''; $('jobs').classList.toggle('hidden', !this.jobsOpen); this.bub.place(); break;
+      case 'closejobs': this.closeJobs(); break;
+      case 'desel': g.clearSelection(); break;
       case 'objtoggle': this.objOpen = !this.objOpen; this.lastObj = ''; break;
+      case 'objrestore': this.objOpen = true; this.lastObj = ''; break;
       case 'placeb': g.startPlace(arg as BuildingKind); break;
       case 'place-ok': { const err = g.confirmPlace(); if (err) { sfx.error(); this.toast(err, 'bad'); } else { sfx.place(); this.toast('Construction started.', 'good'); } break; }
       case 'place-cancel': g.cancelPlace(); break;
@@ -370,6 +389,8 @@ export class Hud {
     const w = this.g.world; if (!w) return;
     this.renderTop(); this.renderChips(w, now); this.renderClock(w); this.renderObjectives(w); this.renderDock(w); this.renderSelection(w); this.renderCommands(w);
     this.bub.update(this.g.liveSel().length > 0 || this.g.selB !== null);
+    if (++this.placeN % 25 === 0) this.bub.place();
+    $('app').style.setProperty('--lane', `${$('toasts').offsetHeight}px`);
     this.renderPanel(); this.renderJobs(w); this.renderPlaceBar(); this.processLog(w);
     if (canSucceed(w) && !this.springToast) { this.springToast = true; this.toast('Spring has come. Open the objectives to advance the generation.', 'good'); sfx.good(); }
     if (!canSucceed(w)) this.springToast = w.gen > 1 || (this.springToast && w.time >= w.winter.end);
@@ -446,7 +467,8 @@ export class Hud {
       (open ? `<ul>${list.map((o, i) => `<li class="${o.done ? 'done' : i === cur ? 'cur' : ''}"><span class="ob">${o.done ? icon('check') : ''}</span>${esc(o.text)}</li>`).join('')}</ul>` : `<div class="one">${cur >= 0 ? esc(list[cur].text) : 'Objectives complete'}</div>`) +
       (hint && open ? `<p class="hint">${icon('bulb')}<span>${esc(hint)}</span></p>` : '') +
       (succ ? `<button data-act="succession" class="btn primary pulse">${icon('fire')}Advance generation</button>` : '');
-    if (html !== this.lastObj) { $('objectives').innerHTML = html; this.lastObj = html; }
+    $('opill').innerHTML = `${icon('trophy')}<b>${done}/${list.length}</b>${succ ? '<i class="badge">!</i>' : ''}`;
+    if (html !== this.lastObj) { $('obody').innerHTML = html; this.lastObj = html; }
   }
 
   // ------------------------------------------------------------ dock (global tools)
@@ -478,13 +500,13 @@ export class Hud {
         const doing = o.t === 'gather' ? `Gathering ${nodeById(w, o.node)?.res ?? ''}` : o.t === 'idle' ? 'Idle' : o.t === 'research' ? 'Researching' : o.t === 'build' ? 'Building' : o.t === 'attack' ? 'Fighting' : o.t === 'move' ? 'Moving' : o.t === 'amove' ? 'Attack-moving' : o.t === 'hold' ? 'Holding' : o.t;
         const pct = Math.max(0, u.hp / u.maxHp) * 100;
         html = `<div class="sp"><div class="pf">${icon(KIND_ICON[u.kind])}</div>
-          <div class="si"><h3>${esc(u.name)}<small>${['', 'Veteran ', 'Elite '][rankOf(u)]}${d.name}${u.gen > 1 ? ' · Gen ' + ROMAN[u.gen] : ''}${u.kills ? ` · ${u.kills} kills` : ''}</small></h3>
+          <div class="si"><h3>${esc(u.name)}<small>${['', 'Veteran ', 'Elite '][rankOf(u)]}${d.name}${u.gen > 1 ? ' · Gen ' + ROMAN[u.gen] : ''}${u.kills ? ` · ${u.kills} kills` : ''}</small><button class="mini clr" data-act="desel" aria-label="Deselect">${icon('close')}</button></h3>
           <div class="hp ${pct < 35 ? 'low' : ''}"><i style="width:${pct}%"></i><span>${icon('heart')}${Math.ceil(u.hp)} / ${u.maxHp}</span></div>
           <div class="stats"><span>${icon('attack')}${d.dmg}</span><span>${icon('move')}${d.speed.toFixed(1)}</span>${u.carry.n ? `<span>${icon(u.carry.res!)}${u.carry.n}</span>` : ''}<span class="st">${doing}</span></div>
           <p class="desc">${esc(d.desc)}</p></div></div>`;
       } else {
         const counts: Record<string, number> = {}; for (const u of us) counts[u.kind] = (counts[u.kind] ?? 0) + 1;
-        html = `<div class="sp multi"><div class="mh"><b>${us.length} selected</b></div><div class="grp">${Object.entries(counts).map(([k, n]) => `<button class="gi" data-act="selkind:${k}" data-tip="${esc(JSON.stringify({ t: UNITS[k as UnitKind].name, d: `Select only the ${UNITS[k as UnitKind].name.toLowerCase()}s.` }))}">${icon(KIND_ICON[k])}<i class="badge">${n}</i><span>${UNITS[k as UnitKind].name}</span></button>`).join('')}</div></div>`;
+        html = `<div class="sp multi"><div class="mh"><b>${us.length} selected</b><button class="mini clr" data-act="desel" aria-label="Deselect all" data-tip="${esc(JSON.stringify({ t: 'Deselect all', d: 'Clear the current selection.' }))}">${icon('close')}<span>Clear</span></button></div><div class="grp">${Object.entries(counts).map(([k, n]) => `<button class="gi" data-act="selkind:${k}" data-tip="${esc(JSON.stringify({ t: UNITS[k as UnitKind].name, d: `Select only the ${UNITS[k as UnitKind].name.toLowerCase()}s.` }))}">${icon(KIND_ICON[k])}<i class="badge">${n}</i><span>${UNITS[k as UnitKind].name}</span></button>`).join('')}</div></div>`;
       }
     } else if (g.selB !== null && w._b?.get(g.selB)) {
       const b = w._b.get(g.selB)!, d = BUILDINGS[b.kind], pct = (b.hp / b.maxHp) * 100;
@@ -493,7 +515,7 @@ export class Hud {
       const tiers = d.upgrades?.length ? `<span class="tiers">${d.upgrades.map((_, i) => `<i class="${i < b.tier ? 'on' : ''}"></i>`).join('')}</span>` : '';
       const jobs = (b.upg ? prog(`Upgrading to ${nextUpgrade(b)!.name}`, b.upg.t, b.upg.total) : '') + (b.research ? prog(`Researching ${TECHS[b.research.tech].name}`, b.research.t, b.research.total) : '');
       html = `<div class="sp"><div class="pf bld">${icon(b.kind)}</div>
-        <div class="si"><h3>${esc(buildingTitle(b))}${tiers}<small>${b.done ? 'Complete' : `Under construction ${Math.floor(b.progress * 100)}%`}</small></h3>
+        <div class="si"><h3>${esc(buildingTitle(b))}${tiers}<small>${b.done ? 'Complete' : `Under construction ${Math.floor(b.progress * 100)}%`}</small><button class="mini clr" data-act="desel" aria-label="Deselect">${icon('close')}</button></h3>
         <div class="hp"><i style="width:${pct}%"></i><span>${icon('heart')}${Math.ceil(b.hp)} / ${b.maxHp}</span></div>
         <p class="desc">${esc(d.desc)}</p>${jobs}${d.trains.length && b.done ? `<div class="queue"><small>Training</small>${q}</div>` : ''}</div></div>`;
     } else {
@@ -545,7 +567,7 @@ export class Hud {
     const c = jobCounts(w);
     const row = (r: Res, label: string) => `<div class="jrow">${icon(r)}<span>${label}</span><b>${c[r]}</b><button data-act="job:${r}" class="mini" aria-label="Add worker to ${label}">${icon('plus')}</button></div>`;
     const html = `<h4>${icon('jobs')}Gatherer jobs</h4>${row('food', 'Food')}${row('wood', 'Wood')}${row('stone', 'Stone')}<div class="jrow">${icon('idle')}<span>Idle</span><b>${c.idle}</b><button data-act="idle" class="mini">Select</button></div><div class="jrow">${icon('build')}<span>Building / researching</span><b>${c.build}</b><i></i></div><p class="fine">+ moves an idle gatherer (or one from another job) here.</p>`;
-    if (html !== this.lastJobs) { $('jobs').innerHTML = html; this.lastJobs = html; }
+    if (html !== this.lastJobs) { $('jbody').innerHTML = html; this.lastJobs = html; }
   }
 
   private renderPlaceBar() {

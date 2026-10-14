@@ -150,6 +150,7 @@ export function playEvent(e: GameEvent): boolean {
     case 'discover': sfx.discover(); break;
     case 'preserved': [392, 494, 587].forEach((f, i) => tone(f, 0.9, 'sine', 0.09, i * 0.12)); break;
     case 'rally': tone(220, 0.6, 'sawtooth', 0.1 * vol, 0, 40, undefined, pan); tone(330, 0.6, 'sawtooth', 0.07 * vol, 0.02, 60, undefined, pan); break;
+    case 'job': tone(660, 0.08, 'triangle', 0.1 * vol, 0, 0, undefined, pan); tone(880, 0.1, 'triangle', 0.08 * vol, 0.07, 0, undefined, pan); break;
     case 'upgrade': [262, 330, 392, 523].forEach((f, i) => tone(f, 0.7, 'triangle', 0.1, i * 0.09)); sfx.build(); break;
     case 'tech': [440, 554, 659, 880].forEach((f, i) => tone(f, 0.5, 'sine', 0.09, i * 0.07)); break;
     case 'heal': tone(880, 0.15, 'sine', 0.025 * vol, 0, 120, undefined, pan); break;

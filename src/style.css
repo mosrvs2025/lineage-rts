@@ -285,11 +285,11 @@ kbd { font: 600 10px var(--ui); padding: 1px 5px; border-radius: 4px; background
   .pp #dock { display: block; position: absolute; left: 29px; top: 29px; right: auto; width: 0; height: 0; z-index: 1; }
   .pp #dock .dk { position: absolute; width: 50px; height: 50px; margin: -25px 0 0 -25px; border-radius: 50%; transform: scale(.25); opacity: 0; pointer-events: none; transition: transform .24s cubic-bezier(.2, 1.5, .4, 1), opacity .16s; background: var(--noise), linear-gradient(180deg, #4a3d26, #241c11); border-color: var(--gold2); box-shadow: 0 4px 12px rgba(0,0,0,.6); }
   .pp #dock .dk .ic { font-size: 18px; } .pp #dock .dk span { font-size: 7.5px; letter-spacing: 0; }
-  .pp #fab.open #dock .dk { opacity: 1; pointer-events: auto; transform: translate(calc(cos(var(--a)) * 122px), calc(sin(var(--a)) * 122px)); }
-  .pp #dock .dk:nth-child(1) { --a: calc(var(--start) + var(--step) * 0); transition-delay: 0ms; } .pp #dock .dk:nth-child(2) { --a: calc(var(--start) + var(--step) * 1); transition-delay: 25ms; }
-  .pp #dock .dk:nth-child(3) { --a: calc(var(--start) + var(--step) * 2); transition-delay: 50ms; } .pp #dock .dk:nth-child(4) { --a: calc(var(--start) + var(--step) * 3); transition-delay: 75ms; }
-  .pp #dock .dk:nth-child(5) { --a: calc(var(--start) + var(--step) * 4); transition-delay: 100ms; } .pp #dock .dk:nth-child(6) { --a: calc(var(--start) + var(--step) * 5); transition-delay: 125ms; }
-  .pp #dock .dk:nth-child(7) { --a: calc(var(--start) + var(--step) * 6); transition-delay: 150ms; } .pp #dock .dk:nth-child(8) { --a: calc(var(--start) + var(--step) * 7); transition-delay: 175ms; }
+  .pp #fab.open #dock .dk { opacity: 1; pointer-events: auto; transform: translate(0, 0); }
+  .pp #fab.open #dock .dk:nth-child(1) { transform: translate(var(--x0), var(--y0)); transition-delay: 0ms; } .pp #fab.open #dock .dk:nth-child(2) { transform: translate(var(--x1), var(--y1)); transition-delay: 25ms; }
+  .pp #fab.open #dock .dk:nth-child(3) { transform: translate(var(--x2), var(--y2)); transition-delay: 50ms; } .pp #fab.open #dock .dk:nth-child(4) { transform: translate(var(--x3), var(--y3)); transition-delay: 75ms; }
+  .pp #fab.open #dock .dk:nth-child(5) { transform: translate(var(--x4), var(--y4)); transition-delay: 100ms; } .pp #fab.open #dock .dk:nth-child(6) { transform: translate(var(--x5), var(--y5)); transition-delay: 125ms; }
+  .pp #fab.open #dock .dk:nth-child(7) { transform: translate(var(--x6), var(--y6)); transition-delay: 150ms; } .pp #fab.open #dock .dk:nth-child(8) { transform: translate(var(--x7), var(--y7)); transition-delay: 175ms; }
   #fab { display: block; position: fixed; z-index: 8; width: 58px; height: 58px; touch-action: none; }
   #fab.hidden { display: none; }
   #fabbtn { position: relative; z-index: 2; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; color: #2a1a06; background: radial-gradient(circle at 35% 28%, #ffe7a8, #d9a441 70%, #8a6420); border: 2px solid #5a4222; box-shadow: 0 0 0 3px rgba(232,189,99,.25), 0 6px 16px rgba(0,0,0,.6); touch-action: none; cursor: grab; }
@@ -317,4 +317,32 @@ kbd { font: 600 10px var(--ui); padding: 1px 5px; border-radius: 4px; background
   #mini { width: 112px; height: 78px; padding: 3px; left: calc(6px + var(--sl)); bottom: calc(6px + var(--sb)); } #minimap { width: 104px; height: 70px; }
   #placebar { bottom: calc(var(--hudh) + 4px); }
   #jobs { top: calc(130px + var(--st)); right: 8px; }
+}
+
+/* ======================================================================
+   HUD window management: draggable panels, pin, toast lane, clear buttons
+   ====================================================================== */
+.dgrip { display: flex; align-items: center; gap: 6px; touch-action: none; cursor: grab; min-height: 22px; }
+.dgrip .grip { flex: 1; height: 12px; background: radial-gradient(circle, rgba(232,189,99,.5) 1.5px, transparent 2px) 0 0 / 9px 6px; opacity: .75; }
+.dgrip .mini, .mini.clr { width: 28px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 14px; padding: 0; flex: none; }
+.dgrip .mini.on, .pinbtn.on { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 10px rgba(232,189,99,.5); }
+.pinbtn { display: inline-flex; width: auto !important; padding: 0 7px !important; gap: 4px; align-items: center; } .pinbtn em { font: 700 9px var(--ui); letter-spacing: .08em; text-transform: uppercase; font-style: normal; }
+.dragged { right: auto !important; bottom: auto !important; transform: none !important; animation: none !important; }
+.moving { box-shadow: 0 14px 34px rgba(0,0,0,.7), 0 0 0 2px var(--gold) !important; }
+#objectives .dgrip { margin: -2px 0 2px; }
+#opill { display: none; align-items: center; gap: 6px; font-family: var(--disp); color: var(--gold); position: relative; } #opill .ic { font-size: 18px; } #opill .badge { right: -16px; top: -6px; }
+#objectives.pill { width: auto; padding: 4px 8px; border-radius: 999px; } #objectives.pill #obody { display: none; } #objectives.pill .grip { display: none; } #objectives.pill #opill { display: inline-flex; padding-right: 8px; }
+#jobs .dgrip { margin: -4px -2px 4px; } #jobs #jpin { display: grid; }
+.mh { display: flex; align-items: center; gap: 8px; } .mh b { flex: 1; }
+.mini.clr { width: auto; padding: 0 8px; gap: 4px; margin-left: auto; background: rgba(0,0,0,.35); } .mini.clr span { font: 700 9px var(--ui); letter-spacing: .06em; text-transform: uppercase; }
+.si h3 .mini.clr { width: 24px; height: 22px; padding: 0; font-size: 12px; margin-left: auto; }
+#bubble.pinned #bgrip { cursor: default; } #bubble.pinned #bgrip .grip { visibility: hidden; }
+/* toasts get their own lane under the top bar; the objectives box (unless dragged) steps below it */
+@media (max-width: 899px), (max-height: 559px) {
+  #toasts { left: calc(min(236px, 34vw) + 20px); transform: none; width: min(340px, calc(100vw - min(236px, 34vw) - 100px)); align-items: stretch; z-index: 9; }
+  #objectives:not(.dragged) { transition: top .2s; }
+}
+@media (max-width: 560px) and (orientation: portrait) {
+  #toasts { left: 6px; right: 6px; width: auto; top: calc(86px + var(--st)); }
+  #objectives:not(.dragged) { top: calc(90px + var(--st) + var(--lane, 0px)); }
 }

@@ -187,6 +187,7 @@ export function cmdJob(w: World, res: Res): Check {
   const n = nearestNode(w, u.x, u.y, res);
   if (!n) return { ok: false, reason: `No ${res} source discovered nearby.` };
   setOrder(u, { t: 'gather', node: n.id }); u.carry = { res: null, n: 0, meat: false };
+  emit(w, { k: 'job', x: u.x, y: u.y, owner: 0, res });
   return { ok: true, reason: '' };
 }
 export function jobCounts(w: World) {
