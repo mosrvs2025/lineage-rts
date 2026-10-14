@@ -5,7 +5,7 @@ import { nearestFree } from './grid';
 import type { World } from './types';
 import { autoWork, DT, setOrder } from './units';
 import { spawnSpot, makeUnit } from './world';
-import { isWinter, log } from './util';
+import { emit, isWinter, log } from './util';
 
 /** Runs once per simulated second. */
 export function economySecond(w: World) {
@@ -84,6 +84,7 @@ export function trainingTick(w: World) {
     if (q.kind === 'gatherer' || q.kind === 'hunter') autoWork(w, u);
     else setOrder(u, { t: 'idle' });
     log(w, `${u.name} the ${UNITS[q.kind].name.toLowerCase()} joins the clan.`, 'good');
+    emit(w, { k: 'spawn', x: u.x, y: u.y, owner: 0, kind: q.kind });
   }
 }
 

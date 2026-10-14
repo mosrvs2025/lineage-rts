@@ -1,6 +1,7 @@
 import './style.css';
 import { placeCheck } from './sim/commands';
 import { Game } from './ui/game';
+import { renderMoodStats } from './ui/music';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const minimap = document.getElementById('minimap') as HTMLCanvasElement;
@@ -8,6 +9,7 @@ try {
   const game = new Game(canvas, minimap);
   (window as unknown as { game: Game }).game = game; // handy for debugging and automated play-testing
   (window as unknown as { __check: typeof placeCheck }).__check = placeCheck;
+  (window as unknown as { __music: typeof renderMoodStats }).__music = renderMoodStats;
   game.startShowcase();
   game.hud.openStart();
 } catch (e) {

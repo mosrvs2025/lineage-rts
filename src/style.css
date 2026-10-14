@@ -227,3 +227,22 @@ kbd { font: 600 10px var(--ui); padding: 1px 5px; border-radius: 4px; background
   #cmdcard { left: auto; } #mini { bottom: calc(6px + var(--sb)); }
   #objectives { width: min(220px, 56vw); } .clancards { grid-template-columns: 1fr; } .clancard ul { display: none; }
 }
+
+/* ---------- context cursors */
+#game.cur-attack { cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' fill='none' stroke='%23ff7a6a' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><g stroke='%23000' stroke-width='5' opacity='.55'><path d='M6 26L22 10l1-6-6 1L4 22zM26 26L10 10 9 4l6 1 13 17z'/></g><path d='M6 26L22 10l1-6-6 1L4 22zM26 26L10 10 9 4l6 1 13 17z'/></svg>") 16 16, crosshair; }
+#game.cur-gather { cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' fill='none' stroke='%2393e27c' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><g stroke='%23000' stroke-width='5' opacity='.55'><path d='M4 13c4-7 20-7 24 0M16 9v20'/></g><path d='M4 13c4-7 20-7 24 0M16 9v20'/></svg>") 16 16, pointer; }
+#game.cur-build { cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' fill='none' stroke='%23ffd27a' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><g stroke='%23000' stroke-width='5' opacity='.55'><path d='M18 4l9 9-4 4-9-9z'/><path d='M16 14L5 25l3 3 11-11'/></g><path d='M18 4l9 9-4 4-9-9z'/><path d='M16 14L5 25l3 3 11-11'/></svg>") 16 16, pointer; }
+#game.cur-select { cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' fill='none' stroke='%23ffe9a0' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><g stroke='%23000' stroke-width='5' opacity='.55'><path d='M8 4l4 22 4-8 8-3z'/></g><path d='M8 4l4 22 4-8 8-3z'/></svg>") 8 4, pointer; }
+#game.cur-move { cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' fill='none' stroke='%238fe0ff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><g stroke='%23000' stroke-width='5' opacity='.55'><path d='M5 16h22M19 8l8 8-8 8'/></g><path d='M5 16h22M19 8l8 8-8 8'/></svg>") 16 16, crosshair; }
+
+/* ---------- settings */
+.srow { display: grid; grid-template-columns: 170px 1fr 44px; gap: 14px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--edge2); }
+.srow label { display: flex; gap: 9px; align-items: center; color: var(--gold); font-family: var(--disp); letter-spacing: .05em; } .srow label .ic { font-size: 19px; }
+.srow b { font-family: var(--disp); text-align: right; } .srow > :nth-child(2):nth-last-child(1) { grid-column: 2 / 4; }
+.srow input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--gold2), #3a2f1c); outline: none; border: 1px solid var(--edge); }
+.srow input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff1c4, #c4953f); border: 2px solid #5a4222; cursor: pointer; box-shadow: 0 0 10px rgba(232,189,99,.6); }
+.srow input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff1c4, #c4953f); border: 2px solid #5a4222; cursor: pointer; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; } .seg .btn { min-height: 36px; padding: 4px 12px; flex: 1 1 auto; }
+.switch { display: inline-flex; align-items: center; gap: 10px; background: none; border: none; padding: 0; box-shadow: none; } .switch i { width: 46px; height: 24px; border-radius: 12px; background: #0d0b08; border: 1px solid var(--edge); position: relative; transition: background .2s; } .switch i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #8a7f68; transition: transform .2s, background .2s; }
+.switch.on i { background: #3a2f12; border-color: var(--gold); } .switch.on i::after { transform: translateX(22px); background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+@media (max-width: 899px), (max-height: 559px) { .srow { grid-template-columns: 120px 1fr 34px; gap: 8px; padding: 6px 0; } .srow label { font-size: 12px; } }

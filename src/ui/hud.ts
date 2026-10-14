@@ -11,7 +11,9 @@ import { advanceGeneration, canSucceed, inheritancePreview, successorCandidates 
 import type { BuildingKind, DiscoveryId, Res, Species, UnitKind, World } from '../sim/types';
 import { bCenter, fmtTime, isWinter, nodeById } from '../sim/util';
 import { OUTPOST_REQUIRE } from '../sim/world';
-import { initAudio, isMuted, setMuted, sfx } from './audio';
+import { initAudio, isMuted, sfx } from './audio';
+import { setSetting, settings } from './settings';
+import type { Quality } from './settings';
 import type { Game, SaveSlot } from './game';
 import { icon } from './icons';
 
@@ -76,6 +78,10 @@ export class Hud {
       });
       app.addEventListener('mouseout', (e) => { if (!(e.relatedTarget as HTMLElement | null)?.closest?.('[data-tip]')) this.hideTip(); });
     }
+    $('modal').addEventListener('input', (e) => {
+      const t = e.target as HTMLInputElement;
+      if (t.dataset.set === 'music' || t.dataset.set === 'sfx') { setSetting(t.dataset.set, Number(t.value) / 100); (t.nextElementSibling as HTMLElement).textContent = t.value; if (t.dataset.set === 'sfx') sfx.click(); }
+    });
     $<HTMLInputElement>('importfile').addEventListener('change', async (e) => {
       const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
       const err = this.g.loadText(await f.text());
@@ -137,7 +143,7 @@ export class Hud {
     switch (cmd) {
       case 'pause': if (g.speed === 0) g.speed = this.lastSpeed || 1; else { this.lastSpeed = g.speed; g.speed = 0; } break;
       case 'speed': g.speed = g.speed === 0 ? 1 : g.speed >= 3 ? 1 : g.speed + 1; this.lastSpeed = g.speed; break;
-      case 'sound': setMuted(!isMuted()); this.renderTop(); break;
+      case 'sound': setSetting('muted', !settings.muted); this.renderTop(); break;
       case 'menu': this.openMenu(); break;
       case 'build': this.togglePanel('build'); break;
       case 'disc': this.togglePanel('disc'); break;
@@ -178,6 +184,9 @@ export class Hud {
       case 'teach': { if (!w) break; const r = cmdTeach(w, arg as DiscoveryId); if (!r.ok) this.toast(r.reason, 'bad'); else this.toast('An apprentice begins to learn.', 'good'); break; }
       case 'job': { if (!w) break; const r = cmdJob(w, arg as Res); if (!r.ok) this.toast(r.reason, 'bad'); break; }
       // ---- menus
+      case 'settings': this.openSettings(); return;
+      case 'quality': setSetting('quality', arg as Quality); this.openSettings(); return;
+      case 'toggle': setSetting(arg as 'edgePan' | 'muted' | 'hints', !settings[arg as 'edgePan' | 'muted' | 'hints']); this.openSettings(); this.renderTop(); return;
       case 'play': this.openClan(); return;
       case 'species': this.pickedSpecies = arg as Species; this.openClan(); return;
       case 'start': this.closeModal(); g.startNew(this.pickedSpecies); return;
@@ -216,6 +225,7 @@ export class Hud {
         <div class="tmenu">
           <button data-act="play" class="tbtn primary">${icon('play')}<span>New Campaign<small>The First Winter</small></span></button>
           ${slot('auto', 'Continue')}${slot('manual', 'Load Game')}
+          <button data-act="settings" class="tbtn">${icon('sparkle')}<span>Settings</span></button>
           <button data-act="help" class="tbtn">${icon('help')}<span>How to Play</span></button>
         </div>
         <p class="tag">Ancestors discover. Descendants find new uses.</p>
@@ -251,12 +261,29 @@ export class Hud {
           <button data-act="save" class="btn">${icon('save')}<span>Save game${info('manual')}</span></button>
           <button data-act="continue:manual" class="btn">${icon('load')}<span>Load game</span></button>
           <button data-act="continue:auto" class="btn">${icon('clock')}<span>Load autosave${info('auto')}</span></button>
+          <button data-act="settings" class="btn">${icon('sparkle')}<span>Settings</span></button>
           <button data-act="help" class="btn">${icon('help')}<span>How to play</span></button>
           <button data-act="export" class="btn">${icon('export')}<span>Export save</span></button>
           <button data-act="import" class="btn">${icon('import')}<span>Import save</span></button>
           <button data-act="restartask" class="btn">${icon('restart')}<span>Restart</span></button>
           <button data-act="title" class="btn">${icon('door')}<span>Title screen</span></button>
         </div>
+      </div>`);
+  }
+
+  openSettings() {
+    const seg = (q: Quality, label: string) => `<button data-act="quality:${q}" class="btn ${settings.quality === q ? 'primary' : ''}">${label}</button>`;
+    const sw = (k: 'edgePan' | 'muted', label: string, inv = false) => `<button data-act="toggle:${k}" class="switch ${(inv ? !settings[k] : settings[k]) ? 'on' : ''}" aria-pressed="${inv ? !settings[k] : settings[k]}"><i></i><span>${label}</span></button>`;
+    this.openModal(`
+      <div class="dialog">
+        <h2>${icon('menu')}Settings</h2>
+        <div class="srow"><label>${icon('sound')}Music</label><input type="range" min="0" max="100" value="${Math.round(settings.music * 100)}" data-set="music"><b>${Math.round(settings.music * 100)}</b></div>
+        <div class="srow"><label>${icon('build')}Effects</label><input type="range" min="0" max="100" value="${Math.round(settings.sfx * 100)}" data-set="sfx"><b>${Math.round(settings.sfx * 100)}</b></div>
+        <div class="srow"><label>${icon('mute')}Sound</label>${sw('muted', settings.muted ? 'Muted' : 'On', true)}</div>
+        <div class="srow"><label>${icon('sparkle')}Graphics</label><div class="seg">${seg('auto', 'Auto')}${seg('high', 'High')}${seg('medium', 'Medium')}${seg('low', 'Low')}</div></div>
+        <p class="fine">Auto lowers effects automatically if your device struggles. Low turns off shadows and post-processing.</p>
+        <div class="srow"><label>${icon('move')}Edge scrolling</label>${sw('edgePan', settings.edgePan ? 'On' : 'Off')}</div>
+        <div class="row"><button data-act="${this.g.showcase || !this.g.world ? 'title' : 'menu'}" class="btn primary">${icon('check')}Done</button></div>
       </div>`);
   }
 
@@ -344,9 +371,7 @@ export class Hud {
       this.toast(l.text, l.kind);
       if (this.g.showcase) continue;
       if (l.kind === 'bad' && /attack|approach|warband|raid|spotted|destroyed/i.test(l.text)) { this.alertFlash(); sfx.alert(); }
-      else if (/Discovery:/.test(l.text)) sfx.discover();
-      else if (/completed/.test(l.text)) sfx.build();
-      else if (l.kind === 'good') sfx.good();
+      else if (l.kind === 'good' && !/Discovery:|completed|joins the clan|taught|preserved/i.test(l.text)) sfx.good();
     }
     if (w.log.length) this.lastLog = key(w.log[w.log.length - 1]);
   }

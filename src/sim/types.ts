@@ -12,6 +12,13 @@ export type DiscState = 'hidden' | 'clue' | 'known' | 'preserved' | 'faded';
 
 export interface Pt { x: number; y: number }
 
+/** Transient presentation events (sounds, particles). Never serialized and never read by the simulation. */
+export interface GameEvent {
+  k: 'hit' | 'shoot' | 'chop' | 'mine' | 'pick' | 'hammer' | 'death' | 'deliver' | 'spawn' | 'built' | 'howl' | 'discover' | 'preserved' | 'rally' | 'felled';
+  x: number; y: number;
+  owner?: Owner; kind?: string; n?: number; res?: string; x2?: number; y2?: number;
+}
+
 export type Order =
   | { t: 'idle' }
   | { t: 'move'; x: number; y: number }
@@ -131,6 +138,7 @@ export interface World {
   _u?: Map<number, Unit>;
   _b?: Map<number, Building>;
   _n?: Map<number, ResNode>;
+  _ev?: GameEvent[];
   _exp?: Uint8Array;
   _carc?: Map<number, number>;
   _starving?: boolean;

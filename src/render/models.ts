@@ -14,7 +14,8 @@ export const shared = {
 };
 
 /** Patch a standard material: fog-of-war darkening, winter snow on upward faces, optional wind sway on instanced meshes. */
-export function enhance<T extends THREE.MeshStandardMaterial>(m: T, o: { sway?: boolean; snow?: number } = {}): T {
+export function enhance<T extends THREE.MeshStandardMaterial>(m: T, o: { sway?: boolean | number; snow?: number } = {}): T {
+  const amp = typeof o.sway === 'number' ? o.sway : 1;
   const snow = o.snow ?? 0;
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uFogMap = shared.fogMap; sh.uniforms.uMapSize = shared.mapSize; sh.uniforms.uSnow = shared.snow; sh.uniforms.uTime = shared.time;
@@ -22,7 +23,8 @@ export function enhance<T extends THREE.MeshStandardMaterial>(m: T, o: { sway?: 
       .replace('#include <common>', '#include <common>\nvarying vec3 vFogWorld;\nvarying float vWNy;\nuniform float uTime;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>\n${o.sway ? `#ifdef USE_INSTANCING
         float sw = sin(uTime * 1.4 + instanceMatrix[3].x * 0.9 + instanceMatrix[3].z * 0.6) * 0.04;
-        transformed.x += sw * max(transformed.y, 0.0) * max(transformed.y, 0.0) * 0.45;
+        transformed.x += sw * max(transformed.y, 0.0) * max(transformed.y, 0.0) * 0.45 * ${amp.toFixed(2)};
+        transformed.z += sw * 0.6 * max(transformed.y, 0.0) * max(transformed.y, 0.0) * 0.45 * ${amp.toFixed(2)};
       #endif` : ''}`)
       .replace('#include <project_vertex>', `#include <project_vertex>
         vec4 fwp = vec4(transformed, 1.0);
@@ -40,7 +42,7 @@ export function enhance<T extends THREE.MeshStandardMaterial>(m: T, o: { sway?: 
       .replace('#include <dithering_fragment>', `gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.02, 0.03, 0.06), texture2D(uFogMap, vFogWorld.xz / uMapSize).a);
         #include <dithering_fragment>`);
   };
-  m.customProgramCacheKey = () => `enh${o.sway ? 1 : 0}${snow}`;
+  m.customProgramCacheKey = () => `enh${o.sway ? amp : 0}${snow}`;
   return m;
 }
 
@@ -239,51 +241,129 @@ export function buildBuilding(kind: BuildingKind, owner: 0 | 1, w: number, h: nu
   return m;
 }
 
-// ------------------------------------------------------------------ people
-const SKIN = { human: '#e6bd94', neanderthal: '#d9a888' } as const;
-const HAIR = { human: '#46301e', neanderthal: '#2a1c14' } as const;
-const TUNIC: Record<string, string> = { gatherer: '#c29a62', scout: '#d8c590', hunter: '#7f9a50', guard: '#92683f', raider: '#5a4644', leader: '#a44a32' };
+// ------------------------------------------------------------------ people (skinned, one draw call per person)
+const SKIN = { human: ['#e6bd94', '#d9a57e', '#b9805a'], neanderthal: ['#d9a888', '#cc9878', '#b58562'] } as const;
+const HAIR = { human: ['#46301e', '#2a1c14', '#8a5a2a', '#1d1713'], neanderthal: ['#2a1c14', '#3a2616', '#5a3a1e', '#171210'] } as const;
+const TUNIC: Record<string, string[]> = {
+  gatherer: ['#c29a62', '#b58a56', '#a8845a', '#c9a76e'], scout: ['#d8c590', '#cdb97e', '#bda875', '#d9cb9c'], hunter: ['#7f9a50', '#6f8a46', '#8aa05a', '#6b7f48'],
+  guard: ['#92683f', '#85603a', '#9a7048', '#7a5634'], raider: ['#5a4644', '#4a3a38', '#64504c', '#3e3030'], leader: ['#a44a32', '#9a3f2c', '#b0553a', '#8e3a28'],
+};
 
-export interface PersonGeo { body: THREE.BufferGeometry; leg: THREE.BufferGeometry; armR: THREE.BufferGeometry; armL: THREE.BufferGeometry; toolAxe: THREE.BufferGeometry; toolPick: THREE.BufferGeometry; toolHammer: THREE.BufferGeometry; torch: THREE.BufferGeometry }
+/** Bone rest positions in model space (feet at y=0, facing +z). */
+export const BONES: [string, string | null, number, number, number][] = [
+  ['root', null, 0, 0, 0], ['hips', 'root', 0, 0.46, 0], ['spine', 'hips', 0, 0.54, 0], ['head', 'spine', 0, 0.84, 0],
+  ['shL', 'spine', -0.21, 0.76, 0], ['elL', 'shL', -0.21, 0.52, 0], ['handL', 'elL', -0.21, 0.3, 0],
+  ['shR', 'spine', 0.21, 0.76, 0], ['elR', 'shR', 0.21, 0.52, 0], ['handR', 'elR', 0.21, 0.3, 0],
+  ['hipL', 'hips', -0.1, 0.44, 0], ['kneeL', 'hipL', -0.1, 0.22, 0], ['hipR', 'hips', 0.1, 0.44, 0], ['kneeR', 'hipR', 0.1, 0.22, 0],
+];
+const BONE_IDX: Record<string, number> = Object.fromEntries(BONES.map((b, i) => [b[0], i]));
+
+export function makeSkeleton() {
+  const bones = BONES.map(([name]) => { const b = new THREE.Bone(); b.name = name; return b; });
+  BONES.forEach(([, parent, x, y, z], i) => {
+    if (!parent) { bones[i].position.set(x, y, z); return; }
+    const pi = BONE_IDX[parent], pp = BONES[pi];
+    bones[i].position.set(x - pp[2], y - pp[3], z - pp[4]); bones[pi].add(bones[i]);
+  });
+  bones[0].updateMatrixWorld(true);
+  return { bones, skeleton: new THREE.Skeleton(bones) };
+}
+
+interface SPart extends Part { b: string }
+function mergeSkinned(parts: SPart[]): THREE.BufferGeometry {
+  const list = parts.map((pt) => {
+    const g = pt.g.index ? pt.g.toNonIndexed() : pt.g.clone();
+    tmp.position.set(...(pt.p ?? [0, 0, 0])); tmp.rotation.set(...(pt.r ?? [0, 0, 0])); tmp.scale.set(...(pt.s ?? [1, 1, 1])); tmp.updateMatrix();
+    g.applyMatrix4(tmp.matrix);
+    const col = new THREE.Color(pt.c as THREE.ColorRepresentation), n = g.attributes.position.count, arr = new Float32Array(n * 3), si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+    const bi = BONE_IDX[pt.b] ?? 0;
+    for (let i = 0; i < n; i++) { arr[i * 3] = col.r; arr[i * 3 + 1] = col.g; arr[i * 3 + 2] = col.b; si[i * 4] = bi; sw[i * 4] = 1; }
+    g.setAttribute('color', new THREE.BufferAttribute(arr, 3)); g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4)); g.setAttribute('skinWeight', new THREE.BufferAttribute(sw, 4));
+    g.deleteAttribute('uv');
+    return g;
+  });
+  return mergeGeometries(list, false)!;
+}
+
+export interface PersonGeo { body: THREE.BufferGeometry; toolAxe: THREE.BufferGeometry; toolPick: THREE.BufferGeometry; toolHammer: THREE.BufferGeometry; torch: THREE.BufferGeometry; bow: THREE.BufferGeometry; spear: THREE.BufferGeometry }
 const personCache = new Map<string, PersonGeo>();
-export function personGeo(kind: UnitKind, species: 'human' | 'neanderthal', owner: 0 | 1, gen: number): PersonGeo {
-  const key = `${kind}${species}${owner}${gen >= 2 ? 2 : 1}`;
+export function personGeo(kind: UnitKind, species: 'human' | 'neanderthal', owner: 0 | 1, gen: number, variant = 0): PersonGeo {
+  const v = variant & 3, key = `${kind}${species}${owner}${gen >= 2 ? 2 : 1}${v}`;
   const hit = personCache.get(key); if (hit) return hit;
   const neo = species === 'neanderthal';
   const team = owner === 0 ? (gen >= 2 ? '#38d39c' : '#27b7c6') : '#d84a36';
-  const skin = SKIN[species], hair = HAIR[species], tun = TUNIC[kind] ?? TUNIC.gatherer;
-  const body: Part[] = [
-    { g: box(0.38, 0.42, 0.25), c: tun, p: [0, 0.55, 0] }, { g: box(0.4, 0.06, 0.27), c: '#3a2a1c', p: [0, 0.4, 0] },
-    { g: box(0.08, 0.44, 0.02), c: team, p: [0.02, 0.55, 0.135], r: [0, 0, 0.55] },
-    { g: sph(neo ? 0.165 : 0.15, 1), c: skin, p: [0, 0.9, 0.01], s: neo ? [1.1, 1, 1.1] : [1, 1, 1] },
-    { g: sph(neo ? 0.175 : 0.16, 1), c: hair, p: [0, 0.95, -0.03], s: [1, 0.85, 1] },
-    { g: cyl(0.165, 0.165, 0.05, 10), c: team, p: [0, 0.93, 0] },
-    { g: sph(0.022, 0), c: '#1a1210', p: [0.06, 0.9, 0.14] }, { g: sph(0.022, 0), c: '#1a1210', p: [-0.06, 0.9, 0.14] },
-  ];
-  if (neo) body.push({ g: box(0.22, 0.035, 0.06), c: '#3a2418', p: [0, 0.94, 0.14] });
-  if (kind === 'guard') body.push({ g: cyl(0.27, 0.3, 0.1, 8), c: '#d8cfc0', p: [0, 0.74, 0] });
-  if (kind === 'raider') body.push({ g: box(0.22, 0.04, 0.03), c: '#c23a2a', p: [0, 0.88, 0.15] }, { g: cyl(0.27, 0.3, 0.09, 8), c: '#2a2a30', p: [0, 0.74, 0] });
-  if (kind === 'hunter') body.push({ g: cyl(0.05, 0.06, 0.4, 6), c: '#6a4526', p: [-0.1, 0.62, -0.17], r: [0.2, 0, 0.15] }, { g: cone(0.04, 0.1, 4), c: '#e6dcc4', p: [-0.13, 0.86, -0.2] });
-  if (kind === 'scout') body.push({ g: cyl(0.015, 0.015, 0.28, 4), c: '#e8d8a0', p: [-0.1, 1.05, -0.02], r: [0, 0, 0.5] });
-  if (kind === 'leader') {
-    body.push({ g: box(0.4, 0.62, 0.03), c: team, p: [0, 0.5, -0.15], r: [0.12, 0, 0] });
-    [[-0.07, '#f0ead0'], [0, '#c23a2a'], [0.07, '#f0ead0']].forEach(([x, col], i) => body.push({ g: cone(0.025, 0.28, 4), c: col as string, p: [x as number, 1.15 + (i === 1 ? 0.04 : 0), -0.02], r: [0, 0, (x as number) * 3] }));
+  const skin = SKIN[species][v % 3], hair = HAIR[species][v], tun = (TUNIC[kind] ?? TUNIC.gatherer)[v];
+  const P: SPart[] = [];
+  const add = (b: string, g: THREE.BufferGeometry, c: string, p?: V3, r?: V3, s?: V3) => P.push({ b, g, c, p, r, s });
+  const bw = neo ? 1.1 : 1;
+  // pelvis, tunic skirt, legs
+  add('hips', box(0.34 * bw, 0.14, 0.22 * bw), '#3a2a1c', [0, 0.46, 0]);
+  add('hips', box(0.32 * bw, 0.2, 0.2 * bw), tun, [0, 0.36, 0.0]);
+  add('hips', box(0.3 * bw, 0.04, 0.02), shade(tun, 0.7) as unknown as string, [0, 0.27, 0.11]);
+  for (const sx of [-1, 1]) {
+    const side = sx < 0 ? 'L' : 'R';
+    add(`hip${side}`, box(0.125 * bw, 0.22, 0.135 * bw), shade('#6a4a30', 0.9) as unknown as string, [sx * 0.1, 0.33, 0]);
+    add(`knee${side}`, box(0.105 * bw, 0.2, 0.115 * bw), '#5a3e28', [sx * 0.1, 0.12, 0]);
+    add(`knee${side}`, box(0.115 * bw, 0.05, 0.19), '#33271c', [sx * 0.1, 0.025, 0.035]);
+    add(`knee${side}`, box(0.12 * bw, 0.025, 0.12), '#c9b99a', [sx * 0.1, 0.205, 0]); // leg wrap
   }
-  const leg = merge([{ g: box(0.13, 0.36, 0.14), c: '#4a3a2a', p: [0, -0.18, 0] }, { g: box(0.14, 0.06, 0.2), c: '#33271c', p: [0, -0.35, 0.03] }]);
-  const arm: Part[] = [{ g: box(0.09, 0.3, 0.09), c: skin, p: [0, -0.15, 0] }, { g: sph(0.05, 0), c: skin, p: [0, -0.31, 0] }];
-  const armR: Part[] = [...arm];
-  if (kind === 'guard' || kind === 'leader') armR.push({ g: cyl(0.022, 0.022, 1.55, 5), c: '#8b6a40', p: [0, 0.3, 0.1] }, { g: cone(0.045, 0.2, 5), c: '#c7c9d0', p: [0, 1.16, 0.1] });
-  if (kind === 'hunter') armR.push({ g: new THREE.TorusGeometry(0.4, 0.016, 4, 12, Math.PI), c: '#6a4526', p: [0, -0.28, 0.14], r: [0, Math.PI / 2, -Math.PI / 2] }, { g: cyl(0.004, 0.004, 0.8, 3), c: '#eee', p: [0, -0.28, 0.14] });
-  if (kind === 'raider') armR.push({ g: cyl(0.025, 0.025, 0.6, 5), c: '#6a4526', p: [0, -0.1, 0.12], r: [0.3, 0, 0] }, { g: rock(0.14), c: '#80828c', p: [0, 0.2, 0.2], s: [0.8, 1.2, 0.8] });
-  if (kind === 'scout') armR.push({ g: cyl(0.018, 0.018, 1.35, 4), c: '#a78858', p: [0, 0.15, 0.08] });
-  const armL: Part[] = [...arm];
-  if (kind === 'guard') armL.push({ g: cyl(0.27, 0.27, 0.05, 12), c: team, p: [-0.1, -0.15, 0.1], r: [0, 0, Math.PI / 2] }, { g: cyl(0.1, 0.1, 0.07, 8), c: '#e8dcc0', p: [-0.12, -0.15, 0.1], r: [0, 0, Math.PI / 2] });
+  // torso
+  add('spine', box(0.4 * bw, 0.34, 0.26 * bw), tun, [0, 0.68, 0]);
+  add('spine', box(0.43 * bw, 0.05, 0.285 * bw), '#3a2a1c', [0, 0.54, 0]);
+  add('spine', box(0.075, 0.46, 0.02), team, [0.03, 0.66, 0.137 * bw], [0, 0, 0.5]);
+  add('spine', box(0.46 * bw, 0.07, 0.3 * bw), shade(tun, 0.82) as unknown as string, [0, 0.83, 0]);
+  // head
+  const hr = neo ? 0.17 : 0.155;
+  add('head', sph(hr, 1), skin, [0, 0.92, 0.01], undefined, neo ? [1.08, 1, 1.12] : [1, 1.04, 1]);
+  add('head', sph(hr * 1.07, 1), hair, [0, 0.965, -0.035], undefined, [1, 0.85, 1]);
+  if (v === 2 || kind === 'leader') add('head', box(0.07, 0.22, 0.07), hair, [0, 0.86, -0.15]); // long hair
+  add('head', cyl(hr * 1.05, hr * 1.05, 0.05, 10), team, [0, 0.95, 0]);
+  add('head', box(0.04, 0.05, 0.05), skin, [0, 0.9, 0.17]);                                              // nose
+  add('head', sph(0.024, 0), '#1a1210', [0.065, 0.925, 0.145]); add('head', sph(0.024, 0), '#1a1210', [-0.065, 0.925, 0.145]);
+  if (neo) { add('head', box(0.26, 0.035, 0.07), '#3a2418', [0, 0.955, 0.15]); add('head', box(0.2, 0.07, 0.07), '#3a2418', [0, 0.82, 0.12]); }
+  else if (v === 1) add('head', box(0.16, 0.06, 0.06), hair, [0, 0.83, 0.12]);
+  add('head', box(0.03, 0.05, 0.03), skin, [0.155, 0.92, 0], undefined); add('head', box(0.03, 0.05, 0.03), skin, [-0.155, 0.92, 0]);
+  // arms
+  const armCol = tun, hand = skin;
+  for (const sx of [-1, 1]) {
+    const side = sx < 0 ? 'L' : 'R';
+    add(`sh${side}`, box(0.095 * bw, 0.25, 0.095 * bw), armCol, [sx * 0.21, 0.64, 0]);
+    add(`el${side}`, box(0.085 * bw, 0.23, 0.085 * bw), skin, [sx * 0.21, 0.41, 0]);
+    add(`el${side}`, sph(0.055, 0), hand, [sx * 0.21, 0.29, 0]);
+    add(`sh${side}`, sph(0.075 * bw, 0), shade(tun, 0.85) as unknown as string, [sx * 0.21, 0.77, 0]);
+  }
+  // role gear
+  if (kind === 'guard') {
+    add('spine', cyl(0.28, 0.32, 0.12, 8), '#d8cfc0', [0, 0.8, 0]);
+    add('spine', box(0.1, 0.1, 0.02), '#a89a84', [0, 0.72, 0.15]);
+    add('elL', cyl(0.27, 0.27, 0.05, 12), team, [-0.34, 0.45, 0.1], [0, 0, Math.PI / 2]);
+    add('elL', cyl(0.1, 0.1, 0.07, 8), '#e8dcc0', [-0.37, 0.45, 0.1], [0, 0, Math.PI / 2]);
+  }
+  if (kind === 'raider') { add('spine', cyl(0.28, 0.32, 0.1, 8), '#2a2a30', [0, 0.8, 0]); add('head', box(0.24, 0.045, 0.03), '#c23a2a', [0, 0.9, 0.165]); add('spine', box(0.06, 0.2, 0.02), '#c23a2a', [-0.1, 0.7, 0.14], [0, 0, 0.3]); }
+  if (kind === 'hunter') { add('spine', cyl(0.05, 0.06, 0.42, 6), '#6a4526', [-0.1, 0.72, -0.18], [0.2, 0, 0.15]); add('spine', cone(0.04, 0.1, 4), '#e6dcc4', [-0.14, 0.95, -0.2]); add('spine', box(0.03, 0.2, 0.02), '#8a8a8a', [0.12, 0.74, -0.15]); }
+  if (kind === 'scout') { add('head', cyl(0.015, 0.015, 0.3, 4), '#e8d8a0', [-0.1, 1.13, -0.02], [0, 0, 0.5]); add('spine', box(0.34, 0.1, 0.1), '#8a6a3c', [0, 0.52, -0.16]); }
+  if (kind === 'leader') {
+    add('spine', box(0.42, 0.7, 0.03), team, [0, 0.5, -0.16], [0.1, 0, 0]);
+    add('spine', box(0.5, 0.06, 0.3), '#e8dcc0', [0, 0.84, 0]);
+    [[-0.08, '#f0ead0'], [0, '#c23a2a'], [0.08, '#f0ead0']].forEach(([x, col], i) => add('head', cone(0.028, 0.3, 4), col as string, [x as number, 1.2 + (i === 1 ? 0.05 : 0), -0.03], [0, 0, (x as number) * 3]));
+    add('spine', cyl(0.02, 0.02, 0.1, 5), '#e8dcc0', [0, 0.78, 0.15]);
+  }
+  if (kind === 'gatherer' && v === 3) add('spine', box(0.5 * bw, 0.1, 0.1), '#8a6a3c', [0, 0.58, -0.17]);
+  // hand-held weapons (authored along -y from the hand, so thrusting along the arm points the weapon forward)
+  const hands: Record<string, Part[]> = {
+    guard: [{ g: cyl(0.022, 0.022, 1.6, 5), c: '#8b6a40', p: [0, -0.45, 0.0] }, { g: cone(0.05, 0.22, 5), c: '#c7c9d0', p: [0, -1.36, 0], r: [Math.PI, 0, 0] }],
+    leader: [{ g: cyl(0.022, 0.022, 1.6, 5), c: '#8b6a40', p: [0, -0.45, 0.0] }, { g: cone(0.05, 0.22, 5), c: '#e8d8a0', p: [0, -1.36, 0], r: [Math.PI, 0, 0] }, { g: box(0.06, 0.1, 0.06), c: '#c23a2a', p: [0, -1.1, 0] }],
+    raider: [{ g: cyl(0.025, 0.025, 0.7, 5), c: '#6a4526', p: [0, -0.22, 0] }, { g: rock(0.15), c: '#80828c', p: [0, -0.6, 0], s: [0.8, 1.1, 0.8] }],
+    scout: [{ g: cyl(0.018, 0.018, 1.45, 4), c: '#a78858', p: [0, -0.42, 0] }],
+  };
   const g: PersonGeo = {
-    body: merge(body), leg, armR: merge(armR), armL: merge(armL),
-    toolAxe: merge([{ g: cyl(0.02, 0.02, 0.6, 5), c: '#7a5230', p: [0, -0.1, 0.12] }, { g: box(0.05, 0.14, 0.2), c: '#a5a7b0', p: [0, 0.2, 0.17] }]),
-    toolPick: merge([{ g: cyl(0.02, 0.02, 0.6, 5), c: '#7a5230', p: [0, -0.1, 0.12] }, { g: box(0.05, 0.06, 0.4), c: '#8b8d97', p: [0, 0.2, 0.12] }]),
-    toolHammer: merge([{ g: cyl(0.02, 0.02, 0.45, 5), c: '#7a5230', p: [0, -0.05, 0.1] }, { g: box(0.1, 0.1, 0.22), c: '#8b8d97', p: [0, 0.18, 0.1] }]),
-    torch: merge([{ g: cyl(0.02, 0.03, 0.55, 5), c: '#6a4526', p: [0, 0, 0] }]),
+    body: mergeSkinned(P),
+    spear: merge(hands[kind] ?? [{ g: box(0.01, 0.01, 0.01), c: '#000', p: [0, 0, 0] }]),
+    bow: merge([{ g: new THREE.TorusGeometry(0.42, 0.018, 4, 14, Math.PI), c: '#6a4526', p: [0, 0, 0.05], r: [0, Math.PI / 2, Math.PI / 2] }, { g: cyl(0.004, 0.004, 0.84, 3), c: '#eeeeee', p: [0, 0, 0.05] }]),
+    toolAxe: merge([{ g: cyl(0.022, 0.022, 0.66, 5), c: '#7a5230', p: [0, -0.2, 0] }, { g: box(0.05, 0.14, 0.22), c: '#a5a7b0', p: [0, -0.5, 0.08] }]),
+    toolPick: merge([{ g: cyl(0.022, 0.022, 0.66, 5), c: '#7a5230', p: [0, -0.2, 0] }, { g: box(0.05, 0.06, 0.44), c: '#8b8d97', p: [0, -0.5, 0] }]),
+    toolHammer: merge([{ g: cyl(0.022, 0.022, 0.5, 5), c: '#7a5230', p: [0, -0.12, 0] }, { g: box(0.11, 0.11, 0.24), c: '#8b8d97', p: [0, -0.4, 0] }]),
+    torch: merge([{ g: cyl(0.02, 0.03, 0.55, 5), c: '#6a4526', p: [0, 0.1, 0] }]),
   };
   personCache.set(key, g);
   return g;

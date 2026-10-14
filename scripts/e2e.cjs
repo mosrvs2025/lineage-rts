@@ -13,6 +13,16 @@ async function launch() {
   return chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox', '--use-angle=swiftshader', '--use-gl=angle', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 }
 const G = (p, fn, arg) => p.evaluate(fn, arg);
+const BOX = () => {
+  const g = window.game, pts = g.world.units.filter((u) => u.owner === 0).map((u) => g.cam.toScreen(u.x, u.y));
+  const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
+  const lo = { x: Math.min(...xs) - 50, y: Math.min(...ys) - 60 }, hi = { x: Math.max(...xs) + 50, y: Math.max(...ys) + 20 };
+  const free = (x, y) => document.elementFromPoint(Math.max(1, Math.min(innerWidth - 1, x)), Math.max(1, Math.min(innerHeight - 1, y)))?.id === 'game';
+  const corners = [[lo.x, lo.y, hi.x, hi.y], [hi.x, lo.y, lo.x, hi.y], [lo.x, hi.y, hi.x, lo.y], [hi.x, hi.y, lo.x, lo.y]];
+  const c = corners.find(([x, y]) => free(x, y)) ?? corners[0];
+  return { x0: c[0], y0: c[1], x1: c[2], y1: c[3] };
+};
+
 
 async function common(p, label, input) {
   const errors = [];
@@ -147,7 +157,9 @@ async function common(p, label, input) {
     await common(p, 'desktop', input);
     // box select with mouse drag
     await G(p, () => { const g = window.game; g.cam.centerOn(10, 24); });
-    await p.mouse.move(1000, 650); await p.mouse.down(); await p.mouse.move(200, 420, { steps: 6 }); await p.mouse.up();
+    await G(p, () => { const g = window.game, h = g.world.buildings.find((b) => b.kind === 'hearth' && b.owner === 0); g.cam.zoom = 32; g.cam.centerOn(h.x + 3, h.y + 2); });
+    const bx = await G(p, BOX);
+    await p.mouse.move(bx.x0, bx.y0); await p.mouse.down(); await p.mouse.move(bx.x1, bx.y1, { steps: 6 }); await p.mouse.up();
     ok('desktop: drag box-selects several units', await G(p, () => window.game.sel.length >= 3), String(await G(p, () => window.game.sel.length)));
     await p.screenshot({ path: `${out}/desktop-09-boxselect.png` });
     // wheel zoom

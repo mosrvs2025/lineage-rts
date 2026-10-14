@@ -1,6 +1,7 @@
 import { cmdHold, cmdRetreat, cmdStop, cmdMove } from '../sim/commands';
 import { entityAt, targetAt, unitsInScreenRect } from '../sim/query';
 import type { Game } from './game';
+import { settings } from './settings';
 
 interface Ptr { x: number; y: number; sx: number; sy: number; type: string; button: number; moved: boolean; t: number }
 
@@ -11,6 +12,7 @@ export class Input {
   private keys = new Set<string>();
   private mouse = { x: 0, y: 0, inside: false };
   private boxing = false;
+  private hoverT = 0;
 
   constructor(private g: Game) {
     const c = g.canvas;
@@ -43,6 +45,20 @@ export class Input {
     e.preventDefault();
   }
 
+  /** Context-sensitive cursor: attack / gather / build / select / move. */
+  private hover(p: { x: number; y: number }) {
+    const now = performance.now(); if (now - this.hoverT < 90) return; this.hoverT = now;
+    const g = this.g; if (!g.world || g.menuOpen) return;
+    let cls = '';
+    if (g.mode === 'move') cls = 'cur-move'; else if (g.mode === 'amove') cls = 'cur-attack';
+    else if (g.mode === 'normal') {
+      const wp = g.cam.toWorld(p.x, p.y), t = targetAt(g.world, wp.x, wp.y, 0.3), h = entityAt(g.world, wp.x, wp.y, 0.25);
+      if (t && g.liveSel().length) cls = t.type === 'node' ? 'cur-gather' : t.type === 'building' ? 'cur-build' : 'cur-attack';
+      else if (h && ((h.type === 'unit' && h.unit.owner === 0) || (h.type === 'building' && h.building.owner === 0))) cls = 'cur-select';
+    }
+    if (g.canvas.className !== cls) g.canvas.className = cls;
+  }
+
   private tol(type: string) { return type === 'touch' ? Math.max(0.55, 22 / this.g.cam.zoom) : 0.25; }
 
   private down(e: PointerEvent) {
@@ -65,6 +81,7 @@ export class Input {
     const s = this.ptrs.get(e.pointerId);
     if (!s) {
       if (e.pointerType === 'mouse' && g.mode === 'place' && g.world) { const w = g.cam.toWorld(p.x, p.y); g.movePlace(w.x, w.y); }
+      if (e.pointerType === 'mouse') this.hover(p);
       return;
     }
     const dx = p.x - s.x, dy = p.y - s.y;
@@ -205,7 +222,7 @@ export class Input {
     if (k.has('arrowup')) dy -= 1;
     if (k.has('arrowdown')) dy += 1;
     if (!g.sel.length) { if (k.has('w')) dy -= 1; if (k.has('s')) dy += 1; if (k.has('a')) dx -= 1; if (k.has('d')) dx += 1; }
-    if (this.mouse.inside && this.ptrs.size === 0) {
+    if (settings.edgePan && this.mouse.inside && this.ptrs.size === 0) {
       const m = this.mouse, e = 6;
       if (m.x < e) dx -= 1; if (m.x > g.cam.vw - e) dx += 1; if (m.y < e) dy -= 1; if (m.y > g.cam.vh - e) dy += 1;
     }
