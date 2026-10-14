@@ -4,7 +4,7 @@ import { UNITS } from '../data/units';
 import { hasDisc } from '../sim/rules';
 import type { Unit, World } from '../sim/types';
 import type { AnimalGeo } from './models';
-import { MAT, animalGeo, makeSkeleton, personGeo } from './models';
+import { MAT, blobGeo, blobMat, animalGeo, makeSkeleton, personGeo } from './models';
 
 export interface Rig {
   root: THREE.Group; kind: 'person' | 'deer' | 'wolf'; unitKind: string;
@@ -24,6 +24,7 @@ export function createRig(u: Unit, w: World, time: number): Rig {
   const root = new THREE.Group(); root.rotation.order = 'YXZ';
   const sel = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xfff6a0, transparent: true, opacity: 0.95, depthWrite: false })); sel.position.y = 0.06; sel.renderOrder = 5; sel.visible = false; sel.scale.setScalar(1.15); root.add(sel);
   const buff = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd54a, transparent: true, opacity: 0.8, depthWrite: false })); buff.position.y = 0.07; buff.scale.setScalar(1.6); buff.visible = false; root.add(buff);
+  const sh = new THREE.Mesh(blobGeo, blobMat); sh.scale.set(1.15, 1, 1.15); sh.position.y = 0.03; sh.renderOrder = 2; root.add(sh);
   const base = { sel, buff, ang: 0, phase: Math.random() * 6, seed: Math.random() * 100, born: time, atk: 0, stride: 0 };
   if (u.kind === 'deer' || u.kind === 'wolf') {
     const ag: AnimalGeo = animalGeo(u.kind, u.id % 2);
