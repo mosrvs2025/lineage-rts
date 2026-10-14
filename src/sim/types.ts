@@ -16,7 +16,7 @@ export interface Pt { x: number; y: number }
 
 /** Transient presentation events (sounds, particles). Never serialized and never read by the simulation. */
 export interface GameEvent {
-  k: 'heal' | 'upgrade' | 'tech' | 'rank' | 'hit' | 'shoot' | 'chop' | 'mine' | 'pick' | 'hammer' | 'death' | 'deliver' | 'spawn' | 'built' | 'howl' | 'discover' | 'preserved' | 'rally' | 'felled';
+  k: 'job' | 'heal' | 'upgrade' | 'tech' | 'rank' | 'hit' | 'shoot' | 'chop' | 'mine' | 'pick' | 'hammer' | 'death' | 'deliver' | 'spawn' | 'built' | 'howl' | 'discover' | 'preserved' | 'rally' | 'felled';
   x: number; y: number;
   owner?: Owner; kind?: string; n?: number; res?: string; x2?: number; y2?: number;
 }

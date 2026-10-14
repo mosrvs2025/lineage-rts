@@ -318,3 +318,31 @@ kbd { font: 600 10px var(--ui); padding: 1px 5px; border-radius: 4px; background
   #placebar { bottom: calc(var(--hudh) + 4px); }
   #jobs { top: calc(130px + var(--st)); right: 8px; }
 }
+
+/* ======================================================================
+   HUD window management: draggable panels, pin, toast lane, clear buttons
+   ====================================================================== */
+.dgrip { display: flex; align-items: center; gap: 6px; touch-action: none; cursor: grab; min-height: 22px; }
+.dgrip .grip { flex: 1; height: 12px; background: radial-gradient(circle, rgba(232,189,99,.5) 1.5px, transparent 2px) 0 0 / 9px 6px; opacity: .75; }
+.dgrip .mini, .mini.clr { width: 28px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 14px; padding: 0; flex: none; }
+.dgrip .mini.on, .pinbtn.on { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 10px rgba(232,189,99,.5); }
+.pinbtn { display: inline-flex; width: auto !important; padding: 0 7px !important; gap: 4px; align-items: center; } .pinbtn em { font: 700 9px var(--ui); letter-spacing: .08em; text-transform: uppercase; font-style: normal; }
+.dragged { right: auto !important; bottom: auto !important; transform: none !important; animation: none !important; }
+.moving { box-shadow: 0 14px 34px rgba(0,0,0,.7), 0 0 0 2px var(--gold) !important; }
+#objectives .dgrip { margin: -2px 0 2px; }
+#opill { display: none; align-items: center; gap: 6px; font-family: var(--disp); color: var(--gold); position: relative; } #opill .ic { font-size: 18px; } #opill .badge { right: -16px; top: -6px; }
+#objectives.pill { width: auto; padding: 4px 8px; border-radius: 999px; } #objectives.pill #obody { display: none; } #objectives.pill .grip { display: none; } #objectives.pill #opill { display: inline-flex; padding-right: 8px; }
+#jobs .dgrip { margin: -4px -2px 4px; } #jobs #jpin { display: grid; }
+.mh { display: flex; align-items: center; gap: 8px; } .mh b { flex: 1; }
+.mini.clr { width: auto; padding: 0 8px; gap: 4px; margin-left: auto; background: rgba(0,0,0,.35); } .mini.clr span { font: 700 9px var(--ui); letter-spacing: .06em; text-transform: uppercase; }
+.si h3 .mini.clr { width: 24px; height: 22px; padding: 0; font-size: 12px; margin-left: auto; }
+#bubble.pinned #bgrip { cursor: default; } #bubble.pinned #bgrip .grip { visibility: hidden; }
+/* toasts get their own lane under the top bar; the objectives box (unless dragged) steps below it */
+@media (max-width: 899px), (max-height: 559px) {
+  #toasts { left: calc(min(236px, 34vw) + 20px); transform: none; width: min(340px, calc(100vw - min(236px, 34vw) - 100px)); align-items: stretch; z-index: 9; }
+  #objectives:not(.dragged) { transition: top .2s; }
+}
+@media (max-width: 560px) and (orientation: portrait) {
+  #toasts { left: 6px; right: 6px; width: auto; top: calc(86px + var(--st)); }
+  #objectives:not(.dragged) { top: calc(90px + var(--st) + var(--lane, 0px)); }
+}
