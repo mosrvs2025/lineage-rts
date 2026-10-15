@@ -130,6 +130,10 @@ export class Bot {
       this.builders = this.units('gatherer').filter((u) => u.order.t !== 'research' && u.order.t !== 'build').slice(0, 3).map((u) => u.id);
       cmdMove(w, this.builders, fx, fy);
       this.expeditionStage = 2.5;
+    } else if (stage === 2 && this.escort.some((id) => { const u = w._u?.get(id); return u && u.order.t === 'idle' && !meadow(u); })) {
+      // fights interrupt the march: send idle escorts and the scout on to the meadow again
+      for (const id of this.escort) { const u = w._u?.get(id); if (u && u.order.t === 'idle' && !meadow(u)) cmdMove(w, [id], MEADOW.x - 2, MEADOW.y + 1); }
+      if (scout && scout.order.t === 'idle' && !meadow(scout)) cmdMove(w, [scout.id], MEADOW.x, MEADOW.y);
     } else if (stage === 2.5) {
       // drop builders who were pulled away (e.g. to research at the teaching circle)
       this.builders = this.builders.filter((id) => { const u = w._u?.get(id); return u && (u.order.t === 'move' || u.order.t === 'idle'); });
