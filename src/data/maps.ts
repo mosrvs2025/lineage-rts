@@ -15,6 +15,7 @@ export interface MapDef {
   cave: Pt; meadow: Pt;                     // the Ember Cave clue and the Far Meadow victory site
   stage: Pt;                                // a safe staging point on the way to the meadow (used by bots and hints)
   permaFrost?: boolean;
+  pace?: number;                            // rival tempo: <1 gentler (slower raids and growth), >1 fiercer
   valley?: { river: { amp: number; freq: number; phase: number }; fords: [number, number][]; ridges: [number, number, number, number][] };
   hand?: { trees: C[]; treeP: number; rocks: C[]; bushes: [number, number][]; deer: C[]; wolves: C[] };
   auto?: AutoRes;
@@ -48,7 +49,7 @@ export const MAPS: Record<string, MapDef> = {
 
   isles: {
     id: 'isles', name: 'The Isles', desc: 'A scatter of islands joined by shallow causeways. Fish the shallows, hold the crossings, and never leave a causeway undefended.', biome: 'lush', difficulty: 'Gentle',
-    features: ['Island chain linked by causeways', 'Fishing spots: food that never runs out', 'No walking around: every route is a chokepoint'], gen: 'isles',
+    features: ['Island chain linked by causeways', 'Fishing spots: food that never runs out', 'No walking around: every route is a chokepoint'], gen: 'isles', pace: 0.7,
     winter: { start: 460, end: 680 }, start: { food: 130, wood: 100, stone: 25 },
     player: { x: 9, y: 24 }, rival: { x: 61, y: 25 }, pass: { x: 36, y: 24 }, cave: { x: 36, y: 41 }, meadow: { x: 64, y: 7 }, stage: { x: 36, y: 8.5 },
     auto: { trees: 12, rocks: 8, bushes: 12, deer: 3, wolves: 1, fish: 18 },

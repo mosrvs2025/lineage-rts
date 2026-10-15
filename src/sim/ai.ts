@@ -1,5 +1,6 @@
 import { nearestFree } from './grid';
 import { SPECIES } from '../data/species';
+import { MAPS } from '../data/maps';
 import type { UnitKind, World } from './types';
 import { setOrder } from './units';
 import { bCenter, dist, log, pick, rand } from './util';
@@ -11,7 +12,8 @@ export function aiSecond(w: World) {
   const ai = w.ai;
   const hearth = w.buildings.find((b) => b.owner === 1 && b.kind === 'hearth');
   if (!hearth) return;
-  const rate = 0.8 + w.time / 1400;
+  const pace = MAPS[w.map]?.pace ?? 1;
+  const rate = (0.8 + w.time / 1400) * pace;
   ai.supply += rate;
   const mine = w.units.filter((u) => u.owner === 1);
   const cap = 12 + Math.floor(w.time / 300) * 2;
@@ -62,7 +64,7 @@ export function aiSecond(w: World) {
         log(w, 'A rival warband has set out from the east!', 'bad');
       }
     }
-    ai.nextRaid = w.time + Math.max(90, 160 - ai.raids * 8) + rand(w) * 25;
+    ai.nextRaid = w.time + (Math.max(90, 160 - ai.raids * 8) + rand(w) * 25) / pace;
   }
   // warn when raiders get close
   if (w.time - ai.lastRaidMsg > 45) {
