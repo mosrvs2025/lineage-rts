@@ -227,7 +227,7 @@ function scatter(w: World, M: MapDef, okTile: (x: number, y: number) => boolean,
   for (let i = 0; i < A.deer; i++) { const s = pick((x, y) => dP(x, y) >= 11 && dR(x, y) >= 9); if (s) for (let k = 0; k < 3; k++) place('deer', s[0] + k * 1.2, s[1] + (k % 2)); }
   for (let i = 0; i < A.wolves; i++) { const s = pick((x, y) => dP(x, y) >= 22 && dR(x, y) >= 10); if (s) for (let k = 0; k < 2; k++) place('wolf', s[0] + k, s[1]); }
   // mammoths graze the middle of the map, a few wander the lanes
-  for (let i = 0; i < (A.mammoths ?? 0); i++) { const s = pick((x, y) => (i < 3 ? Math.hypot(x - W / 2, y - H / 2) < 8 : dP(x, y) >= 16 && dR(x, y) >= 12), 600); if (s) place('mammoth', s[0], s[1]); }
+  for (let i = 0; i < (A.mammoths ?? 0); i++) { const clear = (x: number, y: number) => !w.nodes.some((n) => n.kind === 'tree' && Math.hypot(n.x - x, n.y - y) < 3.4); const s = pick((x, y) => clear(x, y) && (i < 3 ? Math.hypot(x - W / 2, y - H / 2) < 8 : dP(x, y) >= 16 && dR(x, y) >= 12), 800); if (s) place('mammoth', s[0], s[1]); }
   // fishing spots: coastal water next to walkable ground (fish cannot be fenced off, they are food that never runs out)
   if (A.fish) {
     const coast: [number, number][] = [];
