@@ -7,15 +7,41 @@ export function rebuildBlocked(w: World) {
   const b = new Uint8Array(w.W * w.H);
   for (let y = 0; y < w.H; y++) for (let x = 0; x < w.W; x++) {
     const c = w.terrain[y][x];
-    if (c === '~' || c === '^') b[y * w.W + x] = 1;
+    if (c === '~' || c === '^' || (c === 'L' && !w._frozen)) b[y * w.W + x] = 1;
   }
-  for (const n of w.nodes) if (n.kind !== 'carcass') b[n.y * w.W + n.x] = 1;
+  for (const n of w.nodes) if (n.kind !== 'carcass' && n.kind !== 'fish') b[n.y * w.W + n.x] = 1;
   for (const bd of w.buildings) {
     for (let y = bd.y; y < bd.y + bd.h; y++) for (let x = bd.x; x < bd.x + bd.w; x++) {
       if (x >= 0 && y >= 0 && x < w.W && y < w.H) b[y * w.W + x] = 1;
     }
   }
   w._blocked = b;
+}
+
+/** Can a unit starting at `from` really walk to the edge of `rect` once it is built over? Uses the real pathfinder (with its clearance rules). */
+export function siteReachable(w: World, from: Pt, rect: Rect): boolean {
+  const W = w.W, saved = w._blocked!, blocked = Uint8Array.from(saved);
+  for (let y = rect.y; y < rect.y + rect.h; y++) for (let x = rect.x; x < rect.x + rect.w; x++) blocked[y * W + x] = 1;
+  const ring: Pt[] = [];
+  for (let x = rect.x - 1; x <= rect.x + rect.w; x++) { ring.push({ x: x + 0.5, y: rect.y - 0.5 }, { x: x + 0.5, y: rect.y + rect.h + 0.5 }); }
+  for (let y = rect.y; y < rect.y + rect.h; y++) { ring.push({ x: rect.x - 0.5, y: y + 0.5 }, { x: rect.x + rect.w + 0.5, y: y + 0.5 }); }
+  w._blocked = blocked;
+  try {
+    const start = nearestFree(w, from.x, from.y, 6);
+    for (const p of ring) if (!isBlocked(w, Math.floor(p.x), Math.floor(p.y)) && findPath(w, start.x, start.y, p.x, p.y)) return true;
+    return false;
+  } finally { w._blocked = saved; }
+}
+
+/** Would building over `rect` still leave a walkable route from `from` to `to`? Used to stop players sealing their own camp in. */
+export function routeStaysOpen(w: World, from: Pt, to: Pt, rect: Rect): boolean {
+  const W = w.W, saved = w._blocked!, blocked = Uint8Array.from(saved);
+  for (let y = rect.y; y < rect.y + rect.h; y++) for (let x = rect.x; x < rect.x + rect.w; x++) blocked[y * W + x] = 1;
+  w._blocked = blocked;
+  try {
+    const a = nearestFree(w, from.x, from.y, 6), b = nearestFree(w, to.x, to.y, 6);
+    return !!findPath(w, a.x, a.y, b.x, b.y, undefined, false);
+  } finally { w._blocked = saved; }
 }
 
 export function isBlocked(w: World, tx: number, ty: number) {

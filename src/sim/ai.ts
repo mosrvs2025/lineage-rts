@@ -5,7 +5,6 @@ import { setOrder } from './units';
 import { bCenter, dist, log, pick, rand } from './util';
 import { makeUnit, spawnSpot } from './world';
 
-const OUTPOST = { x: 44.5, y: 23.5 };
 
 /** Rival clan: a light scripted economy, a garrison at the pass, and periodic warbands. Runs once per second. */
 export function aiSecond(w: World) {
@@ -27,7 +26,7 @@ export function aiSecond(w: World) {
     const u = makeUnit(w, kind, 1, p.x, p.y);
     ai.supply -= 45; ai.nextSpawn = w.time + 20;
     if (garrison < 4) {
-      u.role = 'garrison'; u.home = nearestFree(w, OUTPOST.x + rand(w) * 2, OUTPOST.y + rand(w) * 2);
+      u.role = 'garrison'; u.home = nearestFree(w, w.pass.x + rand(w) * 2, w.pass.y + rand(w) * 2);
       setOrder(u, { t: 'move', x: u.home.x, y: u.home.y });
     }
   }

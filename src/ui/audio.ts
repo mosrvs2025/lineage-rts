@@ -142,14 +142,15 @@ export function playEvent(e: GameEvent): boolean {
     case 'hammer': tone(210, 0.1, 'sine', 0.26 * vol, 0, -110, undefined, pan); noise(0.05, 0.3 * vol, 1600, 0, 'bandpass', pan); tone(190, 0.1, 'sine', 0.18 * vol, 0.16, -90, undefined, pan); break;
     case 'hit': tone(95 + r * 30, 0.16, 'sine', 0.38 * vol, 0, -45, undefined, pan); noise(0.09, 0.3 * vol, 900, 0, 'bandpass', pan, 300); break;
     case 'shoot': tone(340, 0.09, 'triangle', 0.14 * vol, 0, -170, undefined, pan); noise(0.14, 0.1 * vol, 2800, 0, 'bandpass', pan, 900); tone(130, 0.1, 'sine', 0.22 * vol, 0.12, -50, undefined, pan); break;
-    case 'death': { const k = e.kind; if (k === 'wolf') tone(520, 0.4, 'sawtooth', 0.14 * vol, 0, -380, undefined, pan); else if (k === 'deer') tone(700, 0.3, 'triangle', 0.12 * vol, 0, -400, undefined, pan); else { tone(190, 0.5, 'sawtooth', 0.16 * vol, 0, -110, undefined, pan); noise(0.3, 0.12 * vol, 500, 0, 'lowpass', pan); } break; }
+    case 'death': { const k = e.kind; if (k === 'mammoth') { tone(120, 1.1, 'sawtooth', 0.22 * vol, 0, -70, undefined, pan); noise(0.6, 0.18 * vol, 400, 0, 'lowpass', pan); } else if (k === 'wolf') tone(520, 0.4, 'sawtooth', 0.14 * vol, 0, -380, undefined, pan); else if (k === 'deer') tone(700, 0.3, 'triangle', 0.12 * vol, 0, -400, undefined, pan); else { tone(190, 0.5, 'sawtooth', 0.16 * vol, 0, -110, undefined, pan); noise(0.3, 0.12 * vol, 500, 0, 'lowpass', pan); } break; }
     case 'deliver': tone(620, 0.1, 'triangle', 0.1 * vol, 0, 160, undefined, pan); tone(930, 0.14, 'sine', 0.05 * vol, 0.06, 0, undefined, pan); break;
     case 'spawn': tone(392, 0.16, 'triangle', 0.1 * vol, 0, 0, undefined, pan); tone(587, 0.24, 'triangle', 0.09 * vol, 0.1, 0, undefined, pan); break;
     case 'built': sfx.build(); break;
-    case 'howl': sfx.howl(0.16 * vol, pan); break;
+    case 'howl': if (e.kind === 'mammoth') { tone(150, 0.9, 'sawtooth', 0.2 * vol, 0, 160, undefined, pan); tone(230, 0.8, 'square', 0.08 * vol, 0.05, 140, undefined, pan); noise(0.5, 0.1 * vol, 700, 0.1, 'bandpass', pan, 300); } else sfx.howl(0.16 * vol, pan); break;
     case 'discover': sfx.discover(); break;
     case 'preserved': [392, 494, 587].forEach((f, i) => tone(f, 0.9, 'sine', 0.09, i * 0.12)); break;
     case 'rally': tone(220, 0.6, 'sawtooth', 0.1 * vol, 0, 40, undefined, pan); tone(330, 0.6, 'sawtooth', 0.07 * vol, 0.02, 60, undefined, pan); break;
+    case 'freeze': if (e.n) { [988, 1319, 1568, 2093].forEach((f, i) => tone(f, 1.1, 'sine', 0.06, i * 0.1)); noise(0.8, 0.07, 6000, 0.1, 'highpass'); } else { noise(0.9, 0.22, 900, 0, 'bandpass', 0, 200); tone(180, 0.7, 'sawtooth', 0.12, 0, -90); } break;
     case 'job': tone(660, 0.08, 'triangle', 0.1 * vol, 0, 0, undefined, pan); tone(880, 0.1, 'triangle', 0.08 * vol, 0.07, 0, undefined, pan); break;
     case 'upgrade': [262, 330, 392, 523].forEach((f, i) => tone(f, 0.7, 'triangle', 0.1, i * 0.09)); sfx.build(); break;
     case 'tech': [440, 554, 659, 880].forEach((f, i) => tone(f, 0.5, 'sine', 0.09, i * 0.07)); break;

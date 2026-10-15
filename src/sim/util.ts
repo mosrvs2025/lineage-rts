@@ -49,3 +49,11 @@ export function fmtTime(sec: number) {
 }
 
 export function isWinter(w: World) { return w.time >= w.winter.start && w.time < w.winter.end; }
+
+/** Compass direction from your hearth to a point, in words ("north-east"). */
+export function compass(w: World, to: { x: number; y: number }) {
+  const hh = w.buildings.find((b) => b.owner === 0 && b.kind === 'hearth'), dx = to.x - (hh?.x ?? 9), dy = to.y - (hh?.y ?? 22);
+  const a = Math.atan2(dy, dx) * 180 / Math.PI;       // 0 = east, 90 = south
+  const names = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
+  return names[(Math.round(a / 45) + 8) % 8];
+}

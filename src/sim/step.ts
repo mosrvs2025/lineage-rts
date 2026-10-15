@@ -6,7 +6,7 @@ import { ensureFog, updateFog } from './fog';
 import { checkEnd, updateObjectives } from './objectives';
 import type { World } from './types';
 import { carcassAt, DT, separate, updateUnit } from './units';
-import { emit, log, rand, reindex } from './util';
+import { emit, isWinter, log, rand, reindex } from './util';
 import { makeUnit } from './world';
 import { creditKill, eldersSecond, upgradesTick } from './upgrades';
 
@@ -23,6 +23,7 @@ function cleanup(w: World) {
     w.units.splice(w.units.indexOf(u), 1);
     emit(w, { k: 'death', x: u.x, y: u.y, owner: u.owner, kind: u.kind });
     if (u.kind === 'deer') carcassAt(w, u);
+    if (u.kind === 'mammoth') carcassAt(w, u, 260);
     creditKill(w, u);
     if (u.owner === 0) { w.stats.lost++; log(w, `${u.name} the ${u.kind} has fallen.`, 'bad'); }
     else if (u.owner === 1) w.stats.kills++;
@@ -37,6 +38,34 @@ function cleanup(w: World) {
     }
   }
   if (changed) rebuildBlocked(w);
+}
+
+/** Lake maps: the ice forms in winter (walkable) and breaks up in spring. */
+function seasons(w: World) {
+  w._lake ??= w.terrain.some((r) => r.includes('L'));
+  if (!w._lake) return;
+  const frozen = isWinter(w);
+  if (!!w._frozen === frozen) return;
+  w._frozen = frozen;
+  if (!frozen) {
+    // the thaw: anyone still out on the ice scrambles ashore
+    for (const u of w.units) if (w.terrain[Math.floor(u.y)]?.[Math.floor(u.x)] === 'L') {
+      const p = nearestShore(w, u.x, u.y); u.x = u.ox = p.x; u.y = u.oy = p.y; u.hp -= u.maxHp * 0.15; u.order = { t: 'idle' };
+    }
+    log(w, 'Spring thaw: the ice breaks up. The lake is water again.', 'info');
+  } else log(w, 'The lake has frozen solid. You can cross the ice, and so can the rival!', 'info');
+  rebuildBlocked(w);
+  for (const u of w.units) u.path = null;
+  emit(w, { k: 'freeze', x: w.W / 2, y: w.H / 2, owner: 0, n: frozen ? 1 : 0 });
+}
+function nearestShore(w: World, x: number, y: number) {
+  let best = { x, y }, bd = Infinity;
+  for (let dy = -14; dy <= 14; dy++) for (let dx = -14; dx <= 14; dx++) {
+    const tx = Math.floor(x) + dx, ty = Math.floor(y) + dy, c = w.terrain[ty]?.[tx];
+    if (c !== '.' && c !== '=') continue;
+    const d = Math.hypot(dx, dy); if (d < bd) { bd = d; best = { x: tx + 0.5, y: ty + 0.5 }; }
+  }
+  return best;
 }
 
 function wildlifeRespawn(w: World) {
@@ -73,6 +102,7 @@ export function step(w: World) {
     cluesTick(w);
     if (w.tick % (TICKS_PER_SEC * 20) === 0) wildlifeRespawn(w);
   }
+  if (w.tick % 20 === 0) seasons(w);
   if (w.tick % 4 === 0) updateFog(w);
   if (w.tick % 200 === 0) w._carc?.clear();
   cleanup(w);

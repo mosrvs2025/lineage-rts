@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cmdContext, cmdGift, cmdPlace, placeCheck } from '../src/sim/commands';
 import { economySecond } from '../src/sim/econ';
-import { makeBuilding, makeUnit, MEADOW } from '../src/sim/world';
+import { makeBuilding, makeUnit, meadowOf } from '../src/sim/world';
 import { advanceGeneration } from '../src/sim/succession';
 import { newWorld, run, mine } from './helpers';
 
@@ -72,7 +72,7 @@ describe('diplomacy and expeditions', () => {
   it('the Far Meadow outpost needs generation 2 and enough provisions', () => {
     const w = newWorld();
     w._exp!.fill(1);
-    const x = MEADOW.x - 1, y = MEADOW.y - 1;
+    const MEADOW = meadowOf(w); const x = MEADOW.x - 1, y = MEADOW.y - 1;
     w.res.provisions = 200; w.res.wood = 100; w.res.stone = 50;
     expect(placeCheck(w, 'watch', x, y).reason).toMatch(/first generation/);
     w.gen = 2;

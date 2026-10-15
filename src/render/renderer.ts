@@ -31,6 +31,12 @@ export interface Overlay {
 /** Which tree variants grow in each biome (indices into makeTreeGeos). */
 const TREE_MIX: Record<string, number[]> = { autumn: [0, 1, 2, 3, 4, 5, 6, 7], lush: [0, 6, 6, 3, 2, 0, 7], tundra: [2, 5, 2, 5, 3], steppe: [7, 1, 3, 7, 4] };
 
+const fishMat = new THREE.MeshStandardMaterial({ color: 0xcfe6f2, roughness: 0.3, metalness: 0.5, emissive: 0x335566, emissiveIntensity: 0.5, flatShading: true });
+function fishGeo() {
+  const g = new THREE.SphereGeometry(0.11, 6, 4).scale(1, 0.55, 2.3), tail = new THREE.ConeGeometry(0.07, 0.16, 4).rotateX(-Math.PI / 2).translate(0, 0, -0.3);
+  return merge([{ g, c: '#d8ecf6', p: [0, 0, 0] }, { g: tail, c: '#9fc8de', p: [0, 0, 0] }]);
+}
+
 interface BEntry { fx?: number; model: BuildingModel; scaffold: THREE.Object3D; ring?: THREE.Mesh; tier: number; done: boolean; phase: number; pop: number; cx: number; cz: number }
 interface Floater { x: number; y: number; text: string; color: string; age: number; life: number; big?: boolean }
 interface FallingTree { mesh: THREE.Mesh; t: number; dx: number; dz: number; landed: boolean }
@@ -65,6 +71,8 @@ export class Renderer {
   private fogTick = -99;
   private wearW = 0; private wearH = 0; private wearData = new Uint8Array(1); private wearTex!: THREE.DataTexture; private wearAt = 0;
   private blobs!: THREE.InstancedMesh;
+  private ice: THREE.Mesh | null = null;
+  private fish!: THREE.InstancedMesh; private fishCount = 0;
   private treeMeshes: THREE.InstancedMesh[] = [];
   private bushFull!: THREE.InstancedMesh; private bushEmpty!: THREE.InstancedMesh;
   private rockMeshes: THREE.InstancedMesh[] = [];
@@ -201,7 +209,7 @@ export class Renderer {
     ground.receiveShadow = true; this.root.add(ground);
 
     const wp: number[] = [], wuv: number[] = [];
-    const isW = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && (w.terrain[y][x] === '~' || w.terrain[y][x] === '=');
+    const isW = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && (w.terrain[y][x] === '~' || w.terrain[y][x] === '=' || w.terrain[y][x] === 'L');
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       let near = false; for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1; dx++) if (isW(x + dx, y + dy)) { near = true; break; }
       if (!near) continue;
@@ -214,6 +222,18 @@ export class Renderer {
     // open sea around the island so the map edge never reads as a void
     const sea = new THREE.Mesh(new THREE.PlaneGeometry(520, 520).rotateX(-Math.PI / 2), enhance(new THREE.MeshStandardMaterial({ color: 0x2a6f96, roughness: 0.2, metalness: 0.1, normalMap: this.waterNormal, normalScale: new THREE.Vector2(0.5, 0.5), envMapIntensity: 1.3 }), {}));
     sea.position.set(W / 2, WATER_LEVEL - 0.04, H / 2); sea.renderOrder = 0; this.root.add(sea);
+    // winter ice over the lake tiles: fades in as the season turns, glossy and white-blue
+    const ip: number[] = [], iu: number[] = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (w.terrain[y][x] === 'L') for (const [qx, qy] of [[x, y], [x, y + 1], [x + 1, y], [x + 1, y], [x, y + 1], [x + 1, y + 1]]) { ip.push(qx, WATER_LEVEL + 0.035, qy); iu.push(qx / 3, qy / 3); }
+    this.ice = null;
+    if (ip.length) {
+      const ig = new THREE.BufferGeometry(); ig.setAttribute('position', new THREE.Float32BufferAttribute(ip, 3)); ig.setAttribute('uv', new THREE.Float32BufferAttribute(iu, 2)); ig.computeVertexNormals();
+      const im = new THREE.Mesh(ig, enhance(new THREE.MeshStandardMaterial({ color: 0xd4eaf6, roughness: 0.12, metalness: 0.2, transparent: true, opacity: 0, normalMap: this.waterNormal, normalScale: new THREE.Vector2(0.12, 0.12), envMapIntensity: 1.8, depthWrite: false }), { snow: 0 }));
+      im.renderOrder = 2; im.visible = false; this.root.add(im); this.ice = im;
+    }
+    // fishing spots: little silver shoals that circle and glint, with a ripple ring
+    this.fishCount = w.nodes.filter((n) => n.kind === 'fish').length;
+    this.fish = this.inst(fishGeo(), fishMat, Math.max(1, this.fishCount * 5)); this.fish.frustumCulled = false; this.root.add(this.fish);
     // footpaths: foot traffic is accumulated into a texture the ground shader reads
     this.wearW = W * 4; this.wearH = H * 4; this.wearData = new Uint8Array(this.wearW * this.wearH);
     this.wearTex = new THREE.DataTexture(this.wearData, this.wearW, this.wearH, THREE.RedFormat); this.wearTex.magFilter = THREE.LinearFilter; this.wearTex.minFilter = THREE.LinearFilter; this.wearTex.needsUpdate = true;
@@ -299,7 +319,7 @@ export class Renderer {
         case 'hammer': dust(e.x, h + 0.25, e.y, 3, 0xc2b08a, 0.3, 0.5); P.spawn(e.x, h + 0.6, e.y, (r() - 0.5) * 2, 2, (r() - 0.5) * 2, 0.5, 0.08, 0.04, 0xb88a50, 7, 0.4, 1); break;
         case 'hit': { const x = e.x2 ?? e.x, z = e.y2 ?? e.y, hh = this.heightAt(x, z); for (let i = 0; i < 4; i++) S.spawn(x, hh + 0.8, z, (r() - 0.5) * 4, 0.8 + r() * 2, (r() - 0.5) * 4, 0.28, 0.1, 0.01, i % 2 ? 0xffe2a0 : 0xff9a5a, 6, 0.3, 1); dust(x, hh + 0.4, z, 2, 0xb0a590, 0.3, 0.4); break; }
         case 'shoot': { const x2 = e.x2 ?? e.x, z2 = e.y2 ?? e.y; this.arrows.fire(e.x, h + 1.0, e.y, x2, this.heightAt(x2, z2) + 0.8, z2, () => { for (let i = 0; i < 3; i++) S.spawn(x2, this.heightAt(x2, z2) + 0.8, z2, (r() - 0.5) * 3, 1 + r() * 1.5, (r() - 0.5) * 3, 0.25, 0.08, 0.01, 0xffe2a0, 6, 0.3, 1); }); break; }
-        case 'death': dust(e.x, h + 0.2, e.y, 7, e.kind === 'wolf' ? 0x777a84 : 0x9a8a6a, 0.55, 0.6); break;
+        case 'death': dust(e.x, h + 0.2, e.y, e.kind === 'mammoth' ? 22 : 7, e.kind === 'wolf' ? 0x777a84 : e.kind === 'mammoth' ? 0x8a7050 : 0x9a8a6a, e.kind === 'mammoth' ? 1.1 : 0.55, 0.6); break;
         case 'deliver': this.floaters.push({ x: e.x, y: e.y, text: `+${e.n}`, color: RES_COL[e.res ?? 'food'] ?? '#fff', age: 0, life: 1.4 }); break;
         case 'spawn': this.rings.burst(e.x, h, e.y, 1.1, 0x7fe0ea, 0.7); for (let i = 0; i < 8; i++) S.spawn(e.x, h + 0.2, e.y, (r() - 0.5) * 1.4, 1.2 + r() * 1.4, (r() - 0.5) * 1.4, 0.8, 0.12, 0.02, 0xbff4ff, -0.2, 1, 1); break;
         case 'built': {
@@ -317,6 +337,7 @@ export class Renderer {
           this.floaters.push({ x: e.x, y: e.y - 1.4, text: 'Upgraded!', color: '#ffd27a', age: 0, life: 2.2, big: true }); break;
         }
         case 'tech': this.rings.burst(e.x, h, e.y, 3, 0x7fd0ff, 1.2); for (let i = 0; i < 16; i++) S.spawn(e.x + (r() - 0.5) * 1.5, h + 0.5, e.y + (r() - 0.5) * 1.5, 0, 1.4 + r() * 1.6, 0, 1.3, 0.13, 0.02, 0xbfe8ff, -0.3, 0.4, 1); this.floaters.push({ x: e.x, y: e.y - 1.2, text: 'Learned', color: '#9fdcff', age: 0, life: 2, big: true }); break;
+        case 'freeze': { for (let i = 0; i < 40; i++) { const px = 22 + r() * 28, pz = 15 + r() * 18; S.spawn(px, WATER_LEVEL + 0.2, pz, (r() - 0.5) * 0.6, 0.6 + r() * 1.4, (r() - 0.5) * 0.6, 1.8, 0.12, 0.02, e.n ? 0xdff4ff : 0xb8e0f4, -0.2, 0.3, 1); } this.floaters.push({ x: w.W / 2, y: w.H / 2, text: e.n ? 'The lake freezes' : 'The ice breaks', color: '#bfe8ff', age: 0, life: 3, big: true }); break; }
         case 'job': this.rings.burst(e.x, h, e.y, 1.4, 0x9fe0ff, 0.9); this.floaters.push({ x: e.x, y: e.y - 0.9, text: `→ ${e.res === 'food' ? 'Food' : e.res === 'wood' ? 'Wood' : 'Stone'}`, color: RES_COL[e.res ?? 'food'] ?? '#fff', age: 0, life: 1.8, big: true }); break;
         case 'heal': S.spawn(e.x + (r() - 0.5) * 0.4, h + 0.6, e.y + (r() - 0.5) * 0.4, 0, 0.9, 0, 0.9, 0.15, 0.02, 0x8cff9a, -0.1, 0.5, 1); break;
         case 'rank': this.rings.burst(e.x, h, e.y, 2, 0xffd54a, 1); for (let i = 0; i < 14; i++) S.spawn(e.x, h + 1.2, e.y, (r() - 0.5) * 2, 1 + r() * 2, (r() - 0.5) * 2, 1, 0.14, 0.02, 0xffd54a, -0.6, 0.5, 1); this.floaters.push({ x: e.x, y: e.y - 0.8, text: e.n === 2 ? 'Elite!' : 'Veteran!', color: '#ffd54a', age: 0, life: 1.8, big: true }); break;
@@ -339,7 +360,7 @@ export class Renderer {
     const dt = Math.min(0.1, Math.max(0, time - this.lastTime)); this.lastTime = time;
     this.watchPerf(dt);
     shared.time.value = time;
-    const snowFloor = MAPS[w.map]?.biome === 'tundra' ? 0.45 : 0;
+    const snowFloor = MAPS[w.map]?.permaFrost ? 0.45 : 0;
     this.winterLevel += (Math.max(snowFloor, isWinter(w) ? 1 : 0) - this.winterLevel) * 0.02;
     const L = this.winterLevel;
     shared.snow.value = L;
@@ -365,7 +386,7 @@ export class Renderer {
     this.snowMat.uniforms.uFocus.value.set(cam.x, 0, cam.y); this.snowMat.uniforms.uTime.value = time; this.snowMat.uniforms.uLevel.value = L;
     this.snow.visible = L > 0.02;
 
-    this.updateFog(w); this.updateWear(w, time);
+    this.updateFog(w); this.updateWear(w, time); this.updateIce(L); this.updateFish(w, time);
     this.syncNodes(w);
     const emitters: THREE.Vector3[] = [];
     this.syncBuildings(w, ov, time, emitters);
@@ -407,6 +428,27 @@ export class Renderer {
       if (f.t > 2.2) f.mesh.scale.multiplyScalar(0.92);
       if (f.t > 2.8) { this.scene.remove(f.mesh); this.falling.splice(this.falling.indexOf(f), 1); }
     }
+  }
+
+  private updateIce(L: number) {
+    if (!this.ice) return;
+    const m = this.ice.material as THREE.MeshStandardMaterial;
+    m.opacity = Math.min(0.97, Math.max(0, (L - 0.05) * 1.3)); this.ice.visible = m.opacity > 0.01;
+  }
+
+  /** Each fishing spot shows a few fish circling just under the surface; they thin out as the spot is fished empty. */
+  private updateFish(w: World, time: number) {
+    if (!this.fishCount) return;
+    let i = 0; const d = this.dummy;
+    for (const n of w.nodes) {
+      if (n.kind !== 'fish' || !isExplored(w, n.x, n.y)) continue;
+      const n5 = Math.max(1, Math.round(5 * n.amount / n.max)), cx = n.x + 0.5, cz = n.y + 0.5, h = WATER_LEVEL - 0.05 + (this.ice?.visible ? 0 : 0);
+      for (let k = 0; k < n5 && i < this.fish.instanceMatrix.count; k++) {
+        const a = time * (0.7 + k * 0.13) + k * 1.9 + n.id, r = 0.28 + (k % 3) * 0.12;
+        d.position.set(cx + Math.cos(a) * r, h + Math.sin(time * 3 + k) * 0.015, cz + Math.sin(a) * r); d.rotation.set(0, -a + Math.PI / 2, 0); d.scale.setScalar(0.8 + (k % 2) * 0.25); d.updateMatrix(); this.fish.setMatrixAt(i++, d.matrix);
+      }
+    }
+    this.fish.count = i; this.fish.instanceMatrix.needsUpdate = true;
   }
 
   private updateWear(w: World, time: number) {
