@@ -166,6 +166,13 @@ export function trainCheck(w: World, bId: number, kind: UnitKind): Check {
   if (!canAfford(w, d.cost)) return { ok: false, reason: 'Not enough resources.' };
   return { ok: true, reason: '' };
 }
+/** Set where a building's newly trained units go. */
+export function cmdSetRally(w: World, bId: number, x: number, y: number): Check {
+  const b = buildingById(w, bId);
+  if (!b || b.owner !== 0 || !BUILDINGS[b.kind].trains.length) return { ok: false, reason: 'This building trains no one.' };
+  b.rally = { x, y };
+  return { ok: true, reason: '' };
+}
 export function cmdTrain(w: World, bId: number, kind: UnitKind): Check {
   const c = trainCheck(w, bId, kind); if (!c.ok) return c;
   const b = buildingById(w, bId)!;

@@ -89,6 +89,13 @@ An RTS-style console: resource plates with live flashes and low-food warnings, a
 
 On narrow portrait screens (≤ 560 px wide) the interface switches to a thumb-friendly layout: resources on one row, clock and controls on the next; the dock becomes a single **action bubble** you can drag anywhere (position remembered) that fans its eight actions out in an arc that always stays on screen; and the selection + commands live in a **floating card** with a drag handle, a *pin* (keeps it open with nothing selected) and a *fold* button. Construction sites show a ground progress ring, dust and wood chips; upgrades and research show their own rings. Landscape phones and desktop keep the classic console.
 
+### Command conveniences (Warcraft-style)
+
+* **Rally points** — select a hearth, lodge or circle and press *Rally* (Y) then tap the map, or simply right-click: recruits walk there; rally onto a tree, bush or rock and new gatherers go straight to work. The flag and its trail show while the building is selected.
+* **Attack alerts** — when anything of yours is hit, the minimap pulses red at the spot and an *Under attack* button appears; tap it or press **F** to jump there.
+* **Control groups** — Ctrl+1–9 to set, 1–9 to select, press twice quickly to centre the camera on the group.
+* Windows: Jobs and Objectives can be dragged, pinned/minimised and closed; the selection card has a Clear button; a map tap while a menu is open only dismisses it.
+
 ### Atmosphere
 
 Slow cloud shadows drift across the land, and a screen-space sun-shaft pass adds light streaks at dawn and dusk on the high quality tier. Soft contact shadows ground trees, rocks, buildings and people. Unexplored land is veiled by drifting animated mist (a fog-of-war shader with moving noise) rather than flat black, an open sea surrounds the island, and **footpaths** wear into the grass wherever your clan walks (a render-only wear texture the ground shader reads; it is not saved).

@@ -82,7 +82,12 @@ export function trainingTick(w: World) {
     const p = spawnSpot(w, b);
     const u = makeUnit(w, q.kind, 0, p.x, p.y);
     const q2 = nearestFree(w, p.x, p.y); u.x = u.ox = q2.x; u.y = u.oy = q2.y;
-    if (q.kind === 'gatherer' || q.kind === 'hunter') autoWork(w, u);
+    const rp = b.rally;
+    let node: (typeof w.nodes)[number] | undefined, nd = 1.2;
+    if (rp) for (const n of w.nodes) { const d = Math.hypot(n.x + 0.5 - rp.x, n.y + 0.5 - rp.y); if (n.amount >= 1 && d < nd) { nd = d; node = n; } }
+    if (node && (q.kind === 'gatherer' || (q.kind === 'hunter' && node.res === 'food'))) setOrder(u, { t: 'gather', node: node.id });
+    else if (rp) { const f = nearestFree(w, rp.x, rp.y); setOrder(u, { t: 'move', x: f.x, y: f.y }); }
+    else if (q.kind === 'gatherer' || q.kind === 'hunter') autoWork(w, u);
     else setOrder(u, { t: 'idle' });
     log(w, `${u.name} the ${UNITS[q.kind].name.toLowerCase()} joins the clan.`, 'good');
     emit(w, { k: 'spawn', x: u.x, y: u.y, owner: 0, kind: q.kind });

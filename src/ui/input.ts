@@ -1,4 +1,4 @@
-import { cmdHold, cmdRetreat, cmdStop, cmdMove } from '../sim/commands';
+import { cmdHold, cmdRetreat, cmdStop, cmdMove, cmdSetRally } from '../sim/commands';
 import { entityAt, targetAt, unitsInScreenRect } from '../sim/query';
 import type { Game } from './game';
 import { settings } from './settings';
@@ -13,6 +13,7 @@ export class Input {
   private mouse = { x: 0, y: 0, inside: false };
   private boxing = false;
   private hoverT = 0;
+  private lastGroup = { k: '', t: 0 };
 
   constructor(private g: Game) {
     const c = g.canvas;
@@ -142,6 +143,15 @@ export class Input {
     }
     const hit = entityAt(w, wp.x, wp.y, this.tol(s.type));      // for selecting things
     const tgt = targetAt(w, wp.x, wp.y, this.tol(s.type));      // for giving orders (never your own units)
+    if (g.mode === 'rally' || (right && g.selB !== null && !g.liveSel().length)) {
+      {
+        const r = g.selB !== null ? cmdSetRally(w, g.selB, wp.x, wp.y) : { ok: false, reason: '' };
+        if (r.ok) { g.ping(wp.x, wp.y, 'rgba(255,215,110,.95)'); g.hud.toast('Rally point set: new recruits will head here.', 'good'); }
+        else if (r.reason && g.mode === 'rally') g.hud.toast(r.reason, 'bad');
+      }
+      g.mode = 'normal'; g.hud.refresh(true);
+      return;
+    }
     if (g.mode === 'move' || g.mode === 'amove') {
       const attack = g.mode === 'amove';
       if (g.liveSel().length) {
@@ -208,8 +218,17 @@ export class Input {
     else if (k === 'enter' && g.mode === 'place') { const err = g.confirmPlace(); if (err) g.hud.toast(err, 'bad'); }
     else if (/^[1-9]$/.test(k)) {
       if (e.ctrlKey || e.metaKey) { g.groups[k] = [...ids]; g.hud.toast(`Group ${k} set`); e.preventDefault(); }
-      else if (g.groups[k]?.length) g.selectUnits(g.groups[k].filter((id) => g.world!._u?.get(id)));
+      else if (g.groups[k]?.length) {
+        const ids2 = g.groups[k].filter((id) => g.world!._u?.get(id));
+        const now = performance.now();
+        // pressing the same group twice quickly centres the camera on it
+        if (this.lastGroup.k === k && now - this.lastGroup.t < 400 && ids2.length) { const u = g.world!._u!.get(ids2[0])!; g.cam.centerOn(u.x, u.y); }
+        this.lastGroup = { k, t: now };
+        g.selectUnits(ids2);
+      }
     }
+    else if (k === 'f') g.hud.act('gotoalert');
+    else if (k === 'y' && g.selB !== null) { g.mode = 'rally'; g.hud.refresh(true); }
   }
 
   /** Keyboard + screen-edge panning. */

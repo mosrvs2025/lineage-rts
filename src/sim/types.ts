@@ -71,6 +71,7 @@ export interface Building {
   queue: { kind: UnitKind; t: number }[];
   tick: number;         // misc timer (rack conversion)
   outpost?: boolean;
+  rally?: { x: number; y: number };                        // trained units walk (or go to work) here
   tier: number;                                            // upgrade level (0 = base)
   upg?: { t: number; total: number };                       // upgrade in progress
   research?: { tech: string; t: number; total: number };    // technology being researched here
@@ -140,6 +141,7 @@ export interface World {
   endMsg: string;
   truceUntil: number;
   hungerT: number;
+  alert?: { x: number; y: number; t: number };          // last place the clan was attacked
   log: { t: number; text: string; kind: 'info' | 'good' | 'bad' }[];
   // runtime caches (never serialized)
   _blocked?: Uint8Array;
