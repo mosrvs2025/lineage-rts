@@ -12,7 +12,8 @@ import { nearestNode, setOrder } from './units';
 import { MEADOW, OUTPOST_COST, OUTPOST_REQUIRE } from './world';
 import { bCenter, buildingById, dist, emit, log, nodeById, unitById } from './util';
 
-const mine = (w: World, ids: number[]) => ids.map((i) => unitById(w, i)).filter((u): u is Unit => !!u && u.owner === 0 && u.hp > 0);
+/** Your living units that are about to receive a new direct order (which replaces any shift-queue). */
+const mine = (w: World, ids: number[]) => ids.map((i) => unitById(w, i)).filter((u): u is Unit => !!u && u.owner === 0 && u.hp > 0).map((u) => { u.q = []; return u; });
 
 /** Spread a group around a destination so units do not pile up. */
 function spread(i: number, n: number, x: number, y: number) {
@@ -28,6 +29,10 @@ export function cmdMove(w: World, ids: number[], x: number, y: number, attack = 
     const p = nearestFree(w, s.x, s.y);
     setOrder(u, attack ? { t: 'amove', x: p.x, y: p.y } : { t: 'move', x: p.x, y: p.y });
   });
+}
+/** Walk back and forth between here and (x,y), fighting anything met on the way. */
+export function cmdPatrol(w: World, ids: number[], x: number, y: number) {
+  for (const u of mine(w, ids)) { if (UNITS[u.kind].dmg <= 0) continue; setOrder(u, { t: 'patrol', x, y, x2: u.x, y2: u.y }); }
 }
 export function cmdStop(w: World, ids: number[]) { for (const u of mine(w, ids)) setOrder(u, { t: 'idle' }); }
 export function cmdHold(w: World, ids: number[]) { for (const u of mine(w, ids)) setOrder(u, { t: 'hold' }); }
@@ -193,7 +198,7 @@ export function cmdJob(w: World, res: Res): Check {
   const u = cand[0]; if (!u) return { ok: false, reason: 'Everyone is already on this job.' };
   const n = nearestNode(w, u.x, u.y, res);
   if (!n) return { ok: false, reason: `No ${res} source discovered nearby.` };
-  setOrder(u, { t: 'gather', node: n.id }); u.carry = { res: null, n: 0, meat: false };
+  setOrder(u, { t: 'gather', node: n.id }); u.carry = { res: null, n: 0, meat: false }; u.q = [];
   emit(w, { k: 'job', x: u.x, y: u.y, owner: 0, res });
   return { ok: true, reason: '' };
 }

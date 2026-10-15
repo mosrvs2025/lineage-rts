@@ -19,6 +19,7 @@ import { animateRig, createRig } from './rigs';
 
 export interface Overlay {
   selUnits: number[];
+  allBars?: boolean;
   selBuilding: number | null;
   box: { x0: number; y0: number; x1: number; y1: number } | null;
   place: { kind: BuildingKind; tx: number; ty: number } | null;
@@ -660,7 +661,7 @@ export class Renderer {
       if (prog >= 0) this.ringArc(cx, cy, Math.max(b.w, b.h) / 2 + 0.9, prog, !b.done ? '#ffd54a' : b.upg ? '#ffb347' : '#7fd0ff', time);
       if (!b.done) this.bar(p.x - bw / 2, p.y, bw, 6, b.progress, '#ffd54a');
       else if (b.queue.length) this.bar(p.x - bw / 2, p.y, bw, 6, 1 - b.queue[0].t / UNITS[b.queue[0].kind].time, '#7ec8ff');
-      else if (b.hp < b.maxHp) this.bar(p.x - bw / 2, p.y, bw, 5, b.hp / b.maxHp, b.hp / b.maxHp > 0.4 ? '#7bd36b' : '#e0604f');
+      else if (b.hp < b.maxHp || ov.allBars) this.bar(p.x - bw / 2, p.y, bw, 5, b.hp / b.maxHp, b.hp / b.maxHp > 0.4 ? '#7bd36b' : '#e0604f');
       if (b.outpost) { ctx.fillStyle = '#ffe36e'; ctx.font = `800 ${Math.max(10, z * 0.36)}px system-ui`; ctx.textAlign = 'center'; ctx.fillText('OUTPOST', p.x, p.y - 10); }
       if (ov.selBuilding === b.id && b.rally) {
         // rally flag with a dotted trail from the door
@@ -685,7 +686,8 @@ export class Renderer {
         ctx.strokeStyle = rk === 2 ? '#ffd54a' : '#e8e0c8'; ctx.lineWidth = 2;
         for (let i = 0; i < rk; i++) { const yy = pr.y - i * 4; ctx.beginPath(); ctx.moveTo(pr.x - 4, yy); ctx.lineTo(pr.x, yy - 3); ctx.lineTo(pr.x + 4, yy); ctx.stroke(); }
       }
-      if (!s && u.hp >= u.maxHp) continue;
+      if (!s && u.hp >= u.maxHp && !ov.allBars) continue;
+      if (ov.allBars && u.owner !== 0 && !isVisible(w, u.x, u.y)) continue;
       const p = cam.toScreen(x, y, this.heightAt(x, y) + 1.75), bw = Math.max(24, z * 0.75);
       this.bar(p.x - bw / 2, p.y, bw, 4, u.hp / u.maxHp, u.hp / u.maxHp > 0.4 ? '#7bd36b' : '#e0604f');
     }
@@ -694,6 +696,24 @@ export class Renderer {
       const u = w._u?.get(id); if (!u) continue;
       let tx: number | null = null, ty: number | null = null, c = 'rgba(255,255,255,.65)';
       const o = u.order;
+      if (o.t === 'patrol') {
+        const p1 = cam.toScreen(o.x, o.y, this.heightAt(o.x, o.y) + 0.1), p2 = cam.toScreen(o.x2, o.y2, this.heightAt(o.x2, o.y2) + 0.1);
+        ctx.strokeStyle = 'rgba(255,200,90,.85)'; ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+        for (const p of [p1, p2]) { ctx.beginPath(); ctx.ellipse(p.x, p.y, 7, 4, 0, 0, Math.PI * 2); ctx.stroke(); }
+      }
+      // shift-queued waypoints: a numbered chain after the current target
+      if (u.q?.length) {
+        const pt = (q: (typeof u.q)[number]) => q.t === 'move' || q.t === 'amove' || q.t === 'patrol' ? { x: q.x, y: q.y } : q.t === 'gather' ? (w._n?.get(q.node) ? { x: w._n.get(q.node)!.x + 0.5, y: w._n.get(q.node)!.y + 0.5 } : null) : q.t === 'attack' ? ((): { x: number; y: number } | null => { const t = w._u?.get(q.target) ?? w._b?.get(q.target); return t ? ('progress' in t ? { x: t.x + t.w / 2, y: t.y + t.h / 2 } : { x: t.x, y: t.y }) : null; })() : q.t === 'build' ? (w._b?.get(q.b) ? { x: w._b.get(q.b)!.x + 1, y: w._b.get(q.b)!.y + 1 } : null) : null;
+        let prev = o.t === 'move' || o.t === 'amove' || o.t === 'patrol' ? { x: o.x, y: o.y } : { x: u.x, y: u.y };
+        u.q.forEach((q, n) => {
+          const p = pt(q); if (!p) return;
+          const a = cam.toScreen(prev.x, prev.y, this.heightAt(prev.x, prev.y) + 0.1), b = cam.toScreen(p.x, p.y, this.heightAt(p.x, p.y) + 0.1);
+          ctx.strokeStyle = q.t === 'amove' || q.t === 'attack' ? 'rgba(255,120,100,.6)' : q.t === 'gather' ? 'rgba(160,255,160,.6)' : 'rgba(255,255,255,.5)';
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          ctx.save(); ctx.setLineDash([]); ctx.fillStyle = 'rgba(10,8,6,.8)'; ctx.beginPath(); ctx.arc(b.x, b.y, 8, 0, 6.283); ctx.fill(); ctx.fillStyle = '#ffe9a0'; ctx.font = '700 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText(String(n + 1), b.x, b.y + 3.5); ctx.restore();
+          prev = p;
+        });
+      }
       if (o.t === 'move' || o.t === 'amove' || o.t === 'flee') { tx = o.x; ty = o.y; if (o.t === 'amove') c = 'rgba(255,120,100,.85)'; }
       else if (o.t === 'attack') { const t = w._u?.get(o.target) ?? w._b?.get(o.target); if (t) { tx = 'progress' in t ? t.x + t.w / 2 : t.x; ty = 'progress' in t ? t.y + t.h / 2 : t.y; c = 'rgba(255,120,100,.85)'; } }
       else if (o.t === 'gather') { const n = w._n?.get(o.node); if (n) { tx = n.x + 0.5; ty = n.y + 0.5; c = 'rgba(160,255,160,.8)'; } }

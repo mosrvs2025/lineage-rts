@@ -130,3 +130,33 @@ describe('rally points & alerts', () => {
     expect(w.alert).toBeTruthy();
   });
 });
+
+describe('order queue & patrol', () => {
+  it('runs shift-queued orders one after another', async () => {
+    const { cmdMove } = await import('../src/sim/commands');
+    const w = newWorld();
+    const g = makeUnit(w, 'guard', 0, 12, 24);
+    cmdMove(w, [g.id], 14, 24);
+    g.q = [{ t: 'move', x: 14, y: 27 }, { t: 'move', x: 11, y: 27 }];
+    run(w, 12);
+    expect(g.q.length).toBe(0);
+    expect(Math.hypot(g.x - 11, g.y - 27)).toBeLessThan(1);
+  });
+  it('a direct order replaces the queue', async () => {
+    const { cmdMove } = await import('../src/sim/commands');
+    const w = newWorld();
+    const g = makeUnit(w, 'guard', 0, 12, 24);
+    g.q = [{ t: 'move', x: 14, y: 27 }];
+    cmdMove(w, [g.id], 13, 24);
+    expect(g.q).toEqual([]);
+  });
+  it('patrols back and forth between two points', async () => {
+    const { cmdPatrol } = await import('../src/sim/commands');
+    const w = newWorld();
+    const g = makeUnit(w, 'guard', 0, 12, 24);
+    cmdPatrol(w, [g.id], 16, 24);
+    let flips = 0, last = 16;
+    for (let i = 0; i < 300; i++) { run(w, 0.05); const o = g.order as { t: string; x: number }; expect(o.t).toBe('patrol'); if (o.x !== last) { flips++; last = o.x; } }
+    expect(flips).toBeGreaterThanOrEqual(2);
+  });
+});

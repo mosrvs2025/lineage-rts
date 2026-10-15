@@ -25,6 +25,7 @@ export type Order =
   | { t: 'idle' }
   | { t: 'move'; x: number; y: number }
   | { t: 'amove'; x: number; y: number }
+  | { t: 'patrol'; x: number; y: number; x2: number; y2: number }
   | { t: 'attack'; target: number }
   | { t: 'gather'; node: number }
   | { t: 'build'; b: number }
@@ -41,6 +42,7 @@ export interface Unit {
   ox: number; oy: number; // previous position, for render interpolation
   hp: number; maxHp: number;
   order: Order;
+  q?: Order[];        // shift-queued orders, started when the current one finishes
   path: Pt[] | null;
   pcd: number;        // repath cooldown
   raw?: boolean;      // use an unsmoothed path (set after clipping an obstacle)

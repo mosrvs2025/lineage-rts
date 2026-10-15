@@ -35,13 +35,13 @@ function chips(cost: Cost, w?: World): string {
   return parts.map(([k, v]) => `<span class="cc ${w && w.res[k as Res] < (v ?? 0) ? 'short' : ''}">${icon(k)}<b>${v}</b></span>`).join('');
 }
 
-interface BtnOpts { act: string; ic: string; label: string; key?: string; why?: string; on?: boolean; badge?: string; cost?: Cost; w?: World; tip?: { t: string; d: string; k?: string; cost?: Cost }; cls?: string }
+interface BtnOpts { act: string; ic: string; label: string; key?: string; why?: string; on?: boolean; badge?: string; cost?: Cost; w?: World; tip?: { t: string; d: string; k?: string; cost?: Cost }; cls?: string; cd?: number }
 const buildingTitle = (b: { kind: BuildingKind; tier: number }) => (b.tier > 0 ? BUILDINGS[b.kind].upgrades![b.tier - 1].name : BUILDINGS[b.kind].name);
 
 function cbtn(o: BtnOpts): string {
   const tip = o.tip ? ` data-tip="${esc(JSON.stringify({ t: o.tip.t, d: o.tip.d, k: o.tip.k ?? o.key, c: o.tip.cost ?? o.cost }))}"` : '';
   return `<button class="cb ${o.on ? 'on' : ''} ${o.why ? 'dis' : ''} ${o.cls ?? ''}" data-act="${o.act}" ${o.why ? `data-why="${esc(o.why)}"` : ''}${tip}>
-    ${icon(o.ic)}<span class="cl">${o.label}</span>${o.key ? `<kbd>${o.key}</kbd>` : ''}${o.cost ? `<span class="cr">${chips(o.cost, o.w)}</span>` : ''}${o.badge ? `<i class="badge">${o.badge}</i>` : ''}</button>`;
+    ${icon(o.ic)}<span class="cl">${o.label}</span>${o.key ? `<kbd>${o.key}</kbd>` : ''}${o.cost ? `<span class="cr">${chips(o.cost, o.w)}</span>` : ''}${o.badge ? `<i class="badge">${o.badge}</i>` : ''}${o.cd && o.cd > 0 ? `<i class="cdw" style="--cd:${Math.min(1, o.cd).toFixed(3)}"></i>` : ''}</button>`;
 }
 
 function portrait(species: Species) {
@@ -183,6 +183,8 @@ export class Hud {
       case 'place-cancel': g.cancelPlace(); break;
       case 'move': g.mode = g.mode === 'move' ? 'normal' : 'move'; break;
       case 'amove': g.mode = g.mode === 'amove' ? 'normal' : 'amove'; break;
+      case 'patrol': g.mode = g.mode === 'patrol' ? 'normal' : 'patrol'; break;
+      case 'queue': g.queueMode = !g.queueMode; this.toast(g.queueMode ? 'Queue on: new orders wait their turn.' : 'Queue off.'); break;
       case 'hold': if (w) cmdHold(w, g.sel); break;
       case 'stop': if (w) cmdStop(w, g.sel); break;
       case 'retreat': if (w) cmdRetreat(w, g.sel); break;
@@ -218,7 +220,7 @@ export class Hud {
       // ---- menus
       case 'settings': this.openSettings(); return;
       case 'quality': setSetting('quality', arg as Quality); this.openSettings(); return;
-      case 'toggle': setSetting(arg as 'edgePan' | 'muted' | 'hints', !settings[arg as 'edgePan' | 'muted' | 'hints']); this.openSettings(); this.renderTop(); return;
+      case 'toggle': setSetting(arg as 'edgePan' | 'muted' | 'hints' | 'voices' | 'bars', !settings[arg as 'edgePan' | 'muted' | 'hints' | 'voices' | 'bars']); this.openSettings(); this.renderTop(); return;
       case 'play': this.openClan(); return;
       case 'species': this.pickedSpecies = arg as Species; this.openClan(); return;
       case 'start': this.closeModal(); g.startNew(this.pickedSpecies); return;
@@ -305,7 +307,7 @@ export class Hud {
 
   openSettings() {
     const seg = (q: Quality, label: string) => `<button data-act="quality:${q}" class="btn ${settings.quality === q ? 'primary' : ''}">${label}</button>`;
-    const sw = (k: 'edgePan' | 'muted', label: string, inv = false) => `<button data-act="toggle:${k}" class="switch ${(inv ? !settings[k] : settings[k]) ? 'on' : ''}" aria-pressed="${inv ? !settings[k] : settings[k]}"><i></i><span>${label}</span></button>`;
+    const sw = (k: 'edgePan' | 'muted' | 'voices' | 'bars', label: string, inv = false) => `<button data-act="toggle:${k}" class="switch ${(inv ? !settings[k] : settings[k]) ? 'on' : ''}" aria-pressed="${inv ? !settings[k] : settings[k]}"><i></i><span>${label}</span></button>`;
     this.openModal(`
       <div class="dialog">
         <h2>${icon('menu')}Settings</h2>
@@ -315,6 +317,8 @@ export class Hud {
         <div class="srow"><label>${icon('sparkle')}Graphics</label><div class="seg">${seg('auto', 'Auto')}${seg('high', 'High')}${seg('medium', 'Medium')}${seg('low', 'Low')}</div></div>
         <p class="fine">Auto lowers effects automatically if your device struggles. Low turns off shadows and post-processing.</p>
         <div class="srow"><label>${icon('move')}Edge scrolling</label>${sw('edgePan', settings.edgePan ? 'On' : 'Off')}</div>
+        <div class="srow"><label>${icon('sound')}Unit voices</label>${sw('voices', settings.voices ? 'On' : 'Off')}</div>
+        <div class="srow"><label>${icon('heart')}Health bars</label>${sw('bars', settings.bars ? 'Always' : 'Smart (hold Alt for all)')}</div>
         <div class="row"><button data-act="${this.g.showcase || !this.g.world ? 'title' : 'menu'}" class="btn primary">${icon('check')}Done</button></div>
       </div>`);
   }
@@ -500,7 +504,7 @@ export class Hud {
       const us = ids.map((i) => w._u!.get(i)!).filter(Boolean);
       if (us.length === 1) {
         const u = us[0], d = UNITS[u.kind], o = u.order;
-        const doing = o.t === 'gather' ? `Gathering ${nodeById(w, o.node)?.res ?? ''}` : o.t === 'idle' ? 'Idle' : o.t === 'research' ? 'Researching' : o.t === 'build' ? 'Building' : o.t === 'attack' ? 'Fighting' : o.t === 'move' ? 'Moving' : o.t === 'amove' ? 'Attack-moving' : o.t === 'hold' ? 'Holding' : o.t;
+        const doing = o.t === 'gather' ? `Gathering ${nodeById(w, o.node)?.res ?? ''}` : o.t === 'idle' ? 'Idle' : o.t === 'research' ? 'Researching' : o.t === 'build' ? 'Building' : o.t === 'attack' ? 'Fighting' : o.t === 'move' ? 'Moving' : o.t === 'amove' ? 'Attack-moving' : o.t === 'hold' ? 'Holding' : o.t === 'patrol' ? 'Patrolling' : o.t;
         const pct = Math.max(0, u.hp / u.maxHp) * 100;
         html = `<div class="sp"><div class="pf">${icon(KIND_ICON[u.kind])}</div>
           <div class="si"><h3>${esc(u.name)}<small>${['', 'Veteran ', 'Elite '][rankOf(u)]}${d.name}${u.gen > 1 ? ' · Gen ' + ROMAN[u.gen] : ''}${u.kills ? ` · ${u.kills} kills` : ''}</small><button class="mini clr" data-act="desel" aria-label="Deselect">${icon('close')}</button></h3>
@@ -535,11 +539,13 @@ export class Hud {
       const us = ids.map((i) => w._u!.get(i)!).filter(Boolean);
       h += cbtn({ act: 'move', ic: 'move', label: 'Move', key: 'M', on: g.mode === 'move', tip: { t: 'Move', d: 'Then tap the destination. You can also right-click or just tap.' } });
       if (us.some((u) => UNITS[u.kind].dmg > 3 || u.kind === 'hunter')) h += cbtn({ act: 'amove', ic: 'attack', label: 'Attack', key: 'A', on: g.mode === 'amove', tip: { t: 'Attack-move', d: 'Advance and engage anything on the way.' } });
+      if (us.some((u) => UNITS[u.kind].dmg > 3)) h += cbtn({ act: 'patrol', ic: 'patrol', label: 'Patrol', key: 'P', on: g.mode === 'patrol', tip: { t: 'Patrol', d: 'Then tap a point: they walk back and forth between here and there, fighting anything they meet.' } });
+      h += cbtn({ act: 'queue', ic: 'queue', label: 'Queue', key: '⇧', on: g.queueMode, tip: { t: 'Queue orders (Shift)', d: 'While on, each order is added after the current one instead of replacing it. With a mouse, just hold Shift.' } });
       h += cbtn({ act: 'hold', ic: 'hold', label: 'Hold', key: 'H', tip: { t: 'Hold position', d: 'Stand still and only attack what comes in range.' } });
       h += cbtn({ act: 'stop', ic: 'stop', label: 'Stop', key: 'S', tip: { t: 'Stop', d: 'Cancel current orders.' } });
       h += cbtn({ act: 'retreat', ic: 'retreat', label: 'Retreat', key: 'R', tip: { t: 'Retreat', d: 'Fall back to the clan hearth.' } });
       const l = us.find((u) => u.kind === 'leader');
-      if (l) h += cbtn({ act: 'rally', ic: 'rally', label: 'Rally', cls: 'gold', why: l.ability > 0 ? `Rally ready in ${Math.ceil(l.ability)}s.` : undefined, badge: l.ability > 0 ? `${Math.ceil(l.ability)}` : undefined, tip: { t: 'Rally', d: 'Heal nearby allies by 20% and boost their speed and damage for 8 seconds. 45s cooldown.' } });
+      if (l) h += cbtn({ act: 'rally', ic: 'rally', label: 'Rally', cls: 'gold', why: l.ability > 0 ? `Rally ready in ${Math.ceil(l.ability)}s.` : undefined, badge: l.ability > 0 ? `${Math.ceil(l.ability)}` : undefined, cd: l.ability > 0 ? l.ability / 45 : 0, tip: { t: 'Rally', d: 'Heal nearby allies by 20% and boost their speed and damage for 8 seconds. 45s cooldown.' } });
       if (us.some((u) => u.kind === 'gatherer')) h += cbtn({ act: 'build', ic: 'build', label: 'Build', key: 'B', tip: { t: 'Build', d: 'Open the construction menu. Selected gatherers will build.' } });
     } else if (g.selB !== null && w._b?.get(g.selB)) {
       const b = w._b.get(g.selB)!, d = BUILDINGS[b.kind];
@@ -547,7 +553,8 @@ export class Hud {
         for (const k of d.trains) {
           const ud = UNITS[k as UnitKind], c = trainCheck(w, b.id, k as UnitKind);
           if (ud.only && ud.only !== w.species) continue;
-          h += cbtn({ act: `train:${k}`, ic: KIND_ICON[k], label: ud.name, cost: ud.cost, w, why: c.ok ? undefined : c.reason, tip: { t: ud.name, d: ud.desc, cost: ud.cost } });
+          const q0 = b.queue[0]; const tcd = q0 && q0.kind === k ? q0.t / ud.time : 0;
+          h += cbtn({ act: `train:${k}`, ic: KIND_ICON[k], label: ud.name, cost: ud.cost, w, cd: tcd, badge: b.queue.filter((x) => x.kind === k).length > 0 ? String(b.queue.filter((x) => x.kind === k).length) : undefined, why: c.ok ? undefined : c.reason, tip: { t: ud.name, d: ud.desc, cost: ud.cost } });
         }
         if (d.trains.length) h += cbtn({ act: 'setrally', ic: 'rally', label: 'Rally', key: 'Y', on: g.mode === 'rally', tip: { t: 'Set rally point', d: 'Then tap the map (or right-click) where new recruits should go. Tap a tree, bush or rock and new gatherers go straight to work.' } });
         const up = nextUpgrade(b);
