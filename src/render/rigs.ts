@@ -1,5 +1,6 @@
 /** Creates and animates unit rigs: skinned people, plus simple articulated deer and wolves. */
 import * as THREE from 'three';
+import { SPECIES } from '../data/species';
 import { UNITS } from '../data/units';
 import { hasDisc } from '../sim/rules';
 import type { Unit, World } from '../sim/types';
@@ -49,11 +50,11 @@ export function createRig(u: Unit, w: World, time: number): Rig {
   const flame = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.34, 6), MAT.flame); flame.position.y = 0.45; torch.add(flame); torch.position.set(0, -0.05, 0.06); b.handL.add(torch);
   const pack = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.16), MAT.pack.food); pack.position.set(0, 0.12, -0.24); pack.visible = false; pack.castShadow = true; b.spine.add(pack);
   root.add(mesh);
-  root.scale.setScalar((sp === 'neanderthal' ? 1.42 : 1.35) * (SCALE[u.kind] ?? 1));
+  root.scale.setScalar(SPECIES[sp].scale * (SCALE[u.kind] ?? 1));
   return { root, kind: 'person', unitKind: u.kind, mesh, b, pack, axe, pick, hammer, spear, bow, torch, flame, ...base };
 }
 
-const ARMED = ['guard', 'leader', 'raider', 'scout', 'elder', 'brute', 'champion', 'slinger'];
+const ARMED = ['guard', 'leader', 'raider', 'scout', 'elder', 'brute', 'champion', 'slinger', 'stalker'];
 const SCALE: Record<string, number> = { brute: 1.18, champion: 1.08, elder: 0.96 };
 
 export interface AnimCtx { time: number; dt: number; w: World; alpha: number; selected: boolean }
@@ -129,6 +130,11 @@ export function animateRig(r: Rig, u: Unit, c: AnimCtx): boolean {
     B.shR.rotation.x = -0.35 - 1.1 * thrust + 0.5 * windup; B.elR.rotation.x = -0.4 + 0.3 * thrust - 0.5 * windup; B.shL.rotation.x = -0.7 * (0.4 + thrust); B.elL.rotation.x = -0.6;
     B.spine.rotation.x = 0.1 + 0.18 * thrust - 0.12 * windup; B.spine.rotation.y = -0.3 * windup + 0.4 * thrust; B.hips.rotation.y = 0.15 * windup - 0.15 * thrust;
     B.hipL.rotation.x = -0.35; B.hipR.rotation.x = 0.35; B.kneeL.rotation.x = 0.25; B.kneeR.rotation.x = 0.15; busy = true;
+  } else if (fighting && u.kind === 'stalker') {
+    // javelin: lean back and hurl overarm
+    const windup = phase > 0.4 ? ease((phase - 0.4) / 0.6) : 0, thr = phase < 0.2 ? 1 - phase / 0.2 : 0;
+    B.handR.rotation.x = Math.PI * 0.5; B.shR.rotation.x = -2.4 * windup - 0.9 * thr; B.elR.rotation.x = -0.6 * windup; B.shL.rotation.x = -1.1; B.elL.rotation.x = -0.2;
+    B.spine.rotation.x = -0.18 * windup + 0.3 * thr; B.spine.rotation.y = 0.4 * windup - 0.3 * thr; B.hipL.rotation.x = -0.45; B.hipR.rotation.x = 0.35; B.kneeL.rotation.x = 0.25; busy = true;
   } else if (fighting && u.kind === 'slinger') {
     const spin = t * 14 + phase * 6;
     B.handR.rotation.x = 0; B.shR.rotation.x = -2.1 + Math.sin(spin) * 0.5; B.shR.rotation.z = -0.3 + Math.cos(spin) * 0.5; B.elR.rotation.x = -0.4; B.shL.rotation.x = -0.6; B.elL.rotation.x = -0.5;

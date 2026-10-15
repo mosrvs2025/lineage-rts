@@ -1,4 +1,5 @@
 import { BUILDINGS } from '../data/buildings';
+import { SPECIES } from '../data/species';
 import type { Building, DiscoveryId, Owner, Pt, Unit, World } from './types';
 import { bCenter } from './util';
 
@@ -20,7 +21,7 @@ export const anyTier = (w: World, kind: Building['kind'], tier: number) =>
 /** Veteran rank from kills: 0 recruit, 1 veteran, 2 elite. */
 export const RANK_KILLS = [3, 7];
 export const rankOf = (u: Unit) => (u.kills >= RANK_KILLS[1] ? 2 : u.kills >= RANK_KILLS[0] ? 1 : 0);
-export const FIGHTERS = ['hunter', 'guard', 'raider', 'leader', 'slinger', 'brute', 'champion'];
+export const FIGHTERS = ['hunter', 'guard', 'raider', 'leader', 'slinger', 'brute', 'stalker', 'champion'];
 
 export function hostile(w: World, a: Owner, b: Owner): boolean {
   if (a === b) return false;
@@ -39,7 +40,7 @@ export function popCap(w: World) {
 export function gatherRate(w: World, u: Unit, res: 'food' | 'wood' | 'stone', carcass: boolean): number {
   let r = res === 'food' ? (carcass ? 1.2 : 0.7) : res === 'wood' ? 0.65 : 0.5;
   if (u.owner === 0) {
-    if (w.species === 'human') r *= 1.1;
+    r *= SPECIES[w.species].gather[res] ?? 1;
     if (w.trait === 'logistics') r *= 1.15;
     if (res !== 'food' && w.buildings.some((b) => b.owner === 0 && b.kind === 'toolshelter' && b.done)) r *= 1.15;
     if (res !== 'food' && anyTier(w, 'toolshelter', 1)) r *= 1.15;
@@ -82,6 +83,7 @@ export function isSupplied(centers: Pt[], x: number, y: number) {
 export function visionOf(w: World, u: Unit, base: number) {
   let v = base;
   if (u.owner === 0 && w.trait === 'recon') v += 2;
+  if (u.owner === 0) v += SPECIES[w.species].vision ?? 0;
   return v;
 }
 

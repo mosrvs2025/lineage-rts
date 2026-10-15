@@ -1,4 +1,5 @@
 import { nearestFree } from './grid';
+import { SPECIES } from '../data/species';
 import type { UnitKind, World } from './types';
 import { setOrder } from './units';
 import { bCenter, dist, log, pick, rand } from './util';
@@ -17,7 +18,7 @@ export function aiSecond(w: World) {
   const cap = 12 + Math.floor(w.time / 300) * 2;
   if (ai.supply >= 50 && w.time >= ai.nextSpawn && mine.length < Math.min(cap, 22)) {
     const garrison = mine.filter((u) => u.role === 'garrison').length;
-    const heavy: UnitKind = w.rivalSpecies === 'human' ? 'slinger' : 'brute';
+    const heavy: UnitKind = SPECIES[w.rivalSpecies].unique;
     const roster: UnitKind[] = ['guard', 'guard', 'raider', 'raider', 'hunter'];
     if (w.time >= 330) roster.push(heavy);
     if (w.time >= 600) roster.push('champion', heavy);

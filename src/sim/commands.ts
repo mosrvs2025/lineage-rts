@@ -1,5 +1,6 @@
 import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
+import { SPECIES } from '../data/species';
 import { canAfford, pay } from './econ';
 import { nearestFree, rebuildBlocked } from './grid';
 import { investigateCheck, startInvestigation, startTeaching, teachCheck } from './discovery';
@@ -163,7 +164,7 @@ export function trainCheck(w: World, bId: number, kind: UnitKind): Check {
   const b = buildingById(w, bId), d = UNITS[kind];
   if (!b || b.owner !== 0 || !b.done) return { ok: false, reason: 'Building not ready.' };
   if (!BUILDINGS[b.kind].trains.includes(kind)) return { ok: false, reason: 'Cannot train here.' };
-  if (d.only && d.only !== w.species) return { ok: false, reason: `Only the ${d.only === 'human' ? 'Humans' : 'Neanderthals'} train ${d.name}s.` };
+  if (d.only && d.only !== w.species) return { ok: false, reason: `Only the ${SPECIES[d.only].plural} train ${d.name}s.` };
   if (d.needsTier && b.tier < d.needsTier) return { ok: false, reason: `Needs a War lodge (upgrade the ${BUILDINGS[b.kind].name}).` };
   if (d.needs && !w.buildings.some((x) => x.owner === 0 && x.kind === d.needs && x.done)) return { ok: false, reason: `Needs a ${BUILDINGS[d.needs as BuildingKind].name}.` };
   if (b.queue.length >= 5) return { ok: false, reason: 'Queue is full.' };

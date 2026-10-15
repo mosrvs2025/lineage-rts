@@ -40,6 +40,9 @@ export const UNITS: Record<UnitKind, UnitDef> = {
   brute: { name: 'Brute', glyph: 'B', desc: 'Neanderthal heavy. Slow and tough, crushes palisades and buildings.',
     hp: 135, speed: 2.1, dmg: 14, range: 1.3, cd: 1.4, vision: 6, carry: 0, aggro: 7,
     cost: { food: 55, wood: 20 }, time: 24, trainAt: 'lodge', needs: 'toolshelter', only: 'neanderthal', radius: 0.55 },
+  stalker: { name: 'Stalker', glyph: 'J', desc: 'Denisovan javelin hunter. Fast, sharp-eyed, strikes from mid range.',
+    hp: 55, speed: 3.2, dmg: 8, range: 4.5, cd: 1.3, vision: 9, carry: 0, aggro: 8,
+    cost: { food: 35, wood: 15 }, time: 15, trainAt: 'lodge', needs: 'toolshelter', only: 'denisovan', radius: 0.45 },
   champion: { name: 'Champion', glyph: 'C', desc: 'Elite spear-warrior. Needs a War lodge.',
     hp: 155, speed: 2.7, dmg: 17, range: 1.3, cd: 1.0, vision: 7, carry: 0, aggro: 8,
     cost: { food: 60, stone: 30 }, time: 28, trainAt: 'lodge', needs: 'toolshelter', needsTier: 1, radius: 0.5 },
@@ -51,4 +54,4 @@ export const UNITS: Record<UnitKind, UnitDef> = {
     cost: {}, time: 0, radius: 0.4 },
 };
 
-export const TRAINABLE: UnitKind[] = ['gatherer', 'scout', 'hunter', 'guard', 'raider', 'slinger', 'brute', 'champion', 'elder'];
+export const TRAINABLE: UnitKind[] = ['gatherer', 'scout', 'hunter', 'guard', 'raider', 'slinger', 'brute', 'stalker', 'champion', 'elder'];

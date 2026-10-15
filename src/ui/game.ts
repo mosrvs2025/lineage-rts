@@ -46,6 +46,7 @@ export class Game {
   private last = performance.now();
   private lastAuto = performance.now();
   species: Species = 'human';
+  mapId = 'valley';
   endShown = false;
   showcase = false;        // title-screen demo world (never saved)
   private moodT = 0; private dangerUntil = 0; private stung = false;
@@ -64,9 +65,9 @@ export class Game {
   get paused() { return this.speed === 0 || (this.menuOpen && !this.showcase); }
 
   // ------------------------------------------------------------ lifecycle
-  startNew(species: Species) {
-    this.species = species;
-    const w = createWorld(species, 1337 + Math.floor(Math.random() * 100000));
+  startNew(species: Species, mapId = this.mapId) {
+    this.species = species; this.mapId = mapId;
+    const w = createWorld(species, 1337 + Math.floor(Math.random() * 100000), mapId);
     updateFog(w);
     for (const u of w.units) if (u.owner === 0 && u.kind === 'gatherer') autoWork(w, u);
     this.setWorld(w);
