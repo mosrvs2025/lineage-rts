@@ -1,6 +1,8 @@
 import { Camera } from '../render/camera';
 import { Renderer } from '../render/renderer';
 import type { Overlay } from '../render/renderer';
+import { voice } from './voice';
+import { settings } from './settings';
 import { cmdContext, cmdPlace, placeCheck } from '../sim/commands';
 import { updateFog } from '../sim/fog';
 import { deserialize, serialize } from '../sim/save';
@@ -20,7 +22,7 @@ import type { MoodName } from './music';
 
 export const SAVE_KEYS = { manual: 'lineage-rts:save:manual', auto: 'lineage-rts:save:auto' } as const;
 export type SaveSlot = keyof typeof SAVE_KEYS;
-export type Mode = 'normal' | 'move' | 'amove' | 'place' | 'rally';
+export type Mode = 'normal' | 'move' | 'amove' | 'place' | 'rally' | 'patrol';
 
 export class Game {
   world: World | null = null;
@@ -34,7 +36,9 @@ export class Game {
   selB: number | null = null;
   mode: Mode = 'normal';
   place: { kind: BuildingKind; tx: number; ty: number } | null = null;
-  selectMode = false;      // touch: drag to box-select
+  selectMode = false;
+  queueMode = false;       // touch: queue orders as if Shift were held
+  showBars = false;        // Alt held: show every health bar      // touch: drag to box-select
   box: Overlay['box'] = null;
   pings: Overlay['pings'] = [];
   groups: Record<string, number[]> = {};
@@ -143,6 +147,21 @@ export class Game {
   selectUnits(ids: number[], add = false) {
     this.sel = add ? Array.from(new Set([...this.sel, ...ids])) : ids;
     this.selB = null; this.hud.refresh(true);
+    const w = this.world, u = w && ids.length ? w._u?.get(ids[0]) : undefined;
+    if (u && u.owner === 0 && !this.showcase) voice(u.kind, w!.species, 'select', u.id);
+  }
+
+  /** Issue an order through `fn`; with `queue`, append it to each unit's queue instead of replacing the current order. */
+  issue(queue: boolean, fn: () => void) {
+    const w = this.world; if (!w) return;
+    const us = this.liveSel().map((id) => w._u!.get(id)!).filter((u) => u.owner === 0);
+    const before = new Map(us.map((u) => [u.id, { o: u.order, q: [...(u.q ?? [])] }]));
+    fn();
+    if (!queue) return;
+    for (const u of us) {
+      const b = before.get(u.id)!; if (b.o.t === 'idle' || b.o.t === 'hold') continue;
+      const next = u.order; u.order = b.o; u.path = null; u.q = [...b.q, next];
+    }
   }
   selectBuilding(id: number | null) { this.sel = []; this.selB = id; this.hud.refresh(true); }
   clearSelection() { this.sel = []; this.selB = null; this.mode = 'normal'; this.place = null; this.hud.refresh(true); }
@@ -153,9 +172,11 @@ export class Game {
   }
   ping(x: number, y: number, c = 'rgba(255,255,255,.9)') { this.pings.push({ x, y, age: 0, c }); }
 
-  orderAt(x: number, y: number, hit?: Hit) {
+  orderAt(x: number, y: number, hit?: Hit, queue = false) {
     const w = this.world; if (!w || !this.liveSel().length) return;
-    const kind = cmdContext(w, this.sel, x, y, hit ?? targetAt(w, x, y, 0.4));
+    let kind = 'move';
+    this.issue(queue || this.queueMode, () => { kind = cmdContext(w, this.sel, x, y, hit ?? targetAt(w, x, y, 0.4)); });
+    const u = w._u?.get(this.sel[0]); if (u) voice(u.kind, w.species, kind === 'attack' ? 'attack' : kind === 'gather' ? 'work' : kind === 'build' ? 'build' : 'move', u.id);
     this.ping(x, y, kind === 'attack' ? 'rgba(255,110,90,.95)' : kind === 'gather' ? 'rgba(150,255,160,.95)' : kind === 'build' ? 'rgba(255,220,120,.95)' : 'rgba(255,255,255,.9)');
   }
 
@@ -241,7 +262,7 @@ export class Game {
       if (now - this.moodT > 1000) { this.moodT = now; this.updateMusic(w, now); }
       if (now - this.lastAuto > 30000) this.autosave();
       this.renderer.draw(w, {
-        selUnits: this.liveSel(), selBuilding: this.selB, box: this.box, place: this.mode === 'place' ? this.place : null,
+        selUnits: this.liveSel(), allBars: this.showBars || settings.bars, selBuilding: this.selB, box: this.box, place: this.mode === 'place' ? this.place : null,
         alpha: this.paused ? 1 : Math.min(1, this.acc / DT), pings: this.pings,
       }, now / 1000);
       this.renderer.drawMinimap(w, this.minimap);

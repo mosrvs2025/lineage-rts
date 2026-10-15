@@ -317,7 +317,7 @@ export function updateUnit(w: World, u: Unit) {
       if (r !== 'moving') { u.order = { t: 'idle' }; u.path = null; }
       break;
     }
-    case 'amove': {
+    case 'amove': case 'patrol': {
       let t = u.tgt >= 0 ? getTarget(w, u.tgt) : undefined;
       if (t && dist(u.x, u.y, tCenter(t).x, tCenter(t).y) > def.aggro * 1.8 + 3) t = undefined;
       if (!t && (w.tick + u.id) % 4 === 0) {
@@ -327,7 +327,11 @@ export function updateUnit(w: World, u: Unit) {
       if (t) { if (!fight(w, u, t)) u.tgt = -1; }
       else {
         const r = moveTo(w, u, o.x, o.y, 0.8);
-        if (r !== 'moving') { u.order = { t: 'idle' }; u.path = null; }
+        if (r !== 'moving') {
+          if (o.t === 'patrol' && r === 'arrived') u.order = { t: 'patrol', x: o.x2, y: o.y2, x2: o.x, y2: o.y }; // turn round
+          else u.order = { t: 'idle' };
+          u.path = null;
+        }
       }
       break;
     }
@@ -349,6 +353,8 @@ export function updateUnit(w: World, u: Unit) {
     case 'build': doBuild(w, u, o); break;
     case 'research': break;
   }
+  // the current order finished: start the next shift-queued one
+  if (u.order.t === 'idle' && u.q?.length) setOrder(u, u.q.shift()!);
 }
 
 /** Soft separation so units do not stack on one pixel. */

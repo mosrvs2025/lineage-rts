@@ -356,3 +356,7 @@ kbd { font: 600 10px var(--ui); padding: 1px 5px; border-radius: 4px; background
 /* keep the selection panel clear of the wider command card */
 #hud #selpanel { right: calc(374px + var(--sr)); }
 @media (max-width: 900px), (max-height: 520px) { #hud #selpanel { right: calc(276px + var(--sr)); } }
+/* ability / training cooldown spiral */
+.cb .cdw { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: conic-gradient(from 0deg, rgba(5,4,2,.68) calc(var(--cd) * 360deg), transparent 0); }
+.cb .cdw::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: conic-gradient(from calc(var(--cd) * 360deg), rgba(255,220,140,.9) 0 2deg, transparent 0); mix-blend-mode: screen; opacity: .8; }
+.cb.dis:has(.cdw) { opacity: .85; filter: none; }

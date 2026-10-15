@@ -1,4 +1,5 @@
-import { cmdHold, cmdRetreat, cmdStop, cmdMove, cmdSetRally } from '../sim/commands';
+import { voice } from './voice';
+import { cmdHold, cmdRetreat, cmdStop, cmdMove, cmdSetRally, cmdPatrol } from '../sim/commands';
 import { entityAt, targetAt, unitsInScreenRect } from '../sim/query';
 import type { Game } from './game';
 import { settings } from './settings';
@@ -30,6 +31,7 @@ export class Input {
     }, { passive: false });
     window.addEventListener('keydown', (e) => this.key(e, true));
     window.addEventListener('keyup', (e) => this.key(e, false));
+    window.addEventListener('blur', () => { this.g.showBars = false; this.keys.clear(); });
     g.minimap.addEventListener('pointerdown', (e) => this.mini(e));
     g.minimap.addEventListener('pointermove', (e) => { if (e.buttons) this.mini(e); });
   }
@@ -152,18 +154,20 @@ export class Input {
       g.mode = 'normal'; g.hud.refresh(true);
       return;
     }
-    if (g.mode === 'move' || g.mode === 'amove') {
-      const attack = g.mode === 'amove';
+    if (g.mode === 'move' || g.mode === 'amove' || g.mode === 'patrol') {
+      const q = e.shiftKey || g.queueMode;
       if (g.liveSel().length) {
-        if (attack) { cmdMove(w, g.sel, wp.x, wp.y, true); g.ping(wp.x, wp.y, 'rgba(255,110,90,.95)'); }
-        else g.orderAt(wp.x, wp.y, tgt);
+        if (g.mode === 'amove') { g.issue(q, () => cmdMove(w, g.sel, wp.x, wp.y, true)); g.ping(wp.x, wp.y, 'rgba(255,110,90,.95)'); }
+        else if (g.mode === 'patrol') { g.issue(q, () => cmdPatrol(w, g.sel, wp.x, wp.y)); g.ping(wp.x, wp.y, 'rgba(255,200,90,.95)'); }
+        else g.orderAt(wp.x, wp.y, tgt, e.shiftKey);
+        const u = w._u?.get(g.sel[0]); if (u && g.mode !== 'move') voice(u.kind, w.species, 'attack', u.id);
       }
       if (!e.shiftKey) g.mode = 'normal';
       g.hud.refresh(true);
       return;
     }
     const hasUnits = g.liveSel().length > 0;
-    if (right) { if (hasUnits) g.orderAt(wp.x, wp.y, tgt); else g.clearSelection(); return; }
+    if (right) { if (hasUnits) g.orderAt(wp.x, wp.y, tgt, e.shiftKey); else g.clearSelection(); return; }
 
     if (hit?.type === 'unit' && hit.unit.owner === 0) {
       // a tap that lands closer to a resource or enemy than to a unit is an order, not a selection
@@ -178,7 +182,7 @@ export class Input {
       }
     }
     if (hit?.type === 'building' && hit.building.owner === 0) {
-      if (hasUnits && !hit.building.done) { g.orderAt(wp.x, wp.y, tgt); return; }
+      if (hasUnits && !hit.building.done) { g.orderAt(wp.x, wp.y, tgt, e.shiftKey); return; }
       g.selectBuilding(hit.building.id); return;
     }
     if (hit && hit.type === 'unit' && hit.unit.owner !== 0 && !hasUnits) {
@@ -186,7 +190,7 @@ export class Input {
     }
     if (hasUnits) {
       // touch always orders on tap; a mouse left-click only orders on a target and otherwise deselects
-      if (touch || tgt) { g.orderAt(wp.x, wp.y, tgt); return; }
+      if (touch || tgt) { g.orderAt(wp.x, wp.y, tgt, e.shiftKey); return; }
     }
     g.clearSelection();
   }
@@ -196,6 +200,7 @@ export class Input {
     if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
     const k = e.key.toLowerCase();
     if (down) this.keys.add(k); else this.keys.delete(k);
+    if (k === 'alt') { g.showBars = down; e.preventDefault(); return; }
     if (!down || !g.world) return;
     if (k === 'escape') {
       if (g.hud.panelOpen()) g.hud.closePanels();
@@ -206,7 +211,8 @@ export class Input {
     }
     if (g.menuOpen) return;
     const ids = g.liveSel();
-    if (k === ' ' || k === 'p') { g.speed = g.speed === 0 ? 1 : 0; g.hud.refresh(true); e.preventDefault(); }
+    if (k === ' ' || (k === 'p' && !ids.length)) { g.speed = g.speed === 0 ? 1 : 0; g.hud.refresh(true); e.preventDefault(); }
+    else if (k === 'p' && ids.length) { g.mode = 'patrol'; g.hud.refresh(true); }
     else if (k === 'b') g.hud.togglePanel('build');
     else if (k === 'd') g.hud.togglePanel('disc');
     else if (k === 'm' && ids.length) { g.mode = 'move'; g.hud.refresh(true); }

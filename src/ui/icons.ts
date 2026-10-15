@@ -25,6 +25,8 @@ const P: Record<string, string> = {
   gift: '<rect x="5" y="12" width="22" height="16" rx="2"/><path d="M5 17h22M16 12v16M16 12c-3-6-9-5-8-1 .6 2 5 1 8 1zM16 12c3-6 9-5 8-1-.6 2-5 1-8 1z"/>',
   move: '<path d="M5 16h22M19 8l8 8-8 8"/>',
   attack: '<path d="M5 27L22 10l1-6-6 1L4 22zM27 27L10 10 9 4l6 1 13 17z"/>',
+  patrol: '<path d="M6 10h17l-4-4M26 22H9l4 4"/>',
+  queue: '<path d="M5 8h14M5 16h14M5 24h9"/><path d="M23 19v10M18 24h10"/>',
   hold: '<path d="M16 3l11 4v9c0 7-5 11-11 13C10 27 5 23 5 16V7z"/>',
   stop: '<rect x="7" y="7" width="18" height="18" rx="3"/>',
   retreat: '<path d="M12 8L5 15l7 7M5 15h14a7 7 0 0 1 0 14h-4"/>',

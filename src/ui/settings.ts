@@ -1,9 +1,9 @@
 /** Player settings, persisted in localStorage (every access is guarded: storage can be blocked). */
 export type Quality = 'auto' | 'high' | 'medium' | 'low';
-export interface Settings { music: number; sfx: number; muted: boolean; quality: Quality; edgePan: boolean; hints: boolean; shake: boolean }
+export interface Settings { music: number; sfx: number; muted: boolean; quality: Quality; edgePan: boolean; hints: boolean; shake: boolean; voices: boolean; bars: boolean }
 
 const KEY = 'lineage-rts:settings:v1';
-const defaults: Settings = { music: 0.6, sfx: 0.85, muted: false, quality: 'auto', edgePan: true, hints: true, shake: true };
+const defaults: Settings = { music: 0.6, sfx: 0.85, muted: false, quality: 'auto', edgePan: true, hints: true, shake: true, voices: true, bars: false };
 
 function load(): Settings {
   try {
@@ -17,6 +17,8 @@ function load(): Settings {
       if (typeof j.edgePan === 'boolean') s.edgePan = j.edgePan;
       if (typeof j.hints === 'boolean') s.hints = j.hints;
       if (typeof j.shake === 'boolean') s.shake = j.shake;
+      if (typeof j.voices === 'boolean') s.voices = j.voices;
+      if (typeof j.bars === 'boolean') s.bars = j.bars;
       return s;
     }
   } catch { /* ignore corrupt or unavailable storage */ }

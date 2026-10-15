@@ -93,6 +93,11 @@ On narrow portrait screens (≤ 560 px wide) the interface switches to a thumb-f
 
 * **Rally points** — select a hearth, lodge or circle and press *Rally* (Y) then tap the map, or simply right-click: recruits walk there; rally onto a tree, bush or rock and new gatherers go straight to work. The flag and its trail show while the building is selected.
 * **Attack alerts** — when anything of yours is hit, the minimap pulses red at the spot and an *Under attack* button appears; tap it or press **F** to jump there.
+* **Order queue** — hold **Shift** (or toggle *Queue* on touch) to chain orders; queued waypoints show as a numbered trail. A plain order replaces the queue.
+* **Patrol** (P, then a point) — fighters walk back and forth, engaging anything on the way.
+* **Health bars** — smart by default (selected or wounded); hold **Alt** to see every bar, or set *Always* in Settings.
+* **Cooldown spirals** on the leader's Rally and on training buttons; a badge counts queued recruits.
+* **Unit voices** — short spoken acknowledgements on select and order via the browser's speech synthesis (deeper for Neanderthals; click a unit too often and it complains). Toggle in Settings.
 * **Control groups** — Ctrl+1–9 to set, 1–9 to select, press twice quickly to centre the camera on the group.
 * Windows: Jobs and Objectives can be dragged, pinned/minimised and closed; the selection card has a Clear button; a map tap while a menu is open only dismisses it.
 
