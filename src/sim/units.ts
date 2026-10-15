@@ -26,7 +26,7 @@ function speedOf(w: World, u: Unit) {
   if (u.owner === 0) {
     if (u.kind === 'scout') s *= w.trait === 'recon' ? 1.2 : 1;
   }
-  if (u.owner === 0 && hasTech(w, 'fleet') && (u.kind === 'scout' || u.kind === 'raider' || u.kind === 'slinger')) s *= 1.15;
+  if (u.owner === 0 && hasTech(w, 'fleet') && (u.kind === 'scout' || u.kind === 'raider' || u.kind === 'slinger' || u.kind === 'stalker')) s *= 1.15;
   if (u.buff > 0) s *= 1.35;
   return s;
 }

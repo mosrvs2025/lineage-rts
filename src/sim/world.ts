@@ -3,6 +3,8 @@ import { UNITS } from '../data/units';
 import { rebuildBlocked, nearestFree } from './grid';
 import type { Building, BuildingKind, Owner, ResNode, Species, Unit, UnitKind, World } from './types';
 import { FIGHTERS } from './rules';
+import { MAPS } from '../data/maps';
+import { SPECIES } from '../data/species';
 import { bCenter, rand, reindex } from './util';
 
 export const SAVE_VERSION = 1;
@@ -17,7 +19,8 @@ export function makeUnit(w: World, kind: UnitKind, owner: Owner, x: number, y: n
   const d = UNITS[kind];
   let maxHp = d.hp;
   const sp: Species = owner === 0 ? w.species : w.rivalSpecies;
-  if (owner !== 2 && sp === 'neanderthal' && (kind === 'guard' || kind === 'raider' || kind === 'leader')) maxHp = Math.round(maxHp * 1.15);
+  const hb = owner !== 2 ? SPECIES[sp].hp : undefined;
+  if (hb && hb.kinds.includes(kind)) maxHp = Math.round(maxHp * hb.mult);
   if (owner === 0 && w.techs?.leather && FIGHTERS.includes(kind)) maxHp = Math.round(maxHp * 1.2);
   const u: Unit = {
     id: w.nextId++, kind, owner,
@@ -60,13 +63,14 @@ export function spawnSpot(w: World, b: Building): { x: number; y: number } {
   return nearestFree(w, c.x, b.y + b.h + 0.6, 6);
 }
 
-export function createWorld(species: Species, seed = 1337): World {
+export function createWorld(species: Species, seed = 1337, mapId = 'valley', rival?: Species): World {
   const W = 72, H = 48;
+  const M = MAPS[mapId] ?? MAPS.valley;
   const w: World = {
     v: SAVE_VERSION, seed, rng: seed, tick: 0, time: 0, gen: 1, species,
-    rivalSpecies: species === 'human' ? 'neanderthal' : 'human',
+    rivalSpecies: rival && rival !== species ? rival : SPECIES[species].rival, map: M.id,
     W, H, terrain: [], nextId: 1, units: [], buildings: [], nodes: [],
-    res: { food: 140, wood: 90, stone: 25, knowledge: 5, provisions: 0 },
+    res: { ...M.start, knowledge: 5, provisions: 0 },
     stats: { food: 0, meat: 0, kills: 0, lost: 0, spoiled: 0 },
     disc: { cooking: 'hidden', preservation: 'hidden', portable: 'hidden', heat: 'hidden' },
     techs: {},
@@ -76,7 +80,7 @@ export function createWorld(species: Species, seed = 1337): World {
       { id: 'meadow', name: 'Far Meadow', x: MEADOW.x, y: MEADOW.y, visited: false },
     ],
     ai: { supply: 30, nextSpawn: 20, nextRaid: 210, raids: 0, lastRaidMsg: -999 },
-    winter: { start: 420, end: 720 },
+    winter: { ...M.winter },
     trait: 'founder', lineage: [], done: {}, status: 'playing', endMsg: '',
     truceUntil: 0, hungerT: 0, log: [],
   };
@@ -84,10 +88,10 @@ export function createWorld(species: Species, seed = 1337): World {
 
   // ---- terrain
   const grid: string[][] = Array.from({ length: H }, () => Array(W).fill('.'));
-  const riverX = (y: number) => 35 + Math.round(Math.sin(y * 0.35) * 1.5);
+  const riverX = (y: number) => 35 + Math.round(Math.sin(y * M.river.freq + M.river.phase) * M.river.amp);
   for (let y = 0; y < H; y++) {
     const cx = riverX(y);
-    const ford = (y >= 21 && y <= 25) || (y >= 5 && y <= 6);
+    const ford = M.fords.some(([a, b]) => y >= a && y <= b);
     for (let x = cx - 1; x <= cx + 1; x++) grid[y][x] = ford ? '=' : '~';
   }
   const ridge = (x0: number, y0: number, x1: number, y1: number) => {
@@ -95,9 +99,7 @@ export function createWorld(species: Species, seed = 1337): World {
   };
   for (let x = 0; x < W; x++) { grid[0][x] = '^'; grid[H - 1][x] = '^'; }
   for (let y = 0; y < H; y++) { grid[y][0] = '^'; grid[y][W - 1] = '^'; }
-  ridge(38, 13, 42, 19); ridge(38, 28, 42, 34); // flanks of the pass
-  ridge(46, 9, 49, 14); ridge(50, 22, 53, 26); ridge(60, 25, 64, 29);
-  ridge(22, 1, 28, 3); ridge(30, 44, 34, 46);
+  for (const [x0, y0, x1, y1] of M.ridges) ridge(x0, y0, x1, y1);
   w.terrain = grid.map((r) => r.join(''));
 
   // ---- starting settlement
@@ -128,24 +130,16 @@ export function createWorld(species: Species, seed = 1337): World {
       used.add(key(x, y)); makeNode(w, kind, x, y);
     }
   };
-  [[7, 8, 5], [14, 38, 5], [22, 31, 4], [26, 12, 5], [30, 40, 3], [20, 17, 3], [4, 40, 3], [46, 38, 4], [47, 19, 3], [60, 15, 5],
-    [67, 22, 4], [52, 6, 4], [44, 44, 3], [28, 24, 2], [12, 13, 3]]
-    .forEach(([x, y, r]) => cluster(x, y, r, 0.62, 'tree'));
-  [[8, 36, 2], [27, 21, 2], [31, 8, 2], [16, 6, 1], [48, 30, 2], [58, 12, 2], [20, 42, 2]]
-    .forEach(([x, y, r]) => cluster(x, y, r, 0.8, 'rock'));
-  for (const [x, y] of [[15, 20], [16, 22], [15, 25], [17, 24], [14, 28], [13, 18]]) {
-    if (okTile(x, y)) { used.add(key(x, y)); makeNode(w, 'bush', x, y); }
-  }
-  for (const [x, y] of [[24, 27], [25, 29], [10, 12], [29, 14], [47, 26], [55, 28]]) {
-    if (okTile(x, y)) { used.add(key(x, y)); makeNode(w, 'bush', x, y); }
-  }
+  M.trees.forEach(([x, y, r]) => cluster(x, y, r, M.treeP, 'tree'));
+  M.rocks.forEach(([x, y, r]) => cluster(x, y, r, 0.8, 'rock'));
+  for (const [x, y] of M.bushes) if (okTile(x, y)) { used.add(key(x, y)); makeNode(w, 'bush', x, y); }
 
   rebuildBlocked(w);
 
   // ---- people
   const hs = nearestFree(w, 10.5, 26.6);
   const leader = makeUnit(w, 'leader', 0, hs.x, hs.y);
-  leader.name = species === 'human' ? 'Ysa' : 'Brok';
+  leader.name = SPECIES[species].leader;
   w.lineage.push({ name: leader.name, gen: 1, trait: 'Founder' });
   for (let i = 0; i < 5; i++) makeUnit(w, 'gatherer', 0, hs.x - 2 + i, hs.y + 0.8);
   makeUnit(w, 'hunter', 0, hs.x + 2.5, hs.y - 0.5);
@@ -158,10 +152,10 @@ export function createWorld(species: Species, seed = 1337): World {
   for (let i = 0; i < 2; i++) makeUnit(w, 'raider', 1, rh.x + i, rh.y);
 
   // ---- wildlife
-  for (const [x, y, n] of [[22, 14, 3], [18, 33, 3], [46, 29, 3], [60, 10, 3], [12, 5, 2]]) {
+  for (const [x, y, n] of M.deer) {
     for (let i = 0; i < n; i++) { const p = nearestFree(w, x + i * 1.3, y + (i % 2)); makeUnit(w, 'deer', 2, p.x, p.y); }
   }
-  for (const [x, y, n] of [[24, 37, 2], [15, 4, 2], [48, 12, 2]]) {
+  for (const [x, y, n] of M.wolves) {
     for (let i = 0; i < n; i++) { const p = nearestFree(w, x + i, y); const u = makeUnit(w, 'wolf', 2, p.x, p.y); u.home = { x, y }; }
   }
   rebuildBlocked(w);

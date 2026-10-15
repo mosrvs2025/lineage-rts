@@ -32,7 +32,7 @@ export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
       { name: 'Hafting bench', desc: 'Better-bound weapons: all melee damage +10%.', cost: { stone: 60, knowledge: 40 }, time: 40, requires: 'portable', hpMult: 1.3 },
     ], buildable: true },
   lodge: { name: 'Hunting lodge', glyph: 'L', desc: 'Trains scouts, hunters, guards and raiders.',
-    w: 3, h: 2, hp: 240, cost: { wood: 40, stone: 10 }, time: 16, pop: 0, warmth: 3.5, dropoff: false, vision: 6, trains: ['scout', 'hunter', 'guard', 'raider', 'slinger', 'brute', 'champion'], upgrades: [{ name: 'War lodge', desc: 'Unlocks Champions, the clan\'s elite spear-warriors.', cost: { wood: 70, stone: 40 }, time: 35, hpMult: 1.4 }], buildable: true },
+    w: 3, h: 2, hp: 240, cost: { wood: 40, stone: 10 }, time: 16, pop: 0, warmth: 3.5, dropoff: false, vision: 6, trains: ['scout', 'hunter', 'guard', 'raider', 'slinger', 'brute', 'stalker', 'champion'], upgrades: [{ name: 'War lodge', desc: 'Unlocks Champions, the clan\'s elite spear-warriors.', cost: { wood: 70, stone: 40 }, time: 35, hpMult: 1.4 }], buildable: true },
   circle: { name: 'Teaching circle', glyph: 'C', desc: 'Apprenticeships: preserve discoveries for future generations. Knowledge +0.5/s.',
     w: 3, h: 3, hp: 200, cost: { wood: 35 }, time: 16, pop: 0, warmth: 4, dropoff: false, vision: 5, trains: ['elder'], upgrades: [{ name: 'Elders\' circle', desc: 'Research 50% faster and +0.5 knowledge/s.', cost: { wood: 60, stone: 20, knowledge: 30 }, time: 30, knowledge: 0.5, hpMult: 1.3 }], buildable: true },
   rack: { name: 'Smoking rack', glyph: 'R', desc: 'Smokes 6 food into 6 provisions every 6s. Provisions never spoil and feed expeditions.',

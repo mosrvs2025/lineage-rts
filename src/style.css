@@ -360,3 +360,22 @@ kbd { font: 600 10px var(--ui); padding: 1px 5px; border-radius: 4px; background
 .cb .cdw { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: conic-gradient(from 0deg, rgba(5,4,2,.68) calc(var(--cd) * 360deg), transparent 0); }
 .cb .cdw::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: conic-gradient(from calc(var(--cd) * 360deg), rgba(255,220,140,.9) 0 2deg, transparent 0); mix-blend-mode: screen; opacity: .8; }
 .cb.dis:has(.cdw) { opacity: .85; filter: none; }
+
+/* ---- clan & map selection */
+.clancards.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.clan .h2b { margin-top: 18px; }
+.mapcards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.mapcard { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 12px; text-align: left; border: 2px solid var(--edge); background: var(--noise), linear-gradient(180deg, #3a3020, #1d1710); transition: transform .12s, border-color .15s; }
+.mapcard:hover { transform: translateY(-2px); border-color: var(--gold2); }
+.mapcard.on { border-color: var(--gold); box-shadow: 0 0 22px rgba(232,189,99,.4); }
+.mapcard .mthumb { display: block; aspect-ratio: 3 / 2; border-radius: 8px; overflow: hidden; border: 1px solid #000; } .mapcard .mthumb svg { width: 100%; height: 100%; display: block; }
+.mapcard b { font-family: var(--disp); color: var(--gold); font-size: 15px; letter-spacing: .04em; }
+.mapcard small { color: var(--muted); font-size: 11.5px; line-height: 1.3; }
+.mdiff { position: absolute; top: 12px; right: 12px; font: 700 9.5px var(--ui); letter-spacing: .1em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: rgba(0,0,0,.6); color: #fff; }
+.mdiff.d-harsh { color: #9fd0ff; } .mdiff.d-gentle { color: #a8f08a; } .mdiff.d-open { color: #ffd27a; }
+@media (max-width: 899px), (max-height: 559px) {
+  .clancards.three { gap: 8px; } .clancards.three .clancard li { font-size: 10px; }
+  .mapcards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; } .mapcard small { display: none; } .mapcard b { font-size: 13px; }
+}
+@media (max-width: 560px) and (orientation: portrait) { .clancards.three { grid-template-columns: 1fr; } }
+#modal.clanscreen { place-items: start center; overflow-y: auto; padding: 18px 14px 28px; } #modal.clanscreen .clan { margin: auto; } .clan h2 { margin-top: 4px; }

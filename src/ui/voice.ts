@@ -1,6 +1,7 @@
 /** Unit voice lines: short spoken acknowledgements on select and order, using the browser's speech synthesis (no audio assets). */
 import type { Species, UnitKind } from '../sim/types';
 import { isMuted } from './audio';
+import { SPECIES } from '../data/species';
 import { settings } from './settings';
 
 type Ctx = 'select' | 'move' | 'attack' | 'work' | 'build' | 'annoyed';
@@ -14,6 +15,7 @@ const LINES: Partial<Record<UnitKind, Partial<Record<Ctx, string[]>>>> = {
   elder: { select: ['Patience, child.', 'I remember.'], move: ['Slowly now.', 'My old legs...'], attack: ['I am too old for this.'] },
   slinger: { select: ['Stones ready.', 'Point the way.'], move: ['Light feet.'], attack: ['Sling!', 'Rain stones!'] },
   brute: { select: ['Hrrm.', 'Big work?'], move: ['Hrm. Going.'], attack: ['Crush!', 'Break it!'] },
+  stalker: { select: ['I see them.', 'Quiet feet.'], move: ['Through the stones.', 'Following.'], attack: ['Javelin!', 'Strike true!'] },
   champion: { select: ['Command me.', 'Blood and honour.'], move: ['As you command.'], attack: ['Glory to the lineage!', 'Face me!'] },
 };
 
@@ -40,8 +42,8 @@ export function voice(kind: UnitKind, species: Species, ctx: Ctx, unitId = -1) {
   try {
     synth.cancel();
     const u = new SpeechSynthesisUtterance(pick(lines));
-    const deep = species === 'neanderthal' || kind === 'brute';
-    u.pitch = deep ? 0.55 : kind === 'elder' ? 0.75 : kind === 'scout' || kind === 'slinger' ? 1.25 : 1.0;
+    const deep = SPECIES[species].voicePitch < 0.7 || kind === 'brute';
+    u.pitch = deep ? 0.55 : species === 'denisovan' ? 0.8 : kind === 'elder' ? 0.75 : kind === 'scout' || kind === 'slinger' ? 1.25 : 1.0;
     u.rate = kind === 'elder' ? 0.85 : kind === 'scout' ? 1.25 : 1.05;
     u.volume = Math.min(1, settings.sfx * 0.9);
     const en = voices.filter((v) => v.lang?.startsWith('en'));

@@ -3,8 +3,8 @@ import { step, TICKS_PER_SEC } from '../src/sim/step';
 import { updateFog } from '../src/sim/fog';
 import type { World } from '../src/sim/types';
 
-export function newWorld(species: 'human' | 'neanderthal' = 'human'): World {
-  const w = createWorld(species);
+export function newWorld(species: 'human' | 'neanderthal' | 'denisovan' = 'human', map = 'valley'): World {
+  const w = createWorld(species, 1337, map);
   updateFog(w);
   return w;
 }

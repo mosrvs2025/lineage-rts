@@ -1,5 +1,7 @@
 /** Low-poly 3D models built from primitives (no asset files) and the materials/shader patches they share. */
 import * as THREE from 'three';
+import { SPECIES } from '../data/species';
+import type { Species } from '../sim/types';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { BuildingKind, UnitKind } from '../sim/types';
 
@@ -344,10 +346,8 @@ export function buildBuilding(kind: BuildingKind, owner: 0 | 1, w: number, h: nu
 }
 
 // ------------------------------------------------------------------ people (skinned, one draw call per person)
-const SKIN = { human: ['#e6bd94', '#d9a57e', '#b9805a'], neanderthal: ['#d9a888', '#cc9878', '#b58562'] } as const;
-const HAIR = { human: ['#46301e', '#2a1c14', '#8a5a2a', '#1d1713'], neanderthal: ['#2a1c14', '#3a2616', '#5a3a1e', '#171210'] } as const;
 const TUNIC: Record<string, string[]> = {
-  gatherer: ['#c29a62', '#b58a56', '#a8845a', '#c9a76e'], scout: ['#d8c590', '#cdb97e', '#bda875', '#d9cb9c'], hunter: ['#7f9a50', '#6f8a46', '#8aa05a', '#6b7f48'],
+  gatherer: ['#c29a62', '#b58a56', '#a8845a', '#c9a76e'], stalker: ['#5a6a4a', '#4e5e40', '#667454', '#485638'], scout: ['#d8c590', '#cdb97e', '#bda875', '#d9cb9c'], hunter: ['#7f9a50', '#6f8a46', '#8aa05a', '#6b7f48'],
   guard: ['#92683f', '#85603a', '#9a7048', '#7a5634'], raider: ['#5a4644', '#4a3a38', '#64504c', '#3e3030'], leader: ['#a44a32', '#9a3f2c', '#b0553a', '#8e3a28'],
   elder: ['#e4dccb', '#d8d0bc', '#ece5d4', '#cfc6b0'], slinger: ['#6c8a58', '#5f7d4e', '#7a9462', '#557244'],
   brute: ['#5a4634', '#4d3b2c', '#664f3a', '#43342a'], champion: ['#8e2f26', '#7f2820', '#9c372c', '#6e231c'],
@@ -391,15 +391,15 @@ function mergeSkinned(parts: SPart[]): THREE.BufferGeometry {
 
 export interface PersonGeo { body: THREE.BufferGeometry; toolAxe: THREE.BufferGeometry; toolPick: THREE.BufferGeometry; toolHammer: THREE.BufferGeometry; torch: THREE.BufferGeometry; bow: THREE.BufferGeometry; spear: THREE.BufferGeometry }
 const personCache = new Map<string, PersonGeo>();
-export function personGeo(kind: UnitKind, species: 'human' | 'neanderthal', owner: 0 | 1, gen: number, variant = 0): PersonGeo {
+export function personGeo(kind: UnitKind, species: Species, owner: 0 | 1, gen: number, variant = 0): PersonGeo {
   const v = variant & 3, key = `${kind}${species}${owner}${gen >= 2 ? 2 : 1}${v}`;
   const hit = personCache.get(key); if (hit) return hit;
-  const neo = species === 'neanderthal';
+  const sd = SPECIES[species], neo = sd.heavyBrow, deni = species === 'denisovan';
   const team = owner === 0 ? (gen >= 2 ? '#38d39c' : '#27b7c6') : '#d84a36';
-  const skin = SKIN[species][v % 3], hair = HAIR[species][v], tun = (TUNIC[kind] ?? TUNIC.gatherer)[v];
+  const skin = sd.skin[v % 3], hair = sd.hair[v], tun = (TUNIC[kind] ?? TUNIC.gatherer)[v];
   const P: SPart[] = [];
   const add = (b: string, g: THREE.BufferGeometry, c: string, p?: V3, r?: V3, s?: V3) => P.push({ b, g, c, p, r, s });
-  const bw = neo ? 1.1 : 1;
+  const bw = species === 'neanderthal' ? 1.1 : deni ? 1.05 : 1;
   // pelvis, tunic skirt, legs
   add('hips', box(0.34 * bw, 0.14, 0.22 * bw), '#3a2a1c', [0, 0.46, 0]);
   add('hips', box(0.32 * bw, 0.2, 0.2 * bw), tun, [0, 0.36, 0.0]);
@@ -417,7 +417,7 @@ export function personGeo(kind: UnitKind, species: 'human' | 'neanderthal', owne
   add('spine', box(0.075, 0.46, 0.02), team, [0.03, 0.66, 0.137 * bw], [0, 0, 0.5]);
   add('spine', box(0.46 * bw, 0.07, 0.3 * bw), shade(tun, 0.82) as unknown as string, [0, 0.83, 0]);
   // head
-  const hr = neo ? 0.17 : 0.155;
+  const hr = species === 'neanderthal' ? 0.17 : deni ? 0.162 : 0.155;
   add('head', sph(hr, 1), skin, [0, 0.92, 0.01], undefined, neo ? [1.08, 1, 1.12] : [1, 1.04, 1]);
   add('head', sph(hr * 1.07, 1), hair, [0, 0.965, -0.035], undefined, [1, 0.85, 1]);
   if (v === 2 || kind === 'leader') add('head', box(0.07, 0.22, 0.07), hair, [0, 0.86, -0.15]); // long hair
@@ -427,6 +427,11 @@ export function personGeo(kind: UnitKind, species: 'human' | 'neanderthal', owne
   if (neo) { add('head', box(0.26, 0.035, 0.07), '#3a2418', [0, 0.955, 0.15]); add('head', box(0.2, 0.07, 0.07), '#3a2418', [0, 0.82, 0.12]); }
   else if (v === 1) add('head', box(0.16, 0.06, 0.06), hair, [0, 0.83, 0.12]);
   add('head', box(0.03, 0.05, 0.03), skin, [0.155, 0.92, 0], undefined); add('head', box(0.03, 0.05, 0.03), skin, [-0.155, 0.92, 0]);
+  if (deni) {
+    for (const sx of [-1, 1]) add('head', box(0.02, 0.07, 0.02), '#c8502a', [sx * 0.085, 0.885, 0.15]);   // ochre cheek stripes
+    add('head', box(0.16, 0.02, 0.02), '#e8d8b0', [0, 0.975, 0.15]);                                          // bone headband
+    for (let i = 0; i < 5; i++) add('spine', sph(0.022, 0), i % 2 ? '#e8dcc0' : '#c8502a', [-0.08 + i * 0.04, 0.78 - Math.abs(i - 2) * 0.012, 0.15]); // bead necklace
+  }
   // arms
   const armCol = tun, hand = skin;
   for (const sx of [-1, 1]) {
@@ -464,6 +469,11 @@ export function personGeo(kind: UnitKind, species: 'human' | 'neanderthal', owne
     add('head', box(0.34, 0.07, 0.1), '#2a1c14', [0, 0.99, 0.1]);                                    // heavy brow hair
     add('hips', box(0.4, 0.2, 0.28), '#4a392b', [0, 0.38, 0]);                                       // fur kilt
   }
+  if (kind === 'stalker') {
+    add('spine', box(0.4, 0.28, 0.06), '#7a5a3a', [0, 0.66, -0.15]);                                  // hide cape
+    for (let i = 0; i < 3; i++) add('spine', cyl(0.012, 0.012, 0.72, 4), '#8a6a40', [-0.12 + i * 0.05, 0.86, -0.19], [0.25, 0, 0.12]);  // javelins on the back
+    add('head', cone(0.03, 0.22, 4), '#3a6a5a', [0.1, 1.08, -0.04], [0, 0, -0.4]);                   // feather
+  }
   if (kind === 'champion') {
     add('spine', box(0.52, 0.18, 0.36), '#c9a85a', [0, 0.82, 0]);                                    // bronze-bone gorget
     for (const sx of [-1, 1]) add(sx < 0 ? 'shL' : 'shR', sph(0.14, 0), '#d8cfc0', [sx * 0.23, 0.78, 0], undefined, [1.1, 0.7, 1.1]);   // bone pauldrons
@@ -491,6 +501,7 @@ export function personGeo(kind: UnitKind, species: 'human' | 'neanderthal', owne
     elder: [{ g: cyl(0.025, 0.03, 1.5, 5), c: '#6a4526', p: [0, -0.4, 0] }, { g: sph(0.09, 0), c: '#7fd0c0', p: [0, -1.18, 0] }, { g: box(0.2, 0.03, 0.03), c: '#c9a85a', p: [0, -1.02, 0] }],
     slinger: [{ g: cyl(0.01, 0.01, 0.6, 3), c: '#cbb98a', p: [0, -0.3, 0] }, { g: sph(0.05, 0), c: '#9a9ca6', p: [0, -0.62, 0] }],
     brute: [{ g: cyl(0.04, 0.05, 0.8, 6), c: '#6a4526', p: [0, -0.25, 0] }, { g: sph(0.2, 1), c: '#7a6a58', p: [0, -0.7, 0], s: [1, 1.2, 1] }, { g: cone(0.04, 0.12, 4), c: '#d8d0b8', p: [0.18, -0.68, 0], r: [0, 0, -1.4] }, { g: cone(0.04, 0.12, 4), c: '#d8d0b8', p: [-0.18, -0.68, 0], r: [0, 0, 1.4] }],
+    stalker: [{ g: cyl(0.016, 0.016, 1.15, 4), c: '#a07a48', p: [0, -0.36, 0] }, { g: cone(0.035, 0.16, 4), c: '#3a3a40', p: [0, -0.98, 0], r: [Math.PI, 0, 0] }],
     champion: [{ g: cyl(0.024, 0.024, 1.8, 5), c: '#8b6a40', p: [0, -0.5, 0.0] }, { g: cone(0.065, 0.3, 5), c: '#e8e0c8', p: [0, -1.55, 0], r: [Math.PI, 0, 0] }, { g: box(0.08, 0.14, 0.08), c: '#c23a2a', p: [0, -1.3, 0] }, { g: box(0.14, 0.05, 0.05), c: '#c9a85a', p: [0, -1.38, 0] }],
   };
   const g: PersonGeo = {

@@ -40,6 +40,7 @@ const P: Record<string, string> = {
   elder: '<circle cx="16" cy="9" r="4"/><path d="M8 28c0-8 3-12 8-12s8 4 8 12M26 6v22M24 10h4"/>',
   slinger: '<circle cx="9" cy="22" r="4"/><path d="M13 20c4-6 9-9 15-10M9 18c-3-6 0-12 6-14"/>',
   brute: '<path d="M10 28l3-14M13 14l-4-9 9 3 4 8-6 4zM22 22l5 6"/>',
+  stalker: '<path d="M6 27L24 7"/><path d="M24 7l3-2-1 4z"/><path d="M12 16c2 2 4 2 6 0"/>',
   champion: '<path d="M16 3l3 8h8l-6 5 2 8-7-5-7 5 2-8-6-5h8z"/><path d="M6 29h20"/>',
   upgrade: '<path d="M16 28V6M8 14l8-8 8 8M7 28h18"/>',
   tech: '<path d="M16 4a8 8 0 0 0-4 15v4h8v-4a8 8 0 0 0-4-15zM12 27h8M13 24h6"/>',

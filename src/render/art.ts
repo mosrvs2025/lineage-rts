@@ -1,4 +1,5 @@
 /** Procedural terrain: noise fields -> ground texture (canvas) + height grid for the 3D mesh. No image assets. */
+import { MAPS } from '../data/maps';
 import type { World } from '../sim/types';
 
 // ------------------------------------------------------------------ noise
@@ -76,7 +77,14 @@ export function bakeTerrain(w: World): HTMLCanvasElement {
   const { water, ford, mtn, sample, warp, mtnH } = makeFields(w);
   const fc = document.createElement('canvas'); fc.width = W * R; fc.height = H * R;
   const fctx = fc.getContext('2d')!; const img = fctx.createImageData(fc.width, fc.height);
-  const GD: RGB = [58, 104, 42], GL: RGB = [124, 170, 66], GY: RGB = [150, 168, 72], GF: RGB = [44, 84, 40];
+  const biome = MAPS[w.map]?.biome ?? 'autumn';
+  const PAL: Record<string, [RGB, RGB, RGB, RGB]> = {
+    autumn: [[58, 104, 42], [124, 170, 66], [150, 168, 72], [44, 84, 40]],
+    lush: [[46, 112, 44], [96, 176, 70], [120, 180, 80], [34, 90, 44]],
+    tundra: [[120, 128, 118], [178, 186, 176], [206, 212, 210], [96, 108, 100]],
+    steppe: [[132, 128, 70], [190, 172, 96], [214, 190, 118], [112, 110, 62]],
+  };
+  const [GD, GL, GY, GF] = PAL[biome];
   const SAND: RGB = [214, 197, 146], WET: RGB = [150, 136, 98];
   const D1: RGB = [24, 80, 128], D2: RGB = [44, 120, 168], D3: RGB = [104, 178, 196];
   const R1: RGB = [74, 72, 80], R2: RGB = [138, 136, 144];

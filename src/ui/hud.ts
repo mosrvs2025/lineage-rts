@@ -1,6 +1,9 @@
 import { BUILDINGS, BUILD_ORDER } from '../data/buildings';
 import { DISCOVERIES, DISC_ORDER } from '../data/discoveries';
 import { UNITS } from '../data/units';
+import { SPECIES, SPECIES_ORDER } from '../data/species';
+import { MAPS, MAP_ORDER } from '../data/maps';
+import { mapThumb } from './mapthumb';
 import { TECHS, techsFor } from '../data/techs';
 import {
   cmdCancelSite, cmdGift, cmdHold, cmdInvestigate, cmdJob, cmdRally, cmdRetreat, cmdStop, cmdTeach, cmdTrain, jobCounts, trainCheck,
@@ -26,7 +29,7 @@ const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
 type PanelId = 'build' | 'disc' | null;
 type Cost = Partial<Record<string, number>>;
 
-const KIND_ICON: Record<string, string> = { gatherer: 'gatherer', scout: 'scout', hunter: 'hunter', guard: 'guard', raider: 'raider', leader: 'leader', elder: 'elder', slinger: 'slinger', brute: 'brute', champion: 'champion', deer: 'deer', wolf: 'wolf' };
+const KIND_ICON: Record<string, string> = { gatherer: 'gatherer', scout: 'scout', hunter: 'hunter', guard: 'guard', raider: 'raider', leader: 'leader', elder: 'elder', slinger: 'slinger', brute: 'brute', champion: 'champion', stalker: 'stalker', deer: 'deer', wolf: 'wolf' };
 const DISC_ICON: Record<DiscoveryId, string> = { cooking: 'food', preservation: 'rack', portable: 'discover', heat: 'build' };
 
 function chips(cost: Cost, w?: World): string {
@@ -45,15 +48,15 @@ function cbtn(o: BtnOpts): string {
 }
 
 function portrait(species: Species) {
-  const neo = species === 'neanderthal';
-  const skin = neo ? '#d9a888' : '#e6bd94', hair = neo ? '#2a1c14' : '#46301e';
-  return `<svg viewBox="0 0 120 120" class="portrait"><defs><radialGradient id="pg${species}" cx=".5" cy=".35" r=".8"><stop offset="0" stop-color="${neo ? '#6a5a44' : '#4a6a8a'}"/><stop offset="1" stop-color="#14110d"/></radialGradient></defs>
+  const d = SPECIES[species], neo = d.heavyBrow, deni = species === 'denisovan';
+  const skin = d.skin[0], hair = d.hair[0];
+  return `<svg viewBox="0 0 120 120" class="portrait"><defs><radialGradient id="pg${species}" cx=".5" cy=".35" r=".8"><stop offset="0" stop-color="${d.band}"/><stop offset="1" stop-color="#14110d"/></radialGradient></defs>
     <rect width="120" height="120" fill="url(#pg${species})"/>
     <path d="M10 120c0-26 20-40 50-40s50 14 50 40z" fill="#8a5a36"/><path d="M40 84l20 18 20-18" fill="none" stroke="#3a2418" stroke-width="3"/>
     <ellipse cx="60" cy="52" rx="${neo ? 27 : 24}" ry="${neo ? 29 : 30}" fill="${skin}"/>
     <path d="M${neo ? 30 : 33} 44c0-22 14-30 ${neo ? 30 : 27}-30s${neo ? 30 : 27} 8 ${neo ? 30 : 27} 30c-6-8-14-12-${neo ? 30 : 27}-12s-${neo ? 24 : 21} 4-${neo ? 30 : 27} 12z" fill="${hair}"/>
     ${neo ? '<path d="M36 50h48v6c-12-3-36-3-48 0z" fill="#4a2c1c" opacity=".55"/><path d="M42 72c6 10 30 10 36 0 0 10-6 16-18 16s-18-6-18-16z" fill="#3a2418"/>' : '<path d="M44 72c6 6 26 6 32 0" stroke="#8a4a3a" stroke-width="2" fill="none"/>'}
-    <circle cx="50" cy="57" r="2.6" fill="#1a1210"/><circle cx="70" cy="57" r="2.6" fill="#1a1210"/>
+    <circle cx="50" cy="57" r="2.6" fill="#1a1210"/><circle cx="70" cy="57" r="2.6" fill="#1a1210"/>${deni ? '<path d="M41 62v9M79 62v9" stroke="#c8502a" stroke-width="3"/><path d="M44 92h32" stroke="#e8dcc0" stroke-width="4" stroke-dasharray="3 3"/>' : ''}
     <rect x="34" y="40" width="52" height="5" fill="#27b7c6"/></svg>`;
 }
 
@@ -62,7 +65,7 @@ export class Hud {
   private lastChips = ''; private lastCmds = ''; private lastObj = ''; private lastPanel = ''; private lastJobs = ''; private lastSel = ''; private lastDock = ''; private lastClock = '';
   private lastLog = ''; private lastTick = 0; private jobsOpen = false; private objOpen: boolean | null = null;
   private springToast = false; private lastSpeed = 1;
-  private pickedSuccessor = 0; private pickedSpecies: Species = 'human';
+  private pickedSuccessor = 0; private pickedSpecies: Species = 'human'; private pickedMap = 'valley';
   readonly bub: Bubbles;
   private placeN = 0;
   private prevRes: Record<string, number> = {}; private flash: Record<string, number> = {};
@@ -223,7 +226,8 @@ export class Hud {
       case 'toggle': setSetting(arg as 'edgePan' | 'muted' | 'hints' | 'voices' | 'bars', !settings[arg as 'edgePan' | 'muted' | 'hints' | 'voices' | 'bars']); this.openSettings(); this.renderTop(); return;
       case 'play': this.openClan(); return;
       case 'species': this.pickedSpecies = arg as Species; this.openClan(); return;
-      case 'start': this.closeModal(); g.startNew(this.pickedSpecies); return;
+      case 'map': this.pickedMap = arg; this.openClan(); return;
+      case 'start': this.closeModal(); g.startNew(this.pickedSpecies, this.pickedMap); return;
       case 'continue': { const err = g.load(arg as SaveSlot); if (err) this.toast(err, 'bad'); else this.closeModal(); return; }
       case 'resume': this.closeModal(); break;
       case 'save': { const ok = g.save('manual'); this.toast(ok ? 'Game saved.' : 'Could not save (browser storage unavailable).', ok ? 'good' : 'bad'); this.openMenu(); return; }
@@ -267,19 +271,22 @@ export class Hud {
   }
 
   openClan() {
-    const sp = this.pickedSpecies;
-    const card = (s: Species, name: string, tag: string, perks: string[]) => `
+    const sp = this.pickedSpecies, mp = this.pickedMap, rv = SPECIES[sp].rival;
+    const card = (s: Species) => { const d = SPECIES[s]; return `
       <button data-act="species:${s}" class="clancard ${sp === s ? 'on' : ''}">
-        ${portrait(s)}<h3>${name}</h3><p class="ctag">${tag}</p>
-        <ul>${perks.map((p) => `<li>${icon('check')}${p}</li>`).join('')}</ul>${sp === s ? `<span class="chosen">${icon('check')} Chosen</span>` : ''}
-      </button>`;
+        ${portrait(s)}<h3>${d.plural}</h3><p class="ctag">${d.tag}</p>
+        <ul>${d.perks.map((p) => `<li>${icon('check')}${p}</li>`).join('')}</ul>${sp === s ? `<span class="chosen">${icon('check')} Chosen</span>` : ''}
+      </button>`; };
+    const mcard = (id: string) => { const m = MAPS[id]; return `
+      <button data-act="map:${id}" class="mapcard b-${m.biome} ${mp === id ? 'on' : ''}">
+        <span class="mthumb">${mapThumb(id)}</span><b>${m.name}</b><span class="mdiff d-${m.difficulty.toLowerCase()}">${m.difficulty}</span><small>${m.desc}</small>
+      </button>`; };
     this.openModal(`
       <div class="clan">
-        <h2>Choose your clan</h2><p class="sub">Your rival will be the ${sp === 'human' ? 'Neanderthals' : 'humans'}. Differences are modest — both can win.</p>
-        <div class="clancards">
-          ${card('human', 'Humans', 'Wide-ranging foragers', ['Gatherers work 10% faster', 'Quick to adapt to new ground'])}
-          ${card('neanderthal', 'Neanderthals', 'Hardy cold-weather hunters', ['Leaders, guards and raiders +15% health', 'Take 35% less cold damage'])}
-        </div>
+        <h2>Choose your clan</h2><p class="sub">Your rival will be the ${SPECIES[rv].plural}. Differences are modest — every clan can win.</p>
+        <div class="clancards three">${SPECIES_ORDER.map(card).join('')}</div>
+        <h2 class="h2b">Choose your land</h2>
+        <div class="mapcards">${MAP_ORDER.map(mcard).join('')}</div>
         <div class="row"><button data-act="title" class="btn">${icon('door')}Back</button><button data-act="start" class="btn primary big">${icon('play')}Begin</button></div>
       </div>`, 'titlescreen clanscreen');
   }

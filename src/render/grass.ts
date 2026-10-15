@@ -1,5 +1,8 @@
 /** Wind-swayed instanced grass around the camera focus: the single biggest lift to ground realism. */
 import * as THREE from 'three';
+import { MAPS } from '../data/maps';
+
+const BIOME_TINT: Record<string, THREE.Color> = { steppe: new THREE.Color(1.4, 1.12, 0.62), lush: new THREE.Color(0.88, 1.12, 0.9), tundra: new THREE.Color(0.95, 1, 1.05) };
 import type { World } from '../sim/types';
 import { hash2 } from './art';
 import { MAT, enhance } from './models';
@@ -56,5 +59,6 @@ export class Grass {
     }
     // winter: blades are buried and frosted
     this.mesh.scale.y = 1 - 0.7 * winter; this.mat.color.setRGB(1 - 0.05 * winter, 1 - 0.0 * winter, 1 + 0.1 * winter).lerp(new THREE.Color(1.7, 1.8, 2), winter * 0.85);
+    const bt = BIOME_TINT[MAPS[w.map]?.biome ?? 'autumn']; if (bt) this.mat.color.multiply(bt);
   }
 }

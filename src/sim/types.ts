@@ -1,8 +1,8 @@
-export type Species = 'human' | 'neanderthal';
+export type Species = 'human' | 'neanderthal' | 'denisovan';
 export type Res = 'food' | 'wood' | 'stone';
 export type UnitKind =
   | 'gatherer' | 'scout' | 'hunter' | 'guard' | 'raider' | 'leader'
-  | 'elder' | 'slinger' | 'brute' | 'champion'
+  | 'elder' | 'slinger' | 'brute' | 'champion' | 'stalker'
   | 'deer' | 'wolf';
 export type CostMap = Partial<Record<Res | 'knowledge', number>>;
 export type BuildingKind =
@@ -121,6 +121,7 @@ export interface World {
   gen: number;
   species: Species;
   rivalSpecies: Species;
+  map: string;          // MapDef id
   W: number; H: number;
   terrain: string[];
   nextId: number;

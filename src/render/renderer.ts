@@ -12,7 +12,8 @@ import { Arrows, AmbientLife, Particles, Rings } from './effects';
 import { Grass } from './grass';
 import type { BuildingModel } from './models';
 import { RANK_KILLS } from '../sim/rules';
-import { MAT, blobGeo, blobMat, TREE_VARIANTS, buildBuilding, enhance, makeBushGeo, makeCarcassGeo, makeRockGeos, makeTreeGeos, merge, shared } from './models';
+import { MAPS } from '../data/maps';
+import { MAT, blobGeo, blobMat, buildBuilding, enhance, makeBushGeo, makeCarcassGeo, makeRockGeos, makeTreeGeos, merge, shared } from './models';
 import { Post } from './post';
 import type { Rig } from './rigs';
 import { animateRig, createRig } from './rigs';
@@ -26,6 +27,9 @@ export interface Overlay {
   alpha: number;
   pings: { x: number; y: number; age: number; c: string }[];
 }
+
+/** Which tree variants grow in each biome (indices into makeTreeGeos). */
+const TREE_MIX: Record<string, number[]> = { autumn: [0, 1, 2, 3, 4, 5, 6, 7], lush: [0, 6, 6, 3, 2, 0, 7], tundra: [2, 5, 2, 5, 3], steppe: [7, 1, 3, 7, 4] };
 
 interface BEntry { fx?: number; model: BuildingModel; scaffold: THREE.Object3D; ring?: THREE.Mesh; tier: number; done: boolean; phase: number; pop: number; cx: number; cz: number }
 interface Floater { x: number; y: number; text: string; color: string; age: number; life: number; big?: boolean }
@@ -322,7 +326,7 @@ export class Renderer {
   }
 
   private felTree(x: number, z: number, time: number) {
-    const tx = Math.floor(x), tz = Math.floor(z), v = Math.floor(hash2(tx, tz, 4) * TREE_VARIANTS);
+    const tx = Math.floor(x), tz = Math.floor(z), vs = TREE_MIX[MAPS[this.bakedFor?.map ?? 'valley']?.biome ?? 'autumn'], v = vs[Math.floor(hash2(tx, tz, 4) * vs.length)] ?? 0;
     const src = this.treeMeshes[v]; if (!src) return;
     const m = new THREE.Mesh(src.geometry, MAT.tree); m.castShadow = true; m.position.set(x, this.heightAt(x, z), z); m.scale.setScalar(1.1); m.rotation.order = 'YXZ'; m.rotation.y = hash2(tx, tz, 99) * 6.28;
     this.scene.add(m); const a = Math.random() * 6.28; this.falling.push({ mesh: m, t: 0, dx: Math.cos(a), dz: Math.sin(a), landed: false }); void time;
@@ -335,7 +339,8 @@ export class Renderer {
     const dt = Math.min(0.1, Math.max(0, time - this.lastTime)); this.lastTime = time;
     this.watchPerf(dt);
     shared.time.value = time;
-    this.winterLevel += ((isWinter(w) ? 1 : 0) - this.winterLevel) * 0.02;
+    const snowFloor = MAPS[w.map]?.biome === 'tundra' ? 0.45 : 0;
+    this.winterLevel += (Math.max(snowFloor, isWinter(w) ? 1 : 0) - this.winterLevel) * 0.02;
     const L = this.winterLevel;
     shared.snow.value = L;
 
@@ -467,7 +472,7 @@ export class Renderer {
       if (!isExplored(w, n.x, n.y)) continue;
       const hh = hash2(n.x, n.y, 4);
       if (n.kind !== 'carcass') blob(n.x + 0.5, n.y + 0.5, n.kind === 'tree' ? 1.7 : n.kind === 'bush' ? 1.1 : 1.3, n.kind === 'tree' ? 0.55 : 0.4);
-      if (n.kind === 'tree') put(this.treeMeshes[Math.floor(hh * TREE_VARIANTS)], n, 0.95 + hash2(n.x, n.y, 8) * 0.4);
+      if (n.kind === 'tree') { const vs = TREE_MIX[MAPS[w.map]?.biome ?? 'autumn']; put(this.treeMeshes[vs[Math.floor(hh * vs.length)] ?? 0], n, 0.95 + hash2(n.x, n.y, 8) * 0.4); }
       else if (n.kind === 'bush') put(n.amount / n.max > 0.25 ? this.bushFull : this.bushEmpty, n, 1.0 + hh * 0.2);
       else if (n.kind === 'rock') put(this.rockMeshes[Math.floor(hh * 3)], n, 1.1 + hh * 0.5);
       else put(this.carcass, n, 1.0);

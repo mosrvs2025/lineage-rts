@@ -1,5 +1,6 @@
 import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
+import { SPECIES } from '../data/species';
 import { isWarm, isSupplied, popCap, popCount, supplyCenters, hasDisc, hasTech, tierBonus, anyTier } from './rules';
 import { nearestFree } from './grid';
 import type { World } from './types';
@@ -54,7 +55,7 @@ export function economySecond(w: World) {
     if (warm && u.hp < u.maxHp && !w._starving) u.hp = Math.min(u.maxHp, u.hp + 0.4);
     if (w._starving && u.hp > u.maxHp * 0.4) u.hp -= 0.25;
     if (winter && !warm) {
-      const resist = (w.species === 'neanderthal' ? 0.65 : 1) * (hasTech(w, 'hardy') ? 0.6 : 1);
+      const resist = SPECIES[w.species].cold * (hasTech(w, 'hardy') ? 0.6 : 1);
       if (u.hp > u.maxHp * 0.15) u.hp -= 0.6 * resist;
     }
     if (!isSupplied(centers, u.x, u.y)) exposed++;

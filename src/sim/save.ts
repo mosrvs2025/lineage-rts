@@ -32,7 +32,7 @@ export function deserialize(text: string): LoadResult {
   for (const k of ['units', 'buildings', 'nodes', 'activities', 'landmarks', 'log', 'lineage']) if (!isArr(w[k])) return { ok: false, error: `Save is missing "${k}".` };
   if (!w.res || ['food', 'wood', 'stone', 'knowledge', 'provisions'].some((k) => !isNum(w.res[k]))) return { ok: false, error: 'Save resources are corrupt.' };
   if (!w.disc || !w.ai || !w.stats || !w.winter || !w.done) return { ok: false, error: 'Save is incomplete.' };
-  if (w.species !== 'human' && w.species !== 'neanderthal') return { ok: false, error: 'Save species is invalid.' };
+  if (!['human', 'neanderthal', 'denisovan'].includes(w.species)) return { ok: false, error: 'Save species is invalid.' };
   const ids = new Set<number>();
   for (const e of [...w.units, ...w.buildings, ...w.nodes]) {
     if (!e || !isNum(e.id) || ids.has(e.id)) return { ok: false, error: 'Save contains invalid or duplicate entities.' };
@@ -45,6 +45,7 @@ export function deserialize(text: string): LoadResult {
   for (const u of world.units) { u.path = null; u.ox = u.x; u.oy = u.y; u.tgt = -1; if (typeof u.buff !== 'number') u.buff = 0; if (typeof u.ability !== 'number') u.ability = 0; if (typeof u.kills !== 'number') u.kills = 0; }
   for (const b of world.buildings) if (typeof b.tier !== 'number') b.tier = 0;
   if (!world.techs) world.techs = {};
+  if (typeof world.map !== 'string') world.map = 'valley';
   reindex(world); rebuildBlocked(world); ensureFog(world); updateFog(world);
   world._fx = [];
   return { ok: true, world };
