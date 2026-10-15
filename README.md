@@ -145,7 +145,7 @@ Implemented: camera (pan/zoom/minimap), selection and orders (move, attack-move,
 
 Known limitations / not yet done:
 
-* **Map balance is only bot-tested.** The scripted bot wins every map and clan on the fixed seed (8 combinations), but on random seeds its win rate is lower (about 75% over a 16-game sweep across the four maps, ~50% on The Isles and Mammoth Canyon): when it loses, the rival's raids have worn the clan down or it never mounts a second expedition. Humans defend and adapt better than the bot, but this is unverified; expect the Deadly and Harsh maps to need a balance pass.
+* **Map balance is only bot-tested.** The scripted bot wins every map and clan on the fixed seed (8 combinations), but on random seeds its win rate is lower: a 16-game sweep (4 seeds per map) gave Ember Valley 4/4, Glasswater 3/4, The Isles 3/4 and Mammoth Canyon 2/4. The losses are games where the rival's raids wore the clan down so it never completed the Far Meadow expedition. Humans defend and adapt better than the bot, but this is unverified; expect the Deadly and Harsh maps to need a balance pass.
 
 * The upgrade / unit / research systems are covered by unit tests and a visual check in headless Chromium. The scripted bot uses archer posts, upgrades and research, and the rival fortifies its watch post (≈ 8 min) and fields Slingers/Brutes/Champions later; costs and difficulty are only bot-tuned, not human-playtested.
 
