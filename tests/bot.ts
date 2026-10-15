@@ -101,6 +101,7 @@ export class Bot {
   private pending(kind: string) { return this.w.buildings.some((b) => b.owner === 0 && b.kind === kind && !b.done); }
 
   private expeditionStage = 0;
+  private stageWait = 0;
   private expedition() {
     const w = this.w;
     const scouts = this.units('scout');
@@ -108,6 +109,8 @@ export class Bot {
     const stage = this.expeditionStage;
     const meadow = (u: { x: number; y: number }, r = 8) => Math.hypot(u.x - meadowOf(w).x, u.y - meadowOf(w).y) < r;
     const outpost = w.buildings.find((b) => b.owner === 0 && b.outpost);
+    // the escort was wiped out (or the scout lost): regroup and try again
+    if (this.expeditionStage >= 1 && this.expeditionStage < 4 && (!scout || this.escort.every((id) => !w._u?.get(id)))) { this.expeditionStage = 0; this.escort = []; this.builders = []; this.trace.push(`${Math.floor(w.time)}s expedition regroups`); }
     // the quiet northern crossing of this map's river
     const MEADOW = meadowOf(w);
     const fx = (MAPS[w.map] ?? MAPS.valley).stage.x, fy = (MAPS[w.map] ?? MAPS.valley).stage.y;
@@ -132,7 +135,13 @@ export class Bot {
       this.builders = this.builders.filter((id) => { const u = w._u?.get(id); return u && (u.order.t === 'move' || u.order.t === 'idle'); });
       const alive = this.builders.map((id) => w._u?.get(id)).filter(Boolean);
       if (!alive.length) this.expeditionStage = 2;
-      else if (alive.every((u) => Math.hypot(u!.x - fx, u!.y - fy) < 3)) { cmdMove(w, this.builders, MEADOW.x - 1, MEADOW.y + 2); this.expeditionStage = 3; }
+      else {
+        // go on with whoever has reached the staging point (a builder that got stuck or was lost is dropped)
+        const there = alive.filter((u) => Math.hypot(u!.x - fx, u!.y - fy) < 3);
+        this.stageWait = (this.stageWait ?? 0) + 1;
+        if (there.length === alive.length || (there.length >= 1 && this.stageWait > 60)) { this.builders = there.map((u) => u!.id); cmdMove(w, this.builders, MEADOW.x - 1, MEADOW.y + 2); this.expeditionStage = 3; this.stageWait = 0; }
+        else if (this.stageWait % 20 === 0) for (const u of alive) if (u!.order.t === 'idle' && Math.hypot(u!.x - fx, u!.y - fy) >= 3) cmdMove(w, [u!.id], fx, fy);
+      }
     } else if (stage === 3) {
       const alive = this.builders.map((id) => w._u?.get(id)).filter(Boolean);
       if (alive.length && alive.every((u) => meadow(u!, 6))) {
