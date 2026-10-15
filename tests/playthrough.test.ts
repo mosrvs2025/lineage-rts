@@ -4,7 +4,7 @@ import { newWorld } from './helpers';
 import { Bot } from './bot';
 
 describe('full scenario (scripted bot)', () => {
-  const cases = [['human', 'valley'], ['neanderthal', 'valley'], ['denisovan', 'valley'], ['neanderthal', 'tundra'], ['human', 'lush'], ['denisovan', 'steppe']] as const;
+  const cases = [['human', 'valley'], ['neanderthal', 'valley'], ['denisovan', 'valley'], ['neanderthal', 'glasswater'], ['human', 'isles'], ['denisovan', 'canyon'], ['human', 'canyon'], ['neanderthal', 'isles']] as const;
   for (const [species, map] of cases) {
     it(`a competent player can win as ${species} on ${map}`, () => {
       const w = newWorld(species, map);

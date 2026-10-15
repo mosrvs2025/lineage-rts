@@ -2,7 +2,7 @@ import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
 import { SPECIES } from '../data/species';
 import { canAfford, pay } from './econ';
-import { nearestFree, rebuildBlocked } from './grid';
+import { findPath, nearestFree, rebuildBlocked, routeStaysOpen, siteReachable } from './grid';
 import { investigateCheck, startInvestigation, startTeaching, teachCheck } from './discovery';
 import type { Check } from './discovery';
 import type { Hit } from './query';
@@ -10,7 +10,7 @@ import { targetAt } from './query';
 import { hasDisc, isExplored, popCap, popCount, queuedCount } from './rules';
 import type { BuildingKind, DiscoveryId, Res, Unit, UnitKind, World } from './types';
 import { nearestNode, setOrder } from './units';
-import { MEADOW, OUTPOST_COST, OUTPOST_REQUIRE } from './world';
+import { OUTPOST_COST, OUTPOST_REQUIRE, meadowOf } from './world';
 import { bCenter, buildingById, dist, emit, log, nodeById, unitById } from './util';
 
 /** Your living units that are about to receive a new direct order (which replaces any shift-queue). */
@@ -104,7 +104,7 @@ export function placeCheck(w: World, kind: BuildingKind, tx: number, ty: number)
   for (let y = ty; y < ty + d.h; y++) for (let x = tx; x < tx + d.w; x++) {
     if (x < 1 || y < 1 || x >= w.W - 1 || y >= w.H - 1) return { ok: false, reason: 'Out of bounds.' };
     const c = w.terrain[y][x];
-    if (c === '~' || c === '^') return { ok: false, reason: 'Cannot build on water or rock.' };
+    if (c === '~' || c === '^' || c === 'L') return { ok: false, reason: 'Cannot build on water or rock.' };
     if (c === '=') return { ok: false, reason: 'Cannot build in the ford.' };
     if (!isExplored(w, x, y)) return { ok: false, reason: 'Explore this ground first.' };
     if (w._blocked![y * w.W + x]) return { ok: false, reason: 'Something is in the way.' };
@@ -113,11 +113,27 @@ export function placeCheck(w: World, kind: BuildingKind, tx: number, ty: number)
   for (const b of w.buildings) {
     if (b.owner === 1 && dist(bCenter(b).x, bCenter(b).y, tx + d.w / 2, ty + d.h / 2) < 8) return { ok: false, reason: 'Too close to the rival clan.' };
   }
+  // builders must be able to walk there: a site walled in by trees or rock is refused
+  const home = w.buildings.find((b) => b.owner === 0 && b.kind === 'hearth' && b.done);
+  if (home && kind !== 'palisade' && !siteReachable(w, { x: home.x + 1.5, y: home.y + home.h + 0.8 }, { x: tx, y: ty, w: d.w, h: d.h })) return { ok: false, reason: 'Nobody can reach that spot: it is walled in by trees or rock.' };
+  if (home && kind !== 'palisade' && !routeStaysOpen(w, { x: home.x + 1.5, y: home.y + home.h + 0.8 }, w.pass, { x: tx, y: ty, w: d.w, h: d.h })) return { ok: false, reason: 'That would wall your camp in. Leave a way out.' };
   return { ok: true, reason: '' };
 }
 
 export function isOutpostSite(w: World, kind: BuildingKind, tx: number, ty: number) {
-  return kind === 'watch' && dist(tx + 1, ty + 1, MEADOW.x + 0.5, MEADOW.y + 0.5) < 6 && !w.buildings.some((b) => b.outpost);
+  return kind === 'watch' && dist(tx + 1, ty + 1, meadowOf(w).x + 0.5, meadowOf(w).y + 0.5) < 6 && !w.buildings.some((b) => b.outpost);
+}
+
+/** New construction can seal a ledge or corner: anyone cut off from the camp is lifted out to a free spot beside the hearth. */
+function rescueTrapped(w: World) {
+  const home = w.buildings.find((b) => b.owner === 0 && b.kind === 'hearth' && b.done);
+  if (!home) return;
+  const goal = nearestFree(w, home.x + 1.5, home.y + home.h + 0.8, 6);
+  for (const u of w.units) {
+    if (u.owner !== 0 || findPath(w, u.x, u.y, goal.x, goal.y, undefined, false)) continue;
+    const p = nearestFree(w, goal.x + (u.id % 5) - 2, goal.y + 1.2, 8);
+    u.x = u.ox = p.x; u.y = u.oy = p.y; u.path = null; setOrder(u, { t: 'idle' });
+  }
 }
 
 export function cmdPlace(w: World, kind: BuildingKind, tx: number, ty: number, builderIds: number[]): Check & { id?: number } {
@@ -138,6 +154,7 @@ export function cmdPlace(w: World, kind: BuildingKind, tx: number, ty: number, b
       const p = nearestFree(w, u.x, u.y); u.x = u.ox = p.x; u.y = u.oy = p.y; u.path = null;
     }
   }
+  rescueTrapped(w);
   let builders = mine(w, builderIds).filter((u) => u.kind === 'gatherer');
   if (!builders.length) {
     const cx = tx + d.w / 2, cy = ty + d.h / 2;

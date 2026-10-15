@@ -14,7 +14,7 @@ import { hasDisc, hasTech, popCap, popCount, rankOf, FIGHTERS } from '../sim/rul
 import { cancelResearch, cancelUpgrade, cmdResearch, cmdUpgrade, nextUpgrade, researchCheck, upgradeCheck } from '../sim/upgrades';
 import { advanceGeneration, canSucceed, inheritancePreview, successorCandidates } from '../sim/succession';
 import type { BuildingKind, DiscoveryId, Res, Species, UnitKind, World } from '../sim/types';
-import { bCenter, fmtTime, isWinter, nodeById } from '../sim/util';
+import { bCenter, compass, fmtTime, isWinter, nodeById } from '../sim/util';
 import { OUTPOST_REQUIRE } from '../sim/world';
 import { initAudio, isMuted, sfx } from './audio';
 import { setSetting, settings } from './settings';
@@ -279,7 +279,7 @@ export class Hud {
       </button>`; };
     const mcard = (id: string) => { const m = MAPS[id]; return `
       <button data-act="map:${id}" class="mapcard b-${m.biome} ${mp === id ? 'on' : ''}">
-        <span class="mthumb">${mapThumb(id)}</span><b>${m.name}</b><span class="mdiff d-${m.difficulty.toLowerCase()}">${m.difficulty}</span><small>${m.desc}</small>
+        <span class="mthumb">${mapThumb(id)}</span><b>${m.name}</b><span class="mdiff d-${m.difficulty.toLowerCase()}">${m.difficulty}</span><small>${m.desc}</small><ul class="mfeat">${m.features.map((f) => `<li>${f}</li>`).join('')}</ul>
       </button>`; };
     this.openModal(`
       <div class="clan">
@@ -463,7 +463,7 @@ export class Hud {
       if (!has('stockpile')) return 'Build a Stockpile near the trees so gatherers walk less.';
       if (w.disc.cooking === 'clue' || w.disc.preservation === 'clue' || w.disc.portable === 'clue') return 'A clue is waiting: open Discoveries to investigate it.';
       if (!has('toolshelter')) return 'Build a Toolmaking shelter — tools and some discoveries need it.';
-      if (!w.landmarks[0].visited) return 'Send your scout north-west to the Ember Cave for a clue about carrying fire.';
+      if (!w.landmarks[0].visited) return `Send your scout ${compass(w, w.landmarks[0])} to the Ember Cave for a clue about carrying fire.`;
       if (hasDisc(w, 'preservation') && !has('rack')) return 'Build a Smoking rack. It turns food into provisions that never spoil.';
       if (has('rack') && !has('circle')) return 'Build a Teaching circle, then teach your discoveries so your descendants keep them.';
       if (w.time > w.winter.start - 60 && w.time < w.winter.start) return 'Winter is near: smoke food, build shelters and stay close to warmth.';

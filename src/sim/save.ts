@@ -46,6 +46,7 @@ export function deserialize(text: string): LoadResult {
   for (const b of world.buildings) if (typeof b.tier !== 'number') b.tier = 0;
   if (!world.techs) world.techs = {};
   if (typeof world.map !== 'string') world.map = 'valley';
+  if (!world.pass) world.pass = { x: 44.5, y: 23.5 };
   reindex(world); rebuildBlocked(world); ensureFog(world); updateFog(world);
   world._fx = [];
   return { ok: true, world };

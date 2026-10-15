@@ -1,18 +1,19 @@
 import { nearestFree } from './grid';
 import { SPECIES } from '../data/species';
+import { MAPS } from '../data/maps';
 import type { UnitKind, World } from './types';
 import { setOrder } from './units';
 import { bCenter, dist, log, pick, rand } from './util';
 import { makeUnit, spawnSpot } from './world';
 
-const OUTPOST = { x: 44.5, y: 23.5 };
 
 /** Rival clan: a light scripted economy, a garrison at the pass, and periodic warbands. Runs once per second. */
 export function aiSecond(w: World) {
   const ai = w.ai;
   const hearth = w.buildings.find((b) => b.owner === 1 && b.kind === 'hearth');
   if (!hearth) return;
-  const rate = 0.8 + w.time / 1400;
+  const pace = MAPS[w.map]?.pace ?? 1;
+  const rate = (0.8 + w.time / 1400) * pace;
   ai.supply += rate;
   const mine = w.units.filter((u) => u.owner === 1);
   const cap = 12 + Math.floor(w.time / 300) * 2;
@@ -27,7 +28,7 @@ export function aiSecond(w: World) {
     const u = makeUnit(w, kind, 1, p.x, p.y);
     ai.supply -= 45; ai.nextSpawn = w.time + 20;
     if (garrison < 4) {
-      u.role = 'garrison'; u.home = nearestFree(w, OUTPOST.x + rand(w) * 2, OUTPOST.y + rand(w) * 2);
+      u.role = 'garrison'; u.home = nearestFree(w, w.pass.x + rand(w) * 2, w.pass.y + rand(w) * 2);
       setOrder(u, { t: 'move', x: u.home.x, y: u.home.y });
     }
   }
@@ -63,7 +64,7 @@ export function aiSecond(w: World) {
         log(w, 'A rival warband has set out from the east!', 'bad');
       }
     }
-    ai.nextRaid = w.time + Math.max(90, 160 - ai.raids * 8) + rand(w) * 25;
+    ai.nextRaid = w.time + (Math.max(90, 160 - ai.raids * 8) + rand(w) * 25) / pace;
   }
   // warn when raiders get close
   if (w.time - ai.lastRaidMsg > 45) {

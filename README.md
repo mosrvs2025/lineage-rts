@@ -83,7 +83,12 @@ An RTS-style console: resource plates with live flashes and low-food warnings, a
 Pick a clan and a land on the new-game screen (data in `src/data/species.ts` and `src/data/maps.ts`):
 
 * **Humans** — gatherers +10%; unique **Slinger**. **Neanderthals** — sturdier fighters, −35% cold damage; unique **Brute**. **Denisovans** — stone and wood +20%, −20% cold, +1 sight; unique **Stalker** (fast javelin hunter). Each has its own look, voice pitch and default rival.
-* **Ember Valley** (standard autumn valley) · **Frostfang Tundra** (harsh: early, long winter, pine and stone, wolf packs, permanent frost) · **Twin Fords** (gentle: lush delta, three crossings, plenty of game) · **Highland Steppe** (open grassland, rocky ridges, little timber). Every map keeps the same strategic skeleton (camps, river pass, Ember Cave, Far Meadow) and is checked by tests for connected routes, and a scripted bot wins on each.
+* **Ember Valley** (Standard): the original winding river, defended pass and autumn woods.
+* **Glasswater** (Harsh): a huge lake splits the land into two narrow shore lanes. Winter comes early; the lake **freezes solid** so you can cross the ice, and so can the rival (and when spring comes the ice breaks and anyone still on it is pushed ashore and hurt). Ice-fishing spots ring the shore.
+* **The Isles** (Gentle): an archipelago joined by shallow causeways. Every route is a chokepoint, **fishing spots** give food that regenerates forever, and the rival moves slower.
+* **Mammoth Canyon** (Deadly): red-rock canyons around a central basin. **Mammoths** graze there: peaceful until struck, then a stampede (380 HP, 22 damage); one carcass is 260 food.
+
+Each map has its own generator (`src/sim/mapgen.ts`), start positions and landmarks (`src/data/maps.ts`), terrain palette and tree mix. Rules that apply everywhere: you can't build on a spot nobody can reach, can't wall your own camp in, units trapped by new construction are lifted out, trained units never spawn on a sealed ledge, and an unfinished building with no builder for 6 seconds recruits the nearest free gatherer. Resources never block the routes between camps and landmarks.
 
 ### Upgrades, units and research
 
@@ -139,6 +144,8 @@ Viewports exercised: **desktop 1280×800 (mouse)** and **phone landscape 844×39
 Implemented: camera (pan/zoom/minimap), selection and orders (move, attack-move, attack, gather, build, hold, stop, retreat, leader rally), gathering and four resources (+ provisions), 8 placeable buildings plus the hearth (shelter, stockpile, toolmaking shelter, hunting lodge, teaching circle, smoking rack, watch post, palisade), six unit roles, training queues and population cap, fog of war, wildlife (deer, wolves), a rival AI clan (garrison at the pass + periodic warbands + gift/truce), winter pressure (spoilage, cold, hunger), the fire discovery tree, one succession with inheritance, objectives/hints, victory/defeat, pause/restart/speed, versioned local save/load + export/import, species choice (modest, explained differences).
 
 Known limitations / not yet done:
+
+* **Map balance is only bot-tested.** The scripted bot wins every map and clan on the fixed seed (8 combinations), but on random seeds its win rate is lower: a 16-game sweep (4 seeds per map) gave Ember Valley 4/4, Glasswater 3/4, The Isles 3/4 and Mammoth Canyon 2/4. The losses are games where the rival's raids wore the clan down so it never completed the Far Meadow expedition. Humans defend and adapt better than the bot, but this is unverified; expect the Deadly and Harsh maps to need a balance pass.
 
 * The upgrade / unit / research systems are covered by unit tests and a visual check in headless Chromium. The scripted bot uses archer posts, upgrades and research, and the rival fortifies its watch post (≈ 8 min) and fields Slingers/Brutes/Champions later; costs and difficulty are only bot-tuned, not human-playtested.
 

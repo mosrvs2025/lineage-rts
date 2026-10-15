@@ -1,7 +1,7 @@
 import { cmdContext, cmdJob, cmdMove, cmdPlace, cmdTeach, cmdTrain, cmdInvestigate, placeCheck, cmdGift } from '../src/sim/commands';
 import { investigateCheck } from '../src/sim/discovery';
 import { advanceGeneration, canSucceed } from '../src/sim/succession';
-import { MEADOW } from '../src/sim/world';
+import { meadowOf } from '../src/sim/world';
 import { MAPS } from '../src/data/maps';
 import { popCap } from '../src/sim/rules';
 import { cmdResearch, cmdUpgrade } from '../src/sim/upgrades';
@@ -54,7 +54,7 @@ export class Bot {
       else if (w.res.wood < 60) cmdJob(w, 'wood');
     }
     // buildings
-    if (!this.has('stockpile', false) && w.res.wood >= 20) this.build('stockpile', 16, 17);
+    if (!this.has('stockpile', false) && w.res.wood >= 20) this.build('stockpile', hx + 7, hy - 5);
     if (this.has('stockpile', false) && !this.has('toolshelter', false) && w.res.wood >= 30 && w.res.stone >= 10) this.build('toolshelter', hx + 4, hy - 6);
     if (this.has('toolshelter') && !this.has('lodge', false) && w.res.wood >= 40 && w.res.stone >= 10) this.build('lodge', hx - 3, hy + 6);
     if (this.has('toolshelter', false) && !this.has('circle', false) && w.res.wood >= 35 && w.time > 150) this.build('circle', hx + 6, hy + 4);
@@ -86,7 +86,7 @@ export class Bot {
     if (this.opts.teach) for (const id of order) if (w.disc[id] === 'known') cmdTeach(w, id);
     // scouting
     const scouts = this.units('scout');
-    if (scouts[0] && scouts[0].order.t === 'idle' && !w.landmarks[0].visited) cmdMove(w, [scouts[0].id], 18, 10);
+    if (scouts[0] && scouts[0].order.t === 'idle' && !w.landmarks[0].visited) cmdMove(w, [scouts[0].id], w.landmarks[0].x, w.landmarks[0].y + 1.5);
     // rally guards near the hearth as defense
     for (const gd of [...this.units('guard'), ...this.units('hunter')]) {
       if (!this.escort.includes(gd.id) && gd.order.t === 'idle' && Math.hypot(gd.x - (hx + 6), gd.y - hy) > 6) cmdMove(w, [gd.id], hx + 6, hy + (gd.id % 5));
@@ -101,35 +101,51 @@ export class Bot {
   private pending(kind: string) { return this.w.buildings.some((b) => b.owner === 0 && b.kind === kind && !b.done); }
 
   private expeditionStage = 0;
+  private stageWait = 0;
   private expedition() {
     const w = this.w;
     const scouts = this.units('scout');
+    const scout = scouts.length > 1 ? scouts[scouts.length - 1] : scouts[0];   // the cave scout stays home
     const stage = this.expeditionStage;
-    const meadow = (u: { x: number; y: number }, r = 8) => Math.hypot(u.x - MEADOW.x, u.y - MEADOW.y) < r;
+    const meadow = (u: { x: number; y: number }, r = 8) => Math.hypot(u.x - meadowOf(w).x, u.y - meadowOf(w).y) < r;
     const outpost = w.buildings.find((b) => b.owner === 0 && b.outpost);
+    // the escort was wiped out (or the scout lost): regroup and try again
+    if (this.expeditionStage >= 1 && this.expeditionStage < 4 && (!scout || this.escort.every((id) => !w._u?.get(id)))) { this.expeditionStage = 0; this.escort = []; this.builders = []; this.trace.push(`${Math.floor(w.time)}s expedition regroups`); }
     // the quiet northern crossing of this map's river
-    const nf = [...(MAPS[w.map] ?? MAPS.valley).fords].sort((a, b) => a[0] - b[0])[0];
-    const fx = 36.5, fy = (nf[0] + nf[1]) / 2 + 0.5;
-    if (stage === 0 && scouts[0] && w.res.provisions >= 60 && this.units('guard').length >= 4) {
+    const MEADOW = meadowOf(w);
+    const fx = (MAPS[w.map] ?? MAPS.valley).stage.x, fy = (MAPS[w.map] ?? MAPS.valley).stage.y;
+    if (stage === 0 && scout && w.res.provisions >= 60 && this.units('guard').length >= 4) {
       // scout via the quiet north ford; the escort follows
-      cmdMove(w, [scouts[0].id], fx + 1, fy);
+      cmdMove(w, [scout.id], fx + 1, fy);
       this.escort = [...this.units('guard'), ...this.units('hunter')].slice(0, 6).map((u) => u.id);
       cmdMove(w, this.escort, fx, fy);
       this.expeditionStage = 1;
-    } else if (stage === 1 && scouts[0] && scouts[0].order.t === 'idle') {
-      cmdMove(w, [scouts[0].id], MEADOW.x, MEADOW.y);
+    } else if (stage === 1 && scout && scout.order.t === 'idle' && Math.hypot(scout.x - fx, scout.y - fy) > 6) {
+      cmdMove(w, [scout.id], fx + 1, fy); cmdMove(w, this.escort, fx, fy);       // not there yet: keep going
+    } else if (stage === 1 && scout && Math.hypot(scout.x - fx, scout.y - fy) <= 6) {
+      cmdMove(w, [scout.id], MEADOW.x, MEADOW.y);
       cmdMove(w, this.escort, MEADOW.x - 2, MEADOW.y + 1);
       this.expeditionStage = 2;
     } else if (stage === 2 && w.landmarks[1].visited && this.escort.some((id) => { const u = w._u?.get(id); return u && meadow(u); }) && w.res.provisions >= 62) {
       this.builders = this.units('gatherer').filter((u) => u.order.t !== 'research' && u.order.t !== 'build').slice(0, 3).map((u) => u.id);
       cmdMove(w, this.builders, fx, fy);
       this.expeditionStage = 2.5;
+    } else if (stage === 2 && this.escort.some((id) => { const u = w._u?.get(id); return u && u.order.t === 'idle' && !meadow(u); })) {
+      // fights interrupt the march: send idle escorts and the scout on to the meadow again
+      for (const id of this.escort) { const u = w._u?.get(id); if (u && u.order.t === 'idle' && !meadow(u)) cmdMove(w, [id], MEADOW.x - 2, MEADOW.y + 1); }
+      if (scout && scout.order.t === 'idle' && !meadow(scout)) cmdMove(w, [scout.id], MEADOW.x, MEADOW.y);
     } else if (stage === 2.5) {
       // drop builders who were pulled away (e.g. to research at the teaching circle)
       this.builders = this.builders.filter((id) => { const u = w._u?.get(id); return u && (u.order.t === 'move' || u.order.t === 'idle'); });
       const alive = this.builders.map((id) => w._u?.get(id)).filter(Boolean);
       if (!alive.length) this.expeditionStage = 2;
-      else if (alive.every((u) => Math.hypot(u!.x - fx, u!.y - fy) < 3)) { cmdMove(w, this.builders, MEADOW.x - 1, MEADOW.y + 2); this.expeditionStage = 3; }
+      else {
+        // go on with whoever has reached the staging point (a builder that got stuck or was lost is dropped)
+        const there = alive.filter((u) => Math.hypot(u!.x - fx, u!.y - fy) < 3);
+        this.stageWait = (this.stageWait ?? 0) + 1;
+        if (there.length === alive.length || (there.length >= 1 && this.stageWait > 60)) { this.builders = there.map((u) => u!.id); cmdMove(w, this.builders, MEADOW.x - 1, MEADOW.y + 2); this.expeditionStage = 3; this.stageWait = 0; }
+        else if (this.stageWait % 20 === 0) for (const u of alive) if (u!.order.t === 'idle' && Math.hypot(u!.x - fx, u!.y - fy) >= 3) cmdMove(w, [u!.id], fx, fy);
+      }
     } else if (stage === 3) {
       const alive = this.builders.map((id) => w._u?.get(id)).filter(Boolean);
       if (alive.length && alive.every((u) => meadow(u!, 6))) {

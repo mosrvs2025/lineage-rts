@@ -76,6 +76,7 @@ export function findEnemy(w: World, u: Unit, radius: number, buildings: boolean,
   for (const o of w.units) {
     if (o.hp <= 0 || o === u || !hostile(w, u.owner, o.owner)) continue;
     if (o.kind === 'deer' && !deer) continue;
+    if (o.kind === 'mammoth') continue;           // mammoths are only fought on purpose
     if (u.kind === 'wolf' && protectedFromWolves(w, o)) continue;
     const d = dist(u.x, u.y, o.x, o.y);
     if (d < bd) { bd = d; best = o; }
@@ -122,6 +123,7 @@ export function damage(w: World, t: Target, amount: number, from?: Unit) {
       const p = nearestFree(w, t.x + (dx / d) * 9, t.y + (dy / d) * 9);
       t.order = { t: 'flee', x: p.x, y: p.y }; t.path = null;
     }
+    if (t.kind === 'mammoth' && from && t.hp > 0 && t.order.t !== 'attack') { t.order = { t: 'attack', target: from.id }; t.path = null; emit(w, { k: 'howl', x: t.x, y: t.y, owner: 2, kind: 'mammoth' }); }
     if (from && t.owner !== 2 && t.order.t === 'idle' && UNITS[t.kind].aggro > 0) { t.order = { t: 'attack', target: from.id }; t.path = null; }
     if (t.owner === 0 && t.hp > 0 && w.time - (w.log[w.log.length - 1]?.t ?? -99) > 8 && from && from.owner !== 0 && t.kind === 'gatherer') {
       log(w, 'Workers are under attack!', 'bad');
@@ -297,6 +299,7 @@ export function updateUnit(w: World, u: Unit) {
     case 'idle': {
       if (u.kind === 'wolf') { updateWolf(w, u); break; }
       if (u.kind === 'deer') { wander(w, u); break; }
+      if (u.kind === 'mammoth') { if (dist(u.x, u.y, u.home.x, u.home.y) > 4) moveTo(w, u, u.home.x, u.home.y, 2); else wander(w, u); break; }
       if (def.aggro > 0 && (w.tick + u.id) % 5 === 0) {
         const hunting = u.owner === 0 && u.kind === 'hunter';
         const t = findEnemy(w, u, def.aggro, false, hunting);
@@ -345,6 +348,7 @@ export function updateUnit(w: World, u: Unit) {
         break;
       }
       if (u.kind === 'wolf' && dist(u.x, u.y, u.home.x, u.home.y) > 22) { setOrder(u, { t: 'idle' }); break; }
+      if (u.kind === 'mammoth' && dist(u.x, u.y, u.home.x, u.home.y) > 15) { setOrder(u, { t: 'idle' }); break; }
       if (u.role === 'garrison' && dist(u.x, u.y, u.home.x, u.home.y) > 11) { setOrder(u, { t: 'move', x: u.home.x, y: u.home.y }); break; }
       if (!fight(w, u, t)) setOrder(u, { t: 'idle' });
       break;
@@ -377,10 +381,10 @@ export function separate(w: World) {
   }
 }
 
-export function carcassAt(w: World, deer: Unit) {
+export function carcassAt(w: World, deer: Unit, amount = 70) {
   const tx = Math.floor(deer.x), ty = Math.floor(deer.y);
   const n: ResNode = {
-    id: w.nextId++, kind: 'carcass', res: 'food', x: tx, y: ty, amount: 70, max: 70, regen: 0,
+    id: w.nextId++, kind: 'carcass', res: 'food', x: tx, y: ty, amount, max: amount, regen: 0,
   };
   w.nodes.push(n); w._n?.set(n.id, n);
   w._carc ??= new Map();

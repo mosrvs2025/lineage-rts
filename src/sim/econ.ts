@@ -6,7 +6,7 @@ import { nearestFree } from './grid';
 import type { World } from './types';
 import { autoWork, DT, setOrder } from './units';
 import { spawnSpot, makeUnit } from './world';
-import { emit, isWinter, log } from './util';
+import { bCenter, emit, isWinter, log } from './util';
 
 /** Runs once per simulated second. */
 export function economySecond(w: World) {
@@ -18,6 +18,18 @@ export function economySecond(w: World) {
     w.res.knowledge += tierBonus(b, 'knowledge');
   }
   const mine = w.units.filter((u) => u.owner === 0);
+
+  // an unfinished site with nobody working on it recruits the nearest free gatherer
+  for (const b of w.buildings) {
+    if (b.owner !== 0 || b.done) continue;
+    if (mine.some((u) => u.order.t === 'build' && u.order.b === b.id)) { b.waited = 0; continue; }
+    b.waited = (b.waited ?? 0) + 1;
+    if (b.waited < 6) continue;
+    const c = bCenter(b);
+    const free = mine.filter((u) => u.kind === 'gatherer' && u.order.t !== 'build' && u.order.t !== 'research' && !u.carry.n).sort((p, q) => Math.hypot(p.x - c.x, p.y - c.y) - Math.hypot(q.x - c.x, q.y - c.y))[0]
+      ?? mine.filter((u) => u.kind === 'gatherer' && u.order.t !== 'build' && u.order.t !== 'research')[0];
+    if (free) { setOrder(free, { t: 'build', b: b.id }); b.waited = 0; }
+  }
 
   // hunger: each clan member eats; winter makes everyone hungrier
   w.hungerT += mine.length * (winter ? 1 / 8 : 1 / 12);

@@ -3,7 +3,7 @@ export type Res = 'food' | 'wood' | 'stone';
 export type UnitKind =
   | 'gatherer' | 'scout' | 'hunter' | 'guard' | 'raider' | 'leader'
   | 'elder' | 'slinger' | 'brute' | 'champion' | 'stalker'
-  | 'deer' | 'wolf';
+  | 'deer' | 'wolf' | 'mammoth';
 export type CostMap = Partial<Record<Res | 'knowledge', number>>;
 export type BuildingKind =
   | 'hearth' | 'shelter' | 'stockpile' | 'toolshelter' | 'lodge'
@@ -16,7 +16,7 @@ export interface Pt { x: number; y: number }
 
 /** Transient presentation events (sounds, particles). Never serialized and never read by the simulation. */
 export interface GameEvent {
-  k: 'job' | 'heal' | 'upgrade' | 'tech' | 'rank' | 'hit' | 'shoot' | 'chop' | 'mine' | 'pick' | 'hammer' | 'death' | 'deliver' | 'spawn' | 'built' | 'howl' | 'discover' | 'preserved' | 'rally' | 'felled';
+  k: 'freeze' | 'job' | 'heal' | 'upgrade' | 'tech' | 'rank' | 'hit' | 'shoot' | 'chop' | 'mine' | 'pick' | 'hammer' | 'death' | 'deliver' | 'spawn' | 'built' | 'howl' | 'discover' | 'preserved' | 'rally' | 'felled';
   x: number; y: number;
   owner?: Owner; kind?: string; n?: number; res?: string; x2?: number; y2?: number;
 }
@@ -73,6 +73,7 @@ export interface Building {
   queue: { kind: UnitKind; t: number }[];
   tick: number;         // misc timer (rack conversion)
   outpost?: boolean;
+  waited?: number;      // seconds an unfinished site has had no builder
   rally?: { x: number; y: number };                        // trained units walk (or go to work) here
   tier: number;                                            // upgrade level (0 = base)
   upg?: { t: number; total: number };                       // upgrade in progress
@@ -82,7 +83,7 @@ export interface Building {
 
 export interface ResNode {
   id: number;
-  kind: 'tree' | 'bush' | 'rock' | 'carcass';
+  kind: 'tree' | 'bush' | 'rock' | 'carcass' | 'fish';
   res: Res;
   x: number; y: number; // tile
   amount: number;
@@ -122,6 +123,9 @@ export interface World {
   species: Species;
   rivalSpecies: Species;
   map: string;          // MapDef id
+  pass: { x: number; y: number };   // where the rival keeps its forward post
+  _frozen?: boolean;    // runtime: the lake is frozen (walkable)
+  _lake?: boolean;      // runtime cache: this map has a freezing lake
   W: number; H: number;
   terrain: string[];
   nextId: number;

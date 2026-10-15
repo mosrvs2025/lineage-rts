@@ -35,7 +35,7 @@ function makeFields(w: World) {
   const water = new Float32Array(W * H), ford = new Float32Array(W * H), mtn = new Float32Array(W * H);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const c = w.terrain[y][x], i = y * W + x;
-    if (c === '~') water[i] = 1; else if (c === '=') ford[i] = 1; else if (c === '^') mtn[i] = 1;
+    if (c === '~' || c === 'L') water[i] = 1; else if (c === '=') ford[i] = 1; else if (c === '^') mtn[i] = 1;
   }
   const sample = (a: Float32Array, fx: number, fy: number) => {
     const x = Math.max(0, Math.min(W - 1.001, fx - 0.5)), y = Math.max(0, Math.min(H - 1.001, fy - 0.5));
@@ -83,11 +83,13 @@ export function bakeTerrain(w: World): HTMLCanvasElement {
     lush: [[46, 112, 44], [96, 176, 70], [120, 180, 80], [34, 90, 44]],
     tundra: [[120, 128, 118], [178, 186, 176], [206, 212, 210], [96, 108, 100]],
     steppe: [[132, 128, 70], [190, 172, 96], [214, 190, 118], [112, 110, 62]],
+    badlands: [[150, 112, 70], [196, 150, 92], [216, 176, 112], [124, 90, 58]],
   };
   const [GD, GL, GY, GF] = PAL[biome];
   const SAND: RGB = [214, 197, 146], WET: RGB = [150, 136, 98];
   const D1: RGB = [24, 80, 128], D2: RGB = [44, 120, 168], D3: RGB = [104, 178, 196];
-  const R1: RGB = [74, 72, 80], R2: RGB = [138, 136, 144];
+  const R1: RGB = biome === 'badlands' ? [112, 58, 42] : [74, 72, 80], R2: RGB = biome === 'badlands' ? [204, 112, 66] : [138, 136, 144];
+  const CAP: RGB = biome === 'badlands' ? [232, 190, 140] : [226, 232, 242];
   for (let py = 0; py < fc.height; py++) for (let px = 0; px < fc.width; px++) {
     const fx = (px + 0.5) / R, fy = (py + 0.5) / R;
     const n = fbm(fx * 0.7, fy * 0.7, 4, 1), n2 = fbm(fx * 3, fy * 3, 3, 5), n3 = fbm(fx * 0.35, fy * 0.35, 3, 9);
@@ -101,7 +103,7 @@ export function bakeTerrain(w: World): HTMLCanvasElement {
     if (m > 0.2) {
       const ht = mtnH(fx, fy) / 4.6;
       let rock = mix(R1, R2, Math.max(0, Math.min(1, 0.2 + ht * 0.7 + (n2 - 0.5) * 0.5)));
-      rock = mix(rock, [226, 232, 242], sstep(0.55, 0.78, ht + (n - 0.5) * 0.25) * 0.92);
+      rock = mix(rock, CAP, sstep(0.55, 0.78, ht + (n - 0.5) * 0.25) * 0.92);
       col = mix(col, mix(GF, R1, 0.5), sstep(0.2, 0.42, m) * 0.7);
       col = mix(col, rock, sstep(0.34, 0.56, m));
     }

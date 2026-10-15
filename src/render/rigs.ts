@@ -8,7 +8,7 @@ import type { AnimalGeo } from './models';
 import { MAT, blobGeo, blobMat, animalGeo, makeSkeleton, personGeo } from './models';
 
 export interface Rig {
-  root: THREE.Group; kind: 'person' | 'deer' | 'wolf'; unitKind: string;
+  root: THREE.Group; kind: 'person' | 'deer' | 'wolf' | 'mammoth'; unitKind: string;
   mesh: THREE.Mesh;                                  // body (SkinnedMesh for people)
   b: Record<string, THREE.Bone>;                     // bones by name (people)
   legA?: THREE.Mesh; legB?: THREE.Mesh;              // animal leg pairs
@@ -27,12 +27,12 @@ export function createRig(u: Unit, w: World, time: number): Rig {
   const buff = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd54a, transparent: true, opacity: 0.8, depthWrite: false })); buff.position.y = 0.07; buff.scale.setScalar(1.6); buff.visible = false; root.add(buff);
   const sh = new THREE.Mesh(blobGeo, blobMat); sh.scale.set(1.15, 1, 1.15); sh.position.y = 0.03; sh.renderOrder = 2; root.add(sh);
   const base = { sel, buff, ang: 0, phase: Math.random() * 6, seed: Math.random() * 100, born: time, atk: 0, stride: 0 };
-  if (u.kind === 'deer' || u.kind === 'wolf') {
+  if (u.kind === 'deer' || u.kind === 'wolf' || u.kind === 'mammoth') {
     const ag: AnimalGeo = animalGeo(u.kind, u.id % 2);
     const mesh = new THREE.Mesh(ag.body, MAT.unit); mesh.castShadow = true;
     const legA = new THREE.Mesh(ag.legF, MAT.unit), legB = new THREE.Mesh(ag.legB, MAT.unit);
-    const hip = u.kind === 'deer' ? 0.6 : 0.5; legA.position.y = hip; legB.position.y = hip;
-    root.add(mesh, legA, legB); root.scale.setScalar(u.kind === 'deer' ? 1.3 : 1.2);
+    const hip = u.kind === 'deer' ? 0.6 : u.kind === 'mammoth' ? 0.95 : 0.5; legA.position.y = hip; legB.position.y = hip;
+    root.add(mesh, legA, legB); root.scale.setScalar(u.kind === 'deer' ? 1.3 : u.kind === 'mammoth' ? 1.55 : 1.2);
     return { root, kind: u.kind, unitKind: u.kind, mesh, b: {}, legA, legB, ...base };
   }
   const sp = u.owner === 0 ? w.species : w.rivalSpecies;
@@ -67,7 +67,7 @@ export function animateRig(r: Rig, u: Unit, c: AnimCtx): boolean {
   const mvx = u.x - u.ox, mvy = u.y - u.oy, speed = Math.hypot(mvx, mvy) / 0.05; // tiles per second
   const moving = speed > 0.2;
   r.stride += (moving ? 1 : -1) * dt * 6; r.stride = clamp01(r.stride);        // smooth idle<->walk blend weight
-  if (moving) r.phase += dt * (r.kind === 'wolf' ? 12 + speed * 1.5 : 5.2 + speed * 1.5);
+  if (moving) r.phase += dt * (r.kind === 'wolf' ? 12 + speed * 1.5 : r.kind === 'mammoth' ? 2.6 + speed * 0.9 : 5.2 + speed * 1.5);
   const run = speed > 3.3, w8 = r.stride;
   // facing
   let want = r.ang;

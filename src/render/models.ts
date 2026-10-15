@@ -519,7 +519,7 @@ export function personGeo(kind: UnitKind, species: Species, owner: 0 | 1, gen: n
 
 export interface AnimalGeo { body: THREE.BufferGeometry; legF: THREE.BufferGeometry; legB: THREE.BufferGeometry }
 const animalCache = new Map<string, AnimalGeo>();
-export function animalGeo(kind: 'deer' | 'wolf', variant: number): AnimalGeo {
+export function animalGeo(kind: 'deer' | 'wolf' | 'mammoth', variant: number): AnimalGeo {
   const key = `${kind}${variant}`; const hit = animalCache.get(key); if (hit) return hit;
   let g: AnimalGeo;
   if (kind === 'deer') {
@@ -534,6 +534,24 @@ export function animalGeo(kind: 'deer' | 'wolf', variant: number): AnimalGeo {
     if (variant % 2 === 0) for (const s of [-1, 1]) b.push({ g: cyl(0.015, 0.02, 0.45, 4), c: '#d9c8a2', p: [s * 0.12, 1.6, 0.52], r: [0.1, 0, -s * 0.3] }, { g: cyl(0.012, 0.015, 0.25, 4), c: '#d9c8a2', p: [s * 0.2, 1.72, 0.5], r: [0.3, 0, s * 0.5] });
     const leg = (z: number) => merge([-1, 1].map((s) => ({ g: cyl(0.035, 0.05, 0.6, 5), c: '#7a5434', p: [s * 0.14, -0.3, z] as V3 })));
     g = { body: merge(b), legF: leg(0.4), legB: leg(-0.4) };
+  } else if (kind === 'mammoth') {
+    const fur = '#6a4a30', dark = '#4a3220', pale = '#8a6a48', b: Part[] = [
+      { g: sph(0.7, 1), c: fur, p: [0, 1.15, 0], s: [0.85, 0.78, 1.25] },                    // barrel body
+      { g: sph(0.55, 1), c: pale, p: [0, 1.55, 0.35], s: [0.9, 0.95, 0.9] },                  // humped shoulders
+      { g: sph(0.62, 1), c: dark, p: [0, 1.0, -0.55], s: [0.85, 0.75, 0.9] },                 // rump
+      { g: sph(0.46, 1), c: fur, p: [0, 1.3, 1.05], s: [0.95, 1.0, 1.0] },                    // head
+      { g: sph(0.3, 1), c: pale, p: [0, 1.75, 0.9], s: [1, 0.8, 1] },                         // topknot
+      { g: cyl(0.12, 0.2, 1.0, 7), c: dark, p: [0, 0.85, 1.45], r: [0.35, 0, 0] },           // trunk
+      { g: cyl(0.08, 0.12, 0.5, 6), c: dark, p: [0, 0.35, 1.68], r: [-0.6, 0, 0] },
+      { g: sph(0.05, 0), c: '#1a1008', p: [0.3, 1.38, 1.38] }, { g: sph(0.05, 0), c: '#1a1008', p: [-0.3, 1.38, 1.38] },
+      { g: sph(0.26, 1), c: dark, p: [0.52, 1.22, 0.95], s: [0.35, 1, 0.8] }, { g: sph(0.26, 1), c: dark, p: [-0.52, 1.22, 0.95], s: [0.35, 1, 0.8] },   // ears
+      { g: cyl(0.04, 0.09, 1.1, 6), c: '#efe6cc', p: [0.34, 0.95, 1.55], r: [0.9, 0, -0.35] }, { g: cyl(0.04, 0.09, 1.1, 6), c: '#efe6cc', p: [-0.34, 0.95, 1.55], r: [0.9, 0, 0.35] },   // tusks
+      { g: cone(0.05, 0.3, 4), c: '#efe6cc', p: [0.62, 1.3, 1.95], r: [1.5, 0, -0.5] }, { g: cone(0.05, 0.3, 4), c: '#efe6cc', p: [-0.62, 1.3, 1.95], r: [1.5, 0, 0.5] },
+      { g: cyl(0.03, 0.05, 0.55, 5), c: dark, p: [0, 1.0, -1.0], r: [-0.5, 0, 0] },        // tail
+    ];
+    for (let i = 0; i < 14; i++) b.push({ g: cone(0.07, 0.5 + (i % 3) * 0.12, 4), c: i % 2 ? dark : fur, p: [((i % 7) - 3) * 0.2, 0.55, ((i * 37) % 9 - 4) * 0.2], r: [Math.PI, 0, 0] });   // shaggy fringe
+    const leg = (z: number) => merge([-1, 1].map((s) => ({ g: cyl(0.17, 0.2, 0.9, 7), c: fur, p: [s * 0.4, -0.45, z] as V3 })));
+    g = { body: merge(b), legF: leg(0.55), legB: leg(-0.6) };
   } else {
     const b: Part[] = [
       { g: sph(0.5, 1), c: '#7d818c', p: [0, 0.55, 0], s: [0.4, 0.4, 0.95] }, { g: sph(0.3, 1), c: '#9a9eaa', p: [0, 0.5, 0.4], s: [0.9, 0.9, 1] },

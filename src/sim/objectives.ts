@@ -1,7 +1,7 @@
 import { hasDisc } from './rules';
 import type { World } from './types';
-import { fmtTime } from './util';
-import { OUTPOST_REQUIRE } from './world';
+import { compass, fmtTime } from './util';
+import { OUTPOST_REQUIRE, meadowOf } from './world';
 
 export interface Objective { id: string; text: string; done: boolean; gen: number }
 
@@ -22,7 +22,7 @@ export function objectiveList(w: World): Objective[] {
   }
   return [
     { id: 'prov', gen: 2, text: `Stock ${OUTPOST_REQUIRE} provisions for an expedition`, done: d.prov },
-    { id: 'outpost', gen: 2, text: 'Raise an outpost at the Far Meadow (north-east)', done: false },
+    { id: 'outpost', gen: 2, text: `Raise an outpost at the Far Meadow (${compass(w, meadowOf(w))})`, done: false },
   ];
 }
 
