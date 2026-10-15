@@ -107,3 +107,26 @@ describe('rival clan', () => {
     expect(post.tier).toBe(1);
   });
 });
+
+describe('rally points & alerts', () => {
+  it('sends trained units to the rally point, and gatherers straight to work on a resource', async () => {
+    const { cmdSetRally } = await import('../src/sim/commands');
+    const w = newWorld(); rich(w);
+    const h = first(w, 'hearth');
+    const { nearestNode } = await import('../src/sim/units');
+    const tree = nearestNode(w, h.x + 1, h.y + 1, 'wood')!;
+    expect(cmdSetRally(w, h.id, tree.x + 0.5, tree.y + 0.5).ok).toBe(true);
+    cmdTrain(w, h.id, 'gatherer'); run(w, 25);
+    const g = w.units.filter((u) => u.kind === 'gatherer').pop()!;
+    expect(g.order.t).toBe('gather');
+    const n = w.nodes.find((x) => g.order.t === 'gather' && x.id === g.order.node)!;
+    expect(n.res).toBe('wood'); expect(Math.hypot(n.x - tree.x, n.y - tree.y)).toBeLessThan(3);
+  });
+  it('remembers where the clan was last attacked', () => {
+    const w = newWorld();
+    const g = w.units.find((u) => u.owner === 0)!;
+    const r = makeUnit(w, 'raider', 1, g.x + 0.5, g.y); r.order = { t: 'attack', target: g.id };
+    w.truceUntil = 0; run(w, 3);
+    expect(w.alert).toBeTruthy();
+  });
+});

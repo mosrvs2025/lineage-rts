@@ -20,7 +20,7 @@ import type { MoodName } from './music';
 
 export const SAVE_KEYS = { manual: 'lineage-rts:save:manual', auto: 'lineage-rts:save:auto' } as const;
 export type SaveSlot = keyof typeof SAVE_KEYS;
-export type Mode = 'normal' | 'move' | 'amove' | 'place';
+export type Mode = 'normal' | 'move' | 'amove' | 'place' | 'rally';
 
 export class Game {
   world: World | null = null;

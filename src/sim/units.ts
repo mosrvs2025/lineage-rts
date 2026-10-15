@@ -115,6 +115,7 @@ function damageOf(w: World, u: Unit, t: Target): number {
 export function damage(w: World, t: Target, amount: number, from?: Unit) {
   t.hp -= amount;
   if (from && !isBuilding(t)) t.lastHit = from.id;
+  if (t.owner === 0 && from && from.owner !== 0) w.alert = { x: isBuilding(t) ? t.x + t.w / 2 : t.x, y: isBuilding(t) ? t.y + t.h / 2 : t.y, t: w.time };
   if (!isBuilding(t)) {
     if (t.kind === 'deer' && t.hp > 0 && from) {
       const dx = t.x - from.x, dy = t.y - from.y, d = Math.hypot(dx, dy) || 1;

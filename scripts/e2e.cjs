@@ -126,7 +126,7 @@ async function common(p, label, input) {
   if (await p.$('[data-act="resume"]')) await p.click('[data-act="resume"]');
 
   // --- winter, succession, victory flow
-  await G(p, () => { const w = window.game.world; w.time = w.winter.start + 5; window.game.advance(25); });
+  await G(p, () => { const w = window.game.world; w.time = w.winter.start + 5; w.truceUntil = w.winter.end + 120; /* this step tests the season flow, not combat */ window.game.advance(25); });
   await p.screenshot({ path: `${out}/${label}-06-winter.png` });
   await G(p, () => { const w = window.game.world; w.disc.preservation = 'preserved'; w.disc.cooking = 'known'; w.time = w.winter.end + 1; window.game.advance(2); });
   await p.waitForSelector('[data-act="succession"]');

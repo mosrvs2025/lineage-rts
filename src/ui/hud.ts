@@ -97,7 +97,7 @@ export class Hud {
     });
     this.bub = new Bubbles(() => this.layout(), { subOpen: () => this.panelOpen(), closeSub: () => this.closePanels(), notify: (m) => this.toast(m) });
     // HUD boxes never let a touch fall through to the map underneath
-    for (const id of ['topbar', 'objectives', 'toasts', 'fab', 'bubble', 'jobs', 'panel', 'hud', 'dock', 'placebar', 'modal']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
+    for (const id of ['alertbtn', 'topbar', 'objectives', 'toasts', 'fab', 'bubble', 'jobs', 'panel', 'hud', 'dock', 'placebar', 'modal']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
     // the first map touch while a transient window is open only dismisses it (it never also selects units)
     $('game').addEventListener('pointerdown', (e) => { if (this.dismissTransient()) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
     this.renderTop();
@@ -174,6 +174,8 @@ export class Hud {
       case 'jobs': this.bub.closeFab(); this.panel = null; this.renderPanel(true); this.jobsOpen = !this.jobsOpen; this.lastJobs = ''; $('jobs').classList.toggle('hidden', !this.jobsOpen); this.bub.place(); break;
       case 'closejobs': this.closeJobs(); break;
       case 'desel': g.clearSelection(); break;
+      case 'setrally': g.mode = g.mode === 'rally' ? 'normal' : 'rally'; if (g.mode === 'rally') this.toast('Tap where new recruits should gather.'); break;
+      case 'gotoalert': { const a = w?.alert; if (a) { g.cam.centerOn(a.x, a.y); g.ping(a.x, a.y, 'rgba(255,90,70,.95)'); } else this.toast('No recent attacks.'); break; }
       case 'objtoggle': this.objOpen = !this.objOpen; this.lastObj = ''; break;
       case 'objrestore': this.objOpen = true; this.lastObj = ''; break;
       case 'placeb': g.startPlace(arg as BuildingKind); break;
@@ -390,6 +392,7 @@ export class Hud {
     this.renderTop(); this.renderChips(w, now); this.renderClock(w); this.renderObjectives(w); this.renderDock(w); this.renderSelection(w); this.renderCommands(w);
     this.bub.update(this.g.liveSel().length > 0 || this.g.selB !== null);
     if (++this.placeN % 25 === 0) this.bub.place();
+    { const a = w.alert, recent = !!a && !this.g.showcase && w.time - a.t < 15; const ab = $('alertbtn'); ab.classList.toggle('hidden', !recent); if (recent) ab.innerHTML = `${icon('warn')}<span>Under attack</span><kbd>F</kbd>`; }
     $('app').style.setProperty('--lane', `${$('toasts').offsetHeight}px`);
     this.renderPanel(); this.renderJobs(w); this.renderPlaceBar(); this.processLog(w);
     if (canSucceed(w) && !this.springToast) { this.springToast = true; this.toast('Spring has come. Open the objectives to advance the generation.', 'good'); sfx.good(); }
@@ -546,6 +549,7 @@ export class Hud {
           if (ud.only && ud.only !== w.species) continue;
           h += cbtn({ act: `train:${k}`, ic: KIND_ICON[k], label: ud.name, cost: ud.cost, w, why: c.ok ? undefined : c.reason, tip: { t: ud.name, d: ud.desc, cost: ud.cost } });
         }
+        if (d.trains.length) h += cbtn({ act: 'setrally', ic: 'rally', label: 'Rally', key: 'Y', on: g.mode === 'rally', tip: { t: 'Set rally point', d: 'Then tap the map (or right-click) where new recruits should go. Tap a tree, bush or rock and new gatherers go straight to work.' } });
         const up = nextUpgrade(b);
         if (b.upg) h += cbtn({ act: 'cancelupg', ic: 'close', label: 'Cancel', tip: { t: 'Cancel upgrade', d: '75% of the cost is refunded.' } });
         else if (up) { const c = upgradeCheck(w, b.id); h += cbtn({ act: 'upgrade', ic: 'upgrade', label: up.name, cost: up.cost, w, cls: 'gold', why: c.ok ? undefined : c.reason, tip: { t: `Upgrade: ${up.name}`, d: up.desc, cost: up.cost } }); }

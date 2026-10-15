@@ -662,6 +662,16 @@ export class Renderer {
       else if (b.queue.length) this.bar(p.x - bw / 2, p.y, bw, 6, 1 - b.queue[0].t / UNITS[b.queue[0].kind].time, '#7ec8ff');
       else if (b.hp < b.maxHp) this.bar(p.x - bw / 2, p.y, bw, 5, b.hp / b.maxHp, b.hp / b.maxHp > 0.4 ? '#7bd36b' : '#e0604f');
       if (b.outpost) { ctx.fillStyle = '#ffe36e'; ctx.font = `800 ${Math.max(10, z * 0.36)}px system-ui`; ctx.textAlign = 'center'; ctx.fillText('OUTPOST', p.x, p.y - 10); }
+      if (ov.selBuilding === b.id && b.rally) {
+        // rally flag with a dotted trail from the door
+        const from = cam.toScreen(cx, cy, 0.4), to = cam.toScreen(b.rally.x, b.rally.y, this.heightAt(b.rally.x, b.rally.y));
+        ctx.save(); ctx.strokeStyle = 'rgba(255,215,110,.85)'; ctx.lineWidth = 2; ctx.setLineDash([5, 6]); ctx.lineDashOffset = -time * 18;
+        ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke(); ctx.setLineDash([]);
+        const fh = Math.max(22, z * 0.9), wave = Math.sin(time * 5) * 3;
+        ctx.strokeStyle = '#3a2614'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(to.x, to.y); ctx.lineTo(to.x, to.y - fh); ctx.stroke();
+        ctx.fillStyle = '#ffd54a'; ctx.shadowColor = '#ffb347'; ctx.shadowBlur = 10; ctx.beginPath(); ctx.moveTo(to.x, to.y - fh); ctx.quadraticCurveTo(to.x + fh * 0.35, to.y - fh + 2 + wave, to.x + fh * 0.62, to.y - fh * 0.78); ctx.lineTo(to.x, to.y - fh * 0.56); ctx.closePath(); ctx.fill();
+        ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,215,110,.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(to.x, to.y, 9, 4.5, 0, 0, 6.283); ctx.stroke(); ctx.restore();
+      }
       if (ov.selBuilding === b.id) { const wm = BUILDINGS[b.kind].warmth; if (wm) { ctx.strokeStyle = 'rgba(255,170,80,.6)'; ctx.lineWidth = 2; ctx.setLineDash([4, 6]); this.ring(cx, cy, wm + Math.max(b.w, b.h) / 2); ctx.stroke(); ctx.setLineDash([]); } }
     }
     const sel = new Set(ov.selUnits);
@@ -753,6 +763,11 @@ export class Renderer {
         img.data[o] *= 1 - k; img.data[o + 1] *= 1 - k; img.data[o + 2] *= 1 - k;
       }
       g.putImageData(img, 0, 0);
+    }
+    if (w.alert && w.time - w.alert.t < 15) {
+      const k = (performance.now() / 600) % 1;
+      g.strokeStyle = `rgba(255,70,50,${1 - k})`; g.lineWidth = 2; g.beginPath(); g.arc(w.alert.x * sx, w.alert.y * sy, 3 + k * 12, 0, 6.283); g.stroke();
+      g.fillStyle = '#ff4a3a'; g.beginPath(); g.arc(w.alert.x * sx, w.alert.y * sy, 2.5, 0, 6.283); g.fill();
     }
     const corners = [[0, 0], [this.cam.vw, 0], [this.cam.vw, this.cam.vh], [0, this.cam.vh]].map(([x, y]) => this.cam.toWorld(x, y));
     g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath();
