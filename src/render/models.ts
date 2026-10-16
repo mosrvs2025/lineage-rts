@@ -67,7 +67,8 @@ export function enhance<T extends THREE.MeshStandardMaterial>(m: T, o: { sway?: 
 /** Soft radial contact shadow shared by trees, buildings and units. */
 const blobTex = (() => {
   if (typeof document === 'undefined') return null;
-  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d')!;
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  if (!g) return null;
   const gr = g.createRadialGradient(32, 32, 2, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,0.85)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.38)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
   g.fillStyle = gr; g.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); return t;
 })();
