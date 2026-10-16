@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
 import { placeCheck } from '../sim/commands';
-import { SUPPLY_RANGE, hasDisc, isExplored, isVisible } from '../sim/rules';
+import { supplyRange, tierBonus, hasDisc, isExplored, isVisible, RANK_KILLS } from '../sim/rules';
 import type { Building, BuildingKind, GameEvent, ResNode, World } from '../sim/types';
 import { isWinter } from '../sim/util';
 import { settings, onSettings } from '../ui/settings';
@@ -11,7 +11,6 @@ import type { Camera } from './camera';
 import { Arrows, AmbientLife, Particles, Rings } from './effects';
 import { Grass } from './grass';
 import type { BuildingModel } from './models';
-import { RANK_KILLS } from '../sim/rules';
 import { MAPS } from '../data/maps';
 import { MAT, blobGeo, blobMat, buildBuilding, enhance, makeBushGeo, makeCarcassGeo, makeRockGeos, makeTreeGeos, merge, shared } from './models';
 import { Post } from './post';
@@ -693,7 +692,8 @@ export class Renderer {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, cam.vw, cam.vh);
     ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 9]);
-    for (const b of w.buildings) if (b.owner === 0 && b.done && (b.kind === 'hearth' || b.kind === 'watch')) { this.ring(b.x + b.w / 2, b.y + b.h / 2, SUPPLY_RANGE, 96); ctx.stroke(); }
+    const sRange = supplyRange(w);
+    for (const b of w.buildings) if (b.owner === 0 && b.done && (b.kind === 'hearth' || b.kind === 'watch')) { this.ring(b.x + b.w / 2, b.y + b.h / 2, sRange, 96); ctx.stroke(); }
     ctx.restore();
     for (const l of w.landmarks) {
       if (!isExplored(w, l.x, l.y) || z < 16) continue;
@@ -720,7 +720,7 @@ export class Renderer {
         ctx.fillStyle = '#ffd54a'; ctx.shadowColor = '#ffb347'; ctx.shadowBlur = 10; ctx.beginPath(); ctx.moveTo(to.x, to.y - fh); ctx.quadraticCurveTo(to.x + fh * 0.35, to.y - fh + 2 + wave, to.x + fh * 0.62, to.y - fh * 0.78); ctx.lineTo(to.x, to.y - fh * 0.56); ctx.closePath(); ctx.fill();
         ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,215,110,.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(to.x, to.y, 9, 4.5, 0, 0, 6.283); ctx.stroke(); ctx.restore();
       }
-      if (ov.selBuilding === b.id) { const wm = BUILDINGS[b.kind].warmth; if (wm) { ctx.strokeStyle = 'rgba(255,170,80,.6)'; ctx.lineWidth = 2; ctx.setLineDash([4, 6]); this.ring(cx, cy, wm + Math.max(b.w, b.h) / 2); ctx.stroke(); ctx.setLineDash([]); } }
+      if (ov.selBuilding === b.id) { const wm = BUILDINGS[b.kind].warmth; if (wm) { const wr = wm + tierBonus(b, 'warmth') + (hasDisc(w, 'kiln') ? 3 : 0); ctx.strokeStyle = 'rgba(255,170,80,.6)'; ctx.lineWidth = 2; ctx.setLineDash([4, 6]); this.ring(cx, cy, wr + Math.max(b.w, b.h) / 2); ctx.stroke(); ctx.setLineDash([]); } }
     }
     const sel = new Set(ov.selUnits);
     for (const u of w.units) {

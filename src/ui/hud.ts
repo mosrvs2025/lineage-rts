@@ -8,13 +8,13 @@ import { TECHS, techsFor } from '../data/techs';
 import {
   cmdCancelSite, cmdGift, cmdHold, cmdInvestigate, cmdJob, cmdRally, cmdRetreat, cmdStop, cmdTeach, cmdTrain, jobCounts, trainCheck,
 } from '../sim/commands';
-import { discCost, discTime, investigateCheck, teachCheck } from '../sim/discovery';
+import { costMultiplier, discCost, discTime, investigateCheck, teachCheck } from '../sim/discovery';
 import { objectiveList } from '../sim/objectives';
 import { hasDisc, hasTech, popCap, popCount, rankOf, FIGHTERS } from '../sim/rules';
 import { cancelResearch, cancelUpgrade, cmdResearch, cmdUpgrade, nextUpgrade, researchCheck, upgradeCheck } from '../sim/upgrades';
 import { advanceGeneration, canSucceed, inheritancePreview, successorCandidates } from '../sim/succession';
 import type { BuildingKind, DiscoveryId, Res, Species, UnitKind, World } from '../sim/types';
-import { bCenter, compass, fmtTime, isWinter, nodeById } from '../sim/util';
+import { bCenter, compass, fmtTime, isWinter, nodeById, unitById } from '../sim/util';
 import { OUTPOST_REQUIRE } from '../sim/world';
 import { initAudio, isMuted, sfx } from './audio';
 import { setSetting, settings } from './settings';
@@ -25,12 +25,17 @@ import { Bubbles } from './bubbles';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
-const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+const roman = (g: number) => ROMAN[g] ?? String(g);
 type PanelId = 'build' | 'disc' | null;
 type Cost = Partial<Record<string, number>>;
 
 const KIND_ICON: Record<string, string> = { gatherer: 'gatherer', scout: 'scout', hunter: 'hunter', guard: 'guard', raider: 'raider', leader: 'leader', elder: 'elder', slinger: 'slinger', brute: 'brute', champion: 'champion', stalker: 'stalker', deer: 'deer', wolf: 'wolf' };
-const DISC_ICON: Record<DiscoveryId, string> = { cooking: 'food', preservation: 'rack', portable: 'discover', heat: 'build' };
+const DISC_ICON: Record<DiscoveryId, string> = {
+  cooking: 'food', preservation: 'rack', portable: 'discover', heat: 'build',
+  pottery: 'pottery', farming: 'farming', boats: 'boats',
+  kiln: 'kiln', irrigation: 'irrigation',
+};
 
 function chips(cost: Cost, w?: World): string {
   const parts = Object.entries(cost).filter(([, v]) => v);
@@ -240,8 +245,18 @@ export class Hud {
       case 'succession': this.openSuccession(); return;
       case 'pick': this.pickedSuccessor = Number(arg); this.openSuccession(); return;
       case 'succeed': {
-        if (w && advanceGeneration(w, this.pickedSuccessor)) { this.closeModal(); g.clearSelection(); sfx.good(); this.toast('A new generation begins.', 'good'); }
+        if (w && advanceGeneration(w, this.pickedSuccessor)) { this.closeModal(); g.clearSelection(); sfx.good(); this.toast(`Generation ${roman(w.gen)} begins.`, 'good'); }
         break;
+      }
+      case 'endless': {
+        if (!w) break;
+        w.endless = true;
+        w.status = 'playing';
+        if (w.gen < 3 && w.time < w.winter.end) w.winter.end = w.time;
+        this.closeModal();
+        if (canSucceed(w)) this.openSuccession();
+        else this.toast('Your lineage continues toward mastery.', 'good');
+        return;
       }
     }
     this.refresh(true);
@@ -338,7 +353,7 @@ export class Hud {
           <section><h4>${icon('trophy')}Goal</h4><p>Gather, build, discover <b>smoke preservation</b>, survive the winter, then advance the generation and raise an <b>outpost at the Far Meadow</b> with smoked provisions.</p></section>
           <section><h4>${icon('dragsel')}Touch</h4><ul><li><b>Tap</b> to select; <b>double-tap</b> selects all of a type.</li><li>With units selected, <b>tap the map</b> to move, a tree/berry to gather, an enemy to attack.</li><li><b>Drag</b> pans, <b>pinch</b> zooms. <b>Select</b> button enables box-select.</li><li><b>Build</b>: choose, drag the ghost, tap <b>Place</b>.</li></ul></section>
           <section><h4>${icon('move')}Mouse &amp; keys</h4><ul><li><b>Left-click</b> select, <b>drag</b> box-select, <b>right-click</b> order (or Move/Attack + click).</li><li><b>Wheel</b> zoom · <b>WASD</b>/arrows/edges pan · <b>Space</b> pause.</li><li><b>B</b> build · <b>D</b> discoveries · <b>M A H S R</b> orders · <b>.</b> idle worker · Ctrl+1–9 groups.</li></ul></section>
-          <section><h4>${icon('provisions')}Good to know</h4><ul><li>Dotted rings are your <b>supply range</b>; beyond it units burn provisions or take exposure damage.</li><li><b>Teach</b> discoveries at a Teaching circle or they fade at succession.</li><li>Winter spoils loose food and chills units away from warmth.</li><li>A <b>gift</b> of food buys peace with the rival.</li></ul></section>
+          <section><h4>${icon('provisions')}Good to know</h4><ul><li>Dotted rings are your <b>supply range</b>; beyond it units burn provisions or take exposure damage.</li><li><b>Teach</b> discoveries at a Teaching circle or they fade at succession (or if the sole specialist dies!).</li><li>Winter spoils loose food and chills units away from warmth.</li><li>A <b>gift</b> of food buys peace with the rival.</li></ul></section>
         </div>
         <div class="row"><button data-act="${this.g.world && !this.g.showcase ? 'resume' : 'title'}" class="btn primary big">${icon('check')}Got it</button></div>
       </div>`);
@@ -355,16 +370,17 @@ export class Hud {
     const nb = w.buildings.filter((b) => b.owner === 0).length;
     const label = { preserved: 'Preserved — inherited intact', faded: 'Faded — relearn at 40% cost', known: 'Known', clue: 'Still a clue', hidden: 'Undiscovered' } as const;
     const tIcon = { logistics: 'provisions', recon: 'scout', teaching: 'knowledge' } as const;
+    const rows = pre.filter((r) => r.from !== 'hidden' || (DISCOVERIES[r.id].minGen ?? 1) <= w.gen + 1);
     this.openModal(`
       <div class="dialog wide">
         <h2>${icon('fire')}Pass the fire</h2>
-        <p>Winter is over. Your settlement (${nb} buildings), stores and territory carry forward. Elders retire and children grow into gatherers.</p>
+        <p>Winter is over. Your settlement (${nb} buildings), stores and territory carry forward into Generation ${roman(w.gen + 1)}. Elders retire and children grow into gatherers.</p>
         <h4>Inherited knowledge</h4>
-        <ul class="inherit">${pre.map((r) => `<li class="${r.to}">${icon(DISC_ICON[r.id])}<b>${DISCOVERIES[r.id].name}</b><span>${label[r.to as keyof typeof label]}</span></li>`).join('')}</ul>
+        <ul class="inherit">${rows.map((r) => `<li class="${r.to}">${icon(DISC_ICON[r.id])}<b>${DISCOVERIES[r.id].name}</b><span>${label[r.to as keyof typeof label]}</span></li>`).join('')}</ul>
         <p class="fine">Discoveries you did not teach at a Teaching circle fade with their discoverers.</p>
         <h4>Choose your successor</h4>
         <div class="succ">${c.map((s, i) => `<button data-act="pick:${i}" class="scard ${i === this.pickedSuccessor ? 'on' : ''}">${icon(tIcon[s.trait])}<b>${s.name}</b><small>${s.note}</small></button>`).join('')}</div>
-        <div class="row"><button data-act="resume" class="btn">Not yet</button><button data-act="succeed" class="btn primary big">${icon('play')}Begin generation II</button></div>
+        <div class="row"><button data-act="resume" class="btn">Not yet</button><button data-act="succeed" class="btn primary big">${icon('play')}Begin generation ${roman(w.gen + 1)}</button></div>
       </div>`);
   }
 
@@ -372,14 +388,15 @@ export class Hud {
     const w = this.g.world; if (!w) return;
     const won = w.status === 'won';
     won ? sfx.win() : sfx.lose();
+    const contBtn = won && !w.endless ? `<button data-act="endless" class="btn primary big">${icon('fire')}Continue into Gen ${roman(Math.max(3, w.gen + 1))}</button>` : '';
     this.openModal(`
       <div class="dialog end ${won ? 'won' : 'lost'}">
         <div class="medal">${icon(won ? 'trophy' : 'skull')}</div>
         <h1 class="${won ? 'win' : 'lose'}">${won ? 'Victory' : 'Defeat'}</h1>
         <p>${esc(w.endMsg)}</p>
-        <div class="stats"><div><b>${fmtTime(w.time)}</b><small>Time</small></div><div><b>${ROMAN[w.gen]}</b><small>Generation</small></div><div><b>${w.stats.lost}</b><small>Clan lost</small></div><div><b>${w.stats.kills}</b><small>Rivals defeated</small></div></div>
+        <div class="stats"><div><b>${fmtTime(w.time)}</b><small>Time</small></div><div><b>${roman(w.gen)}</b><small>Generation</small></div><div><b>${w.stats.lost}</b><small>Clan lost</small></div><div><b>${w.stats.kills}</b><small>Rivals defeated</small></div></div>
         <p class="lineage">${w.lineage.map((l) => esc(l.name)).join(' → ')}</p>
-        <div class="row"><button data-act="restart" class="btn primary big">${icon('restart')}Play again</button><button data-act="title" class="btn">${icon('door')}Title screen</button></div>
+        <div class="row">${contBtn}<button data-act="restart" class="btn ${contBtn ? '' : 'primary big'}">${icon('restart')}Play again</button><button data-act="title" class="btn">${icon('door')}Title screen</button></div>
       </div>`);
   }
 
@@ -407,7 +424,7 @@ export class Hud {
     $('app').style.setProperty('--lane', `${$('toasts').offsetHeight}px`);
     this.renderPanel(); this.renderJobs(w); this.renderPlaceBar(); this.processLog(w);
     if (canSucceed(w) && !this.springToast) { this.springToast = true; this.toast('Spring has come. Open the objectives to advance the generation.', 'good'); sfx.good(); }
-    if (!canSucceed(w)) this.springToast = w.gen > 1 || (this.springToast && w.time >= w.winter.end);
+    if (!canSucceed(w)) this.springToast = false;
   }
 
   private processLog(w: World) {
@@ -448,7 +465,7 @@ export class Hud {
     const d0 = w.winter.start - 420, d1 = w.winter.end + 60, f = (t: number) => Math.max(0, Math.min(100, ((t - d0) / (d1 - d0)) * 100));
     const html = `<div class="medal ${winter ? 'cold' : ''}">${icon(sIcon)}</div>
       <div class="ctxt"><b>${season}</b><small>${left}</small></div>
-      <div class="gen"><small>GENERATION</small><b>${ROMAN[w.gen]}</b></div>
+      <div class="gen"><small>GENERATION</small><b>${roman(w.gen)}</b></div>
       <div class="tline" title="Season timeline"><i class="win" style="left:${f(w.winter.start)}%;width:${f(w.winter.end) - f(w.winter.start)}%"></i><i class="now" style="left:${f(w.time)}%"></i></div>`;
     if (html !== this.lastClock) { $('clock').innerHTML = html; this.lastClock = html; }
   }
@@ -470,6 +487,10 @@ export class Hud {
       if (isWinter(w)) return 'Winter: loose food rots and cold hurts units away from hearth and shelters.';
       return 'Train hunters and guards at a Hunting lodge to protect your workers.';
     }
+    if (w.gen >= 3 || w.endless) {
+      if (!hasDisc(w, 'kiln') && !hasDisc(w, 'irrigation')) return 'Investigate Generation III discoveries (High-heat kilns or Seasonal irrigation) to master the valley.';
+      return 'Lead your warband against the rival clan\'s hearth to unite the valley.';
+    }
     if (w.res.provisions < OUTPOST_REQUIRE) return `Smoke more food: you need ${OUTPOST_REQUIRE} provisions to supply an expedition.`;
     return 'Scout the north-east. Build a Watch post at the Far Meadow (the north ford is the quiet route). Keep gatherers supplied.';
   }
@@ -477,7 +498,8 @@ export class Hud {
   private renderObjectives(w: World) {
     const list = objectiveList(w), cur = list.findIndex((o) => !o.done), open = !!this.objOpen, succ = canSucceed(w), hint = this.hint(w);
     const done = list.filter((o) => o.done).length;
-    const html = `<div class="oh" data-act="objtoggle">${icon('trophy')}<div><b>${w.gen === 1 ? 'The First Winter' : 'The Far Meadow'}</b><small>${done}/${list.length} objectives</small></div>${icon(open ? 'chevd' : 'chevr', 'chev')}</div>` +
+    const title = w.gen === 1 ? 'The First Winter' : w.gen === 2 && !w.endless ? 'The Far Meadow' : `Dawn of Civilization (Gen ${roman(w.gen)})`;
+    const html = `<div class="oh" data-act="objtoggle">${icon('trophy')}<div><b>${title}</b><small>${done}/${list.length} objectives</small></div>${icon(open ? 'chevd' : 'chevr', 'chev')}</div>` +
       (open ? `<ul>${list.map((o, i) => `<li class="${o.done ? 'done' : i === cur ? 'cur' : ''}"><span class="ob">${o.done ? icon('check') : ''}</span>${esc(o.text)}</li>`).join('')}</ul>` : `<div class="one">${cur >= 0 ? esc(list[cur].text) : 'Objectives complete'}</div>`) +
       (hint && open ? `<p class="hint">${icon('bulb')}<span>${esc(hint)}</span></p>` : '') +
       (succ ? `<button data-act="succession" class="btn primary pulse">${icon('fire')}Advance generation</button>` : '');
@@ -488,7 +510,10 @@ export class Hud {
   // ------------------------------------------------------------ dock (global tools)
   private renderDock(w: World) {
     const g = this.g;
-    const clueReady = DISC_ORDER.some((id) => w.disc[id] === 'clue' || w.disc[id] === 'faded' || (w.disc[id] === 'known' && w.buildings.some((b) => b.owner === 0 && b.kind === 'circle' && b.done)));
+    const clueReady = DISC_ORDER.some((id) => {
+      const req = DISCOVERIES[id].minGen ?? (DISCOVERIES[id].later ? 2 : 1);
+      return (req <= w.gen && (w.disc[id] === 'clue' || w.disc[id] === 'faded')) || (w.disc[id] === 'known' && w.buildings.some((b) => b.owner === 0 && b.kind === 'circle' && b.done));
+    });
     const idleN = w.units.filter((u) => u.owner === 0 && u.kind === 'gatherer' && u.order.t === 'idle').length;
     const dk = (act: string, ic: string, label: string, tip: string, o: { key?: string; on?: boolean; badge?: string; big?: boolean } = {}) =>
       `<button class="dk ${o.big ? 'big' : ''} ${o.on ? 'on' : ''}" data-act="${act}" data-tip="${esc(JSON.stringify({ t: label, d: tip, k: o.key }))}">${icon(ic)}<span>${label}</span>${o.badge ? `<i class="badge">${o.badge}</i>` : ''}</button>`;
@@ -513,11 +538,17 @@ export class Hud {
         const u = us[0], d = UNITS[u.kind], o = u.order;
         const doing = o.t === 'gather' ? `Gathering ${nodeById(w, o.node)?.res ?? ''}` : o.t === 'idle' ? 'Idle' : o.t === 'research' ? 'Researching' : o.t === 'build' ? 'Building' : o.t === 'attack' ? 'Fighting' : o.t === 'move' ? 'Moving' : o.t === 'amove' ? 'Attack-moving' : o.t === 'hold' ? 'Holding' : o.t === 'patrol' ? 'Patrolling' : o.t;
         const pct = Math.max(0, u.hp / u.maxHp) * 100;
+        const specs = w.specialists
+          ? (Object.entries(w.specialists) as [DiscoveryId, number][])
+              .filter(([id, uid]) => uid === u.id && w.disc[id] === 'known')
+              .map(([id]) => DISCOVERIES[id].name)
+          : [];
+        const specNote = specs.length ? `<p class="fine">${icon('discover')}<b>Specialist:</b> ${esc(specs.join(', '))} (teach at a Circle or it fades if ${esc(u.name)} falls!)</p>` : '';
         html = `<div class="sp"><div class="pf">${icon(KIND_ICON[u.kind])}</div>
-          <div class="si"><h3>${esc(u.name)}<small>${['', 'Veteran ', 'Elite '][rankOf(u)]}${d.name}${u.gen > 1 ? ' · Gen ' + ROMAN[u.gen] : ''}${u.kills ? ` · ${u.kills} kills` : ''}</small><button class="mini clr" data-act="desel" aria-label="Deselect">${icon('close')}</button></h3>
+          <div class="si"><h3>${esc(u.name)}<small>${['', 'Veteran ', 'Elite '][rankOf(u)]}${d.name}${u.gen > 1 ? ' · Gen ' + roman(u.gen) : ''}${u.kills ? ` · ${u.kills} kills` : ''}</small><button class="mini clr" data-act="desel" aria-label="Deselect">${icon('close')}</button></h3>
           <div class="hp ${pct < 35 ? 'low' : ''}"><i style="width:${pct}%"></i><span>${icon('heart')}${Math.ceil(u.hp)} / ${u.maxHp}</span></div>
           <div class="stats"><span>${icon('attack')}${d.dmg}</span><span>${icon('move')}${d.speed.toFixed(1)}</span>${u.carry.n ? `<span>${icon(u.carry.res!)}${u.carry.n}</span>` : ''}<span class="st">${doing}</span></div>
-          <p class="desc">${esc(d.desc)}</p></div></div>`;
+          <p class="desc">${esc(d.desc)}</p>${specNote}</div></div>`;
       } else {
         const counts: Record<string, number> = {}; for (const u of us) counts[u.kind] = (counts[u.kind] ?? 0) + 1;
         html = `<div class="sp multi"><div class="mh"><b>${us.length} selected</b><button class="mini clr" data-act="desel" aria-label="Deselect all" data-tip="${esc(JSON.stringify({ t: 'Deselect all', d: 'Clear the current selection.' }))}">${icon('close')}<span>Clear</span></button></div><div class="grp">${Object.entries(counts).map(([k, n]) => `<button class="gi" data-act="selkind:${k}" data-tip="${esc(JSON.stringify({ t: UNITS[k as UnitKind].name, d: `Select only the ${UNITS[k as UnitKind].name.toLowerCase()}s.` }))}">${icon(KIND_ICON[k])}<i class="badge">${n}</i><span>${UNITS[k as UnitKind].name}</span></button>`).join('')}</div></div>`;
@@ -622,6 +653,7 @@ export class Hud {
     const w = this.g.world!;
     const card = (id: DiscoveryId, sub = false) => {
       const d = DISCOVERIES[id], st = w.disc[id], act = w.activities.find((a) => a.disc === id);
+      const reqGen = d.minGen ?? (d.later ? 2 : 1);
       const pip = (n: string, on: boolean) => `<span class="pip ${on ? 'on' : ''}"><i></i>${n}</span>`;
       const pips = pip('Observe', st !== 'hidden') + pip('Investigate', st === 'known' || st === 'preserved' || !!act) + pip('Apply', st === 'known' || st === 'preserved') + pip('Preserve', st === 'preserved');
       const status = st === 'hidden' ? 'Undiscovered' : act ? (act.kind === 'teach' ? 'Teaching…' : 'Investigating…') : st === 'clue' ? 'Clue found' : st === 'known' ? 'Discovered' : st === 'preserved' ? 'Preserved ✓' : 'Forgotten';
@@ -632,21 +664,39 @@ export class Hud {
         if (st === 'known' || st === 'preserved') {
           if (st === 'known') {
             const c = teachCheck(w, id);
-            body += `<p class="fine">Only the discoverers know this. Teach apprentices so it survives succession.</p>` + (act ? this.prog(act.progress / act.total, 'Teaching…') : `<button data-act="teach:${id}" class="btn ${c.ok ? 'primary' : 'dis'}" ${c.ok ? '' : `data-why="${esc(c.reason)}"`}>${icon('knowledge')}Teach apprentices <span class="cr">${chips({ knowledge: 10 }, w)}</span></button>`);
+            const specId = w.specialists?.[id];
+            const specU = specId ? unitById(w, specId) : undefined;
+            const specMsg = specU
+              ? `Only <b>${esc(specU.name)}</b> knows this secret — if ${esc(specU.name)} falls before teaching an apprentice, it will fade!`
+              : 'Only the discoverers know this. Teach apprentices so it survives succession.';
+            body += `<p class="fine">${specMsg}</p>` + (act ? this.prog(act.progress / act.total, 'Teaching…') : `<button data-act="teach:${id}" class="btn ${c.ok ? 'primary' : 'dis'}" ${c.ok ? '' : `data-why="${esc(c.reason)}"`}>${icon('knowledge')}Teach apprentices <span class="cr">${chips({ knowledge: 10 }, w)}</span></button>`);
           } else body += `<p class="good">${icon('check')}Preserved — inherited by descendants.</p>`;
         } else if (act) body += this.prog(act.progress / act.total, 'Investigating…');
         else {
-          const c = investigateCheck(w, id), cost = discCost(w, id);
-          const m = st === 'faded' ? '<p class="fine">Forgotten with the ancestors, but clues remain: 60% cheaper.</p>' : w.gen >= 2 && d.parent && w.disc[d.parent] === 'preserved' ? '<p class="fine">Inherited expertise: 30% cheaper and faster.</p>' : '';
+          const c = investigateCheck(w, id), cost = discCost(w, id), mult = costMultiplier(w, id);
+          const m = st === 'faded'
+            ? '<p class="fine">Forgotten with the ancestors, but clues remain: 60% cheaper.</p>'
+            : mult <= 0.6
+              ? '<p class="fine">Deep ancestral mastery (2 generations preserved): 45% cheaper and faster.</p>'
+              : mult < 1
+                ? '<p class="fine">Inherited expertise: 30% cheaper and faster.</p>'
+                : '';
           body += `${m}<div class="need"><span>Needs ${d.needs.map((n) => BUILDINGS[n].name).join(' + ')}</span><span class="cr">${chips(cost, w)}</span><span>${icon('clock')}${Math.round(discTime(w, id))}s</span></div><button data-act="inv:${id}" class="btn ${c.ok ? 'primary' : 'dis'}" ${c.ok ? '' : `data-why="${esc(c.reason)}"`}>${icon('discover')}${st === 'faded' ? 'Relearn' : 'Investigate'}</button>${c.ok ? '' : `<p class="why">${esc(c.reason)}</p>`}`;
         }
       }
-      return `<div class="disc s-${st} ${sub ? 'sub' : ''}"><div class="dh"><div class="dic">${icon(DISC_ICON[id])}</div><div><h4>${d.name}${d.later ? ' <small>later generation</small>' : ''}</h4><span class="status">${status}</span></div></div><div class="pips">${pips}</div>${body}</div>`;
+      const genTag = reqGen > 1 ? ` <small>Gen ${roman(reqGen)}+${d.parent ? ' · from ' + DISCOVERIES[d.parent].name : ''}</small>` : '';
+      return `<div class="disc s-${st} ${sub ? 'sub' : ''}"><div class="dh"><div class="dic">${icon(DISC_ICON[id])}</div><div><h4>${d.name}${genTag}</h4><span class="status">${status}</span></div></div><div class="pips">${pips}</div>${body}</div>`;
     };
-    const lin = w.lineage.map((l) => `${esc(l.name)} <small>gen ${ROMAN[l.gen]}${l.trait ? ' · ' + esc(l.trait) : ''}</small>`).join(' → ');
+    const lin = w.lineage.map((l) => `${esc(l.name)} <small>gen ${roman(l.gen)}${l.trait ? ' · ' + esc(l.trait) : ''}</small>`).join(' → ');
     return `<h3>${icon('discover')}Discoveries</h3>
-      <div class="tree"><div class="root">${icon('fire')}<b>Maintain fire</b><small>Inherited from your ancestors</small></div>
-      <div class="branches">${card('cooking')}${card('preservation')}${card('portable')}${card('heat', true)}</div></div>
+      <div class="tree">
+        <div class="root">${icon('fire')}<b>Era I — Maintain Fire</b><small>Generation I foundations</small></div>
+        <div class="branches">${card('cooking')}${card('preservation')}${card('portable')}</div>
+        <div class="root">${icon('pottery')}<b>Era II — Shaping Earth, Seed &amp; Water</b><small>Generation II+ branches (30% discount if parent is preserved)</small></div>
+        <div class="branches">${card('heat', true)}${card('pottery', true)}${card('farming', true)}${card('boats', true)}</div>
+        <div class="root">${icon('kiln')}<b>Era III — Civilization Foundations</b><small>Generation III+ mastery (45% discount if ancestral chain is preserved)</small></div>
+        <div class="branches">${card('kiln', true)}${card('irrigation', true)}</div>
+      </div>
       <p class="fine lin">Lineage: ${lin}</p>`;
   }
 

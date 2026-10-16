@@ -1,3 +1,4 @@
+import { DISC_ORDER } from '../data/discoveries';
 import { rebuildBlocked } from './grid';
 import { ensureFog, packExplored, updateFog } from './fog';
 import { SAVE_VERSION } from './world';
@@ -42,6 +43,8 @@ export function deserialize(text: string): LoadResult {
   for (const b of w.buildings) if (!isNum(b.x) || !isNum(b.y) || !isNum(b.hp) || typeof b.kind !== 'string') return { ok: false, error: 'Save contains a corrupt building.' };
   const world = w as World;
   world.v = SAVE_VERSION;
+  for (const id of DISC_ORDER) if (!world.disc[id]) world.disc[id] = 'hidden';
+  if (!world.specialists) world.specialists = {};
   for (const u of world.units) { u.path = null; u.ox = u.x; u.oy = u.y; u.tgt = -1; if (typeof u.buff !== 'number') u.buff = 0; if (typeof u.ability !== 'number') u.ability = 0; if (typeof u.kills !== 'number') u.kills = 0; }
   for (const b of world.buildings) if (typeof b.tier !== 'number') b.tier = 0;
   if (!world.techs) world.techs = {};

@@ -37,11 +37,14 @@ export function popCap(w: World) {
   let c = 0; for (const b of w.buildings) if (b.owner === 0 && b.done) c += BUILDINGS[b.kind].pop + tierBonus(b, 'pop'); return c;
 }
 
-export function gatherRate(w: World, u: Unit, res: 'food' | 'wood' | 'stone', carcass: boolean): number {
+export function gatherRate(w: World, u: Unit, res: 'food' | 'wood' | 'stone', carcass: boolean, fish = false): number {
   let r = res === 'food' ? (carcass ? 1.2 : 0.7) : res === 'wood' ? 0.65 : 0.5;
   if (u.owner === 0) {
     r *= SPECIES[w.species].gather[res] ?? 1;
     if (w.trait === 'logistics') r *= 1.15;
+    else if (w.lineage.some((l) => l.trait === 'logistics')) r *= 1.05;
+    if (fish && hasDisc(w, 'boats')) r *= 1.5;
+    if (res === 'food' && hasDisc(w, 'irrigation')) r *= 1.25;
     if (res !== 'food' && w.buildings.some((b) => b.owner === 0 && b.kind === 'toolshelter' && b.done)) r *= 1.15;
     if (res !== 'food' && anyTier(w, 'toolshelter', 1)) r *= 1.15;
     if (w._starving) r *= 0.7;
@@ -62,28 +65,36 @@ export function nearestDropoff(w: World, u: Unit): Building | undefined {
 }
 
 export function isWarm(w: World, x: number, y: number): boolean {
+  const kilnBonus = hasDisc(w, 'kiln') ? 3 : 0;
   for (const b of w.buildings) {
     if (b.owner !== 0 || !b.done) continue;
     const r = BUILDINGS[b.kind].warmth; if (!r) continue;
-    const rr = r + tierBonus(b, 'warmth');
+    const rr = r + tierBonus(b, 'warmth') + kilnBonus;
     const c = bCenter(b);
     if (Math.hypot(c.x - x, c.y - y) <= rr + Math.max(b.w, b.h) / 2) return true;
   }
   return false;
 }
 
+export function supplyRange(w: World): number {
+  return SUPPLY_RANGE + (hasDisc(w, 'pottery') ? 6 : 0);
+}
+
 export function supplyCenters(w: World): Pt[] {
   return w.buildings.filter((b) => b.owner === 0 && b.done && (b.kind === 'hearth' || b.kind === 'watch')).map(bCenter);
 }
-export function isSupplied(centers: Pt[], x: number, y: number) {
-  for (const c of centers) if (Math.hypot(c.x - x, c.y - y) <= SUPPLY_RANGE) return true;
+export function isSupplied(centers: Pt[], x: number, y: number, range = SUPPLY_RANGE) {
+  for (const c of centers) if (Math.hypot(c.x - x, c.y - y) <= range) return true;
   return false;
 }
 
 export function visionOf(w: World, u: Unit, base: number) {
   let v = base;
-  if (u.owner === 0 && w.trait === 'recon') v += 2;
-  if (u.owner === 0) v += SPECIES[w.species].vision ?? 0;
+  if (u.owner === 0) {
+    if (w.trait === 'recon') v += 2;
+    else if (w.lineage.some((l) => l.trait === 'recon')) v += 1;
+    v += SPECIES[w.species].vision ?? 0;
+  }
   return v;
 }
 

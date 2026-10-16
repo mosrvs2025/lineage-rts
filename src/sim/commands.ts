@@ -143,9 +143,10 @@ export function cmdPlace(w: World, kind: BuildingKind, tx: number, ty: number, b
   const outpost = isOutpostSite(w, kind, tx, ty);
   pay(w, d.cost);
   if (outpost) w.res.provisions -= OUTPOST_COST;
+  const mhp = hasDisc(w, 'kiln') ? Math.round(d.hp * 1.35) : d.hp;
   const b = {
     id: w.nextId++, kind, owner: 0 as const, x: tx, y: ty, w: d.w, h: d.h,
-    hp: Math.max(1, d.hp * 0.1), maxHp: d.hp, progress: 0, done: false, queue: [], tick: 0, tier: 0, outpost,
+    hp: Math.max(1, mhp * 0.1), maxHp: mhp, progress: 0, done: false, queue: [], tick: 0, tier: 0, outpost,
   };
   w.buildings.push(b); w._b?.set(b.id, b);
   rebuildBlocked(w);

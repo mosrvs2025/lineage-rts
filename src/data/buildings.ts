@@ -37,6 +37,8 @@ export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
     w: 3, h: 3, hp: 200, cost: { wood: 35 }, time: 16, pop: 0, warmth: 4, dropoff: false, vision: 5, trains: ['elder'], upgrades: [{ name: 'Elders\' circle', desc: 'Research 50% faster and +0.5 knowledge/s.', cost: { wood: 60, stone: 20, knowledge: 30 }, time: 30, knowledge: 0.5, hpMult: 1.3 }], buildable: true },
   rack: { name: 'Smoking rack', glyph: 'R', desc: 'Smokes 6 food into 6 provisions every 6s. Provisions never spoil and feed expeditions.',
     w: 2, h: 2, hp: 120, cost: { wood: 25, stone: 5 }, time: 10, pop: 0, warmth: 0, dropoff: false, vision: 4, trains: [], upgrades: [{ name: 'Smokehouse', desc: 'Roofed smoke chamber: 6 food → 9 provisions.', cost: { wood: 40, stone: 20 }, time: 24, requires: 'preservation', hpMult: 1.4 }], buildable: true, requires: 'preservation' },
+  field: { name: 'Crop field', glyph: 'F', desc: 'Cultivated plot of hardy grain and roots. Harvests 4 food every 5s and acts as a food drop-off.',
+    w: 2, h: 2, hp: 140, cost: { wood: 20, food: 15 }, time: 12, pop: 0, warmth: 0, dropoff: true, vision: 5, trains: [], upgrades: [{ name: 'Irrigated terrace', desc: 'Stone-lined channels and rich soil: harvests 6 food every 5s and +2 housing.', cost: { wood: 35, stone: 20 }, time: 22, requires: 'farming', pop: 2, hpMult: 1.4 }], buildable: true, requires: 'farming' },
   watch: { name: 'Watch post', glyph: 'W', desc: 'Reveals territory and warns of threats. Extends your supply range as an outpost.',
     w: 2, h: 2, hp: 160, cost: { wood: 25, stone: 10 }, time: 12, pop: 0, warmth: 0, dropoff: false, vision: 13, trains: [], upgrades: [
       { name: 'Archer post', desc: 'Shielded platform: shoots enemies within 9 tiles.', cost: { wood: 40, stone: 30 }, time: 25, hpMult: 1.4, vision: 2 },
@@ -46,4 +48,4 @@ export const BUILDINGS: Record<BuildingKind, BuildingDef> = {
     w: 1, h: 1, hp: 130, cost: { wood: 4 }, time: 3, pop: 0, warmth: 0, dropoff: false, vision: 2, trains: [], upgrades: [{ name: 'Reinforced palisade', desc: 'Doubles the wall\'s health.', cost: { wood: 6 }, time: 8, hpMult: 2 }], buildable: true },
 };
 
-export const BUILD_ORDER: BuildingKind[] = ['shelter', 'stockpile', 'toolshelter', 'lodge', 'circle', 'rack', 'watch', 'palisade'];
+export const BUILD_ORDER: BuildingKind[] = ['shelter', 'stockpile', 'toolshelter', 'lodge', 'circle', 'rack', 'field', 'watch', 'palisade'];

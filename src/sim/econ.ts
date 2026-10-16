@@ -1,7 +1,7 @@
 import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
 import { SPECIES } from '../data/species';
-import { isWarm, isSupplied, popCap, popCount, supplyCenters, hasDisc, hasTech, tierBonus, anyTier } from './rules';
+import { isWarm, isSupplied, popCap, popCount, supplyCenters, supplyRange, hasDisc, hasTech, tierBonus, anyTier } from './rules';
 import { nearestFree } from './grid';
 import type { World } from './types';
 import { autoWork, DT, setOrder } from './units';
@@ -42,25 +42,43 @@ export function economySecond(w: World) {
   if (w.res.food >= 1 || w.res.provisions >= 1) w._starving = false;
   w.res.food = Math.max(0, w.res.food);
 
-  // winter spoilage: loose food rots, smoked provisions do not
+  // winter spoilage: loose food rots, smoked provisions do not; pottery vessels protect stores
   if (winter && w.res.food > 30) {
-    const loss = (w.res.food - 30) * 0.012 * (anyTier(w, 'stockpile', 1) ? 0.55 : 1);
+    const loss = (w.res.food - 30) * 0.012 * (anyTier(w, 'stockpile', 1) ? 0.55 : 1) * (hasDisc(w, 'pottery') ? 0.4 : 1);
     w.res.food -= loss; w.stats.spoiled += loss;
   }
 
   // smoking racks
   if (hasDisc(w, 'preservation')) {
+    const potBonus = hasDisc(w, 'pottery') ? 2 : 0;
     for (const b of owners) {
       if (b.kind !== 'rack') continue;
       b.tick += 1;
       if (b.tick >= 6 && w.res.food >= 6 && w.res.provisions < 300) {
-        b.tick = 0; w.res.food -= 6; w.res.provisions += b.tier >= 1 ? 9 : 6;
+        b.tick = 0; w.res.food -= 6; w.res.provisions += (b.tier >= 1 ? 9 : 6) + potBonus;
+      }
+    }
+  }
+
+  // cultivated crop fields
+  if (hasDisc(w, 'farming')) {
+    const irr = hasDisc(w, 'irrigation');
+    for (const b of owners) {
+      if (b.kind !== 'field') continue;
+      b.tick += 1;
+      if (b.tick >= 5) {
+        b.tick = 0;
+        let harvest = b.tier >= 1 ? 6 : 4;
+        if (irr) harvest = Math.round(harvest * 1.6);
+        else if (winter) harvest = Math.round(harvest * 0.5);
+        w.res.food += harvest; w.stats.food += harvest;
+        emit(w, { k: 'deliver', x: bCenter(b).x, y: bCenter(b).y, owner: 0, res: 'food', n: harvest });
       }
     }
   }
 
   // hunger, cold and exposure
-  const centers = supplyCenters(w);
+  const centers = supplyCenters(w), sRange = supplyRange(w);
   let exposed = 0;
   for (const u of mine) {
     const warm = isWarm(w, u.x, u.y);
@@ -70,14 +88,14 @@ export function economySecond(w: World) {
       const resist = SPECIES[w.species].cold * (hasTech(w, 'hardy') ? 0.6 : 1);
       if (u.hp > u.maxHp * 0.15) u.hp -= 0.6 * resist;
     }
-    if (!isSupplied(centers, u.x, u.y)) exposed++;
+    if (!isSupplied(centers, u.x, u.y, sRange)) exposed++;
   }
   if (exposed) {
-    const upkeep = (w.trait === 'logistics' ? 0.7 : 1) * exposed / 5;
+    const upkeep = (w.trait === 'logistics' ? 0.7 : 1) * (hasDisc(w, 'boats') ? 0.65 : 1) * exposed / 5;
     if (w.res.provisions >= upkeep) w.res.provisions -= upkeep;
     else {
       w.res.provisions = 0;
-      for (const u of mine) if (!isSupplied(centers, u.x, u.y)) u.hp -= 0.9;
+      for (const u of mine) if (!isSupplied(centers, u.x, u.y, sRange)) u.hp -= 0.9;
       if (w.tick % 200 === 0) log(w, 'Expedition is out of provisions beyond supply range — retreat or smoke more food!', 'bad');
     }
   }

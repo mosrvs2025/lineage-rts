@@ -119,10 +119,13 @@ Slow cloud shadows drift across the land, and a screen-space sun-shaft pass adds
 
 ### How the premise is modelled
 
-* **Observe → Investigate → Apply → Preserve** is shown for every discovery in the Discoveries panel, including *why* something is blocked (missing clue, building, resource…).
-* Clues come from play: delivering food (Cooking), hunting or reaching winter (Smoke preservation), a scout visiting the Ember Cave (Portable fire), and knowing Cooking + Portable fire (Controlled heat, investigable only in a later generation).
-* Effects: **Cooking** +25% food value · **Smoke preservation** unlocks racks → non-spoiling provisions that feed expeditions · **Portable fire** wolves flee from torch-bearers and leave nearby workers alone · **Controlled heat** +25% weapon damage.
-* **Inheritance:** buildings, stores, and territory carry over. *Preserved* discoveries persist; *known-but-untaught* ones fade (60% cheaper to relearn). A child discovery of a preserved parent is 30% cheaper and faster in generation 2. Successor traits and a lineage list are tracked.
+* **Observe → Investigate → Apply → Preserve** is shown for every discovery across three eras in the Discoveries panel, including *why* something is blocked (missing clue, generation gate, building, resource…) and which unit is the current **specialist** for unpreserved knowledge.
+* **Three-Era Discovery Network:**
+  * **Era I — Foundational Knowledge (Gen 1+):** **Smoke preservation** (unlocks smoking racks → non-spoiling provisions), **Cooking** (+25% delivered food value), **Portable fire** (wolves flee from torch-bearers and leave nearby workers alone).
+  * **Era II — Lineage Expansion (Gen 2+):** **Controlled heat** (+25% weapon damage), **Pottery** (−60% winter food spoilage, +6 supply range, +2 provisions per smoking rack batch), **Seed cultivation** (unlocks buildable **Crop fields** that harvest food every 5s and doubles berry bush regrowth), **Reed & dugout boats** (+40% movement speed along shorelines/fords, +50% fishing rate, −35% expedition provision burn).
+  * **Era III — Ancestral Mastery (Gen 3+):** **High-heat kilns** (+35% building max HP, +3 warmth radius, +30% Watch tower damage), **Seasonal irrigation** (Crop fields yield +60% and suffer no winter penalty, +25% food gathering rate, 2.5× berry bush regrowth).
+* **Specialist Knowledge Risk:** When a gatherer completes an investigation, they become that discovery's **specialist** (marked with a golden badge in the HUD and Discoveries panel). If that specialist dies before the discovery is **preserved** at a Teaching circle, the knowledge immediately **fades** and must be relearned at 40% cost.
+* **Multi-Generational Inheritance (Gen 1 → 2 → 3+):** Buildings, stores, and territory carry over across generations, and players can continue past victory into **Generation III+** (`Continue into Gen III+`). *Preserved* discoveries persist; *known-but-untaught* ones fade. Preserving parent discoveries grants a 30% ancestral mastery discount (`0.7×`) in Gen 2+, and preserving both parent and grandparent discoveries grants a **45% deep ancestral mastery discount (`0.55×`)** in Gen 3+, alongside cumulative ancestral lineage bonuses (logistics, reconnaissance, and teaching).
 
 ## What was verified, and how
 
@@ -131,7 +134,7 @@ Verified in this environment (Linux, headless **Chromium 141 via Playwright**, W
 | Check | Result |
 |---|---|
 | `npm run typecheck`, `npm run build` | clean |
-| `npm test` — 24 tests (7 new for upgrades, unit gating, elders, research, archer posts and veterancy): economy, building, training, orders, hit-testing, discovery/teaching/succession, save round-trip and invalid-save rejection, discovery effects, winter spoilage, racks, wolves vs torches, truce, outpost rules, determinism | pass |
+| `npm test` — 43 tests (covering economy, building, training, orders, hit-testing, discovery/teaching/succession, specialist knowledge risk, Gen 3+ & deep ancestral mastery, pottery/farming/boats/kiln/irrigation effects, upgrades, unit gating, elders, research, archer posts, veterancy, save round-trip, and full bot playthroughs): | pass |
 | Scripted-bot full playthroughs on every map and all three clans (`tests/playthrough.test.ts`): gather → build → discover → teach → survive winter → succeed → expedition → victory, for **both** species | wins at ≈ 13.6 min and ≈ 21 min of game time |
 | Browser flow `scripts/e2e.cjs` — 43 checks through the real input path: start, select, order gather, build panel + placement, construction, training, discovery panel + investigation, pause/speed, save → mutate → load, corrupt-save handling, winter, succession dialog, victory screen, restart, box-select, wheel/pinch zoom, one-finger pan, drag-select mode, no console errors | 43 / 43 pass on the 3D renderer (one earlier run timed out only because two heavy jobs were sharing the software-rendered browser; the clean re-run passed). The run takes several minutes because 3D is drawn in software here |
 
@@ -141,7 +144,7 @@ Viewports exercised: **desktop 1280×800 (mouse)** and **phone landscape 844×39
 
 ## Implemented vs. the brief
 
-Implemented: camera (pan/zoom/minimap), selection and orders (move, attack-move, attack, gather, build, hold, stop, retreat, leader rally), gathering and four resources (+ provisions), 8 placeable buildings plus the hearth (shelter, stockpile, toolmaking shelter, hunting lodge, teaching circle, smoking rack, watch post, palisade), six unit roles, training queues and population cap, fog of war, wildlife (deer, wolves), a rival AI clan (garrison at the pass + periodic warbands + gift/truce), winter pressure (spoilage, cold, hunger), the fire discovery tree, one succession with inheritance, objectives/hints, victory/defeat, pause/restart/speed, versioned local save/load + export/import, species choice (modest, explained differences).
+Implemented: camera (pan/zoom/minimap), selection and orders (move, attack-move, attack, gather, build, hold, stop, retreat, leader rally), gathering and four resources (+ provisions), 9 placeable buildings plus the hearth (shelter, stockpile, toolmaking shelter, hunting lodge, teaching circle, smoking rack, crop field → irrigated terrace, watch post, palisade), six unit roles, training queues and population cap, fog of war, wildlife (deer, wolves), a rival AI clan (garrison at the pass + periodic warbands + gift/truce), winter pressure (spoilage, cold, hunger), a 9-discovery 3-era tech network (fire, pottery, farming, boats, kilns, irrigation), specialist knowledge risk on death before teaching, multi-generational succession (Gen 1 → 2 → 3+ with deep ancestral mastery discounts and cumulative lineage bonuses), objectives/hints, victory/defeat + endless Era III continuation, pause/restart/speed, versioned local save/load + export/import, species choice (modest, explained differences).
 
 Known limitations / not yet done:
 
@@ -149,10 +152,9 @@ Known limitations / not yet done:
 
 * The upgrade / unit / research systems are covered by unit tests and a visual check in headless Chromium. The scripted bot uses archer posts, upgrades and research, and the rival fortifies its watch post (≈ 8 min) and fields Slingers/Brutes/Champions later; costs and difficulty are only bot-tuned, not human-playtested.
 
-* No **gate** (palisades block everyone, including your own units); no patrol / follow / focus-target commands, formations, squad stances or morale; no close battle camera; no audio.
+* No **gate** (palisades block everyone, including your own units); no follow / focus-target commands, formations, squad stances or morale; no close battle camera.
 * Rival AI is scripted and simple (no real economy; it ignores fog); trade is a single gift action.
-* Apprenticeship is simplified to a *Teach* activity at a Teaching circle; individual specialist death does not yet cause knowledge loss mid-generation.
-* Only one succession (gen 1 → 2); the second winter is mild; balance has been tuned with scripted bots, not human playtesting.
+* Balance in Generation 3+ has been verified via simulation tests, not extensive human playtesting.
 * Art is procedural, not hand-drawn; characters are small canvas-drawn figures with simple walk/work/attack animation. Units never collide, they only softly separate.
 * The game now **requires WebGL** (a clear message is shown if it is unavailable). Real-GPU and phone performance is **unmeasured** — this environment only has software rendering, which is far slower than hardware. Render resolution is capped at 1.5× device pixels, shadow maps shrink on small screens, and the bundle is ≈ 617 kB (≈ 160 kB gzipped) because of Three.js.
 * Not tested on real phones/tablets; performance there has not been measured (population is small — rival capped at 22, no hard cap on yours beyond housing).

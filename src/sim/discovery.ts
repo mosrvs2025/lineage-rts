@@ -1,7 +1,7 @@
 import { DISCOVERIES } from '../data/discoveries';
 import { BUILDINGS } from '../data/buildings';
 import { pay } from './econ';
-import { hasDisc } from './rules';
+import { hasDisc, isExplored } from './rules';
 import type { Activity, DiscoveryId, World } from './types';
 import { DT, moveTo, setOrder, autoWork } from './units';
 import { bCenter, bRadius, dist, emit, isWinter, log, unitById } from './util';
@@ -9,7 +9,11 @@ import { bCenter, bRadius, dist, emit, isWinter, log, unitById } from './util';
 export function costMultiplier(w: World, id: DiscoveryId) {
   const d = DISCOVERIES[id];
   if (w.disc[id] === 'faded') return 0.4;               // relearning from remembered clues
-  if (d.parent && w.disc[d.parent] === 'preserved' && w.gen >= 2) return 0.7; // inherited expertise
+  if (d.parent && w.disc[d.parent] === 'preserved' && w.gen >= 2) {
+    const gp = DISCOVERIES[d.parent].parent;
+    if (gp && w.disc[gp] === 'preserved' && w.gen >= 3) return 0.55; // deep ancestral mastery across 3+ generations
+    return 0.7; // inherited expertise
+  }
   return 1;
 }
 
@@ -19,7 +23,7 @@ export function discCost(w: World, id: DiscoveryId) {
   return out;
 }
 export const discTime = (w: World, id: DiscoveryId) =>
-  DISCOVERIES[id].time * costMultiplier(w, id) * (w.trait === 'teaching' ? 0.8 : 1);
+  DISCOVERIES[id].time * costMultiplier(w, id) * (w.trait === 'teaching' ? 0.8 : w.lineage.some((l) => l.trait === 'teaching') ? 0.9 : 1);
 
 export interface Check { ok: boolean; reason: string }
 
@@ -27,7 +31,15 @@ export function investigateCheck(w: World, id: DiscoveryId): Check {
   const d = DISCOVERIES[id], st = w.disc[id];
   if (st === 'known' || st === 'preserved') return { ok: false, reason: 'Already discovered.' };
   if (st === 'hidden') return { ok: false, reason: `No clue yet: ${d.clueHint}` };
-  if (d.later && w.gen < 2) return { ok: false, reason: 'Your ancestors have not left enough to build on. Pass the lineage on first.' };
+  const reqGen = d.minGen ?? (d.later ? 2 : 1);
+  if (w.gen < reqGen) {
+    return {
+      ok: false,
+      reason: reqGen === 2
+        ? 'Your ancestors have not left enough to build on. Pass the lineage on first.'
+        : `Requires Generation ${reqGen} — pass the fire onward first.`,
+    };
+  }
   if (w.activities.some((a) => a.disc === id)) return { ok: false, reason: 'Already being investigated.' };
   if (w.activities.length >= 2) return { ok: false, reason: 'Two activities already under way.' };
   for (const n of d.needs) {
@@ -63,7 +75,7 @@ export function teachCheck(w: World, id: DiscoveryId): Check {
 export function startTeaching(w: World, id: DiscoveryId): Check {
   const c = teachCheck(w, id); if (!c.ok) return c;
   w.res.knowledge -= 10;
-  w.activities.push({ id: w.nextId++, kind: 'teach', disc: id, progress: 0, total: 15 * (w.trait === 'teaching' ? 0.8 : 1), worker: -1 });
+  w.activities.push({ id: w.nextId++, kind: 'teach', disc: id, progress: 0, total: 15 * (w.trait === 'teaching' ? 0.8 : w.lineage.some((l) => l.trait === 'teaching') ? 0.9 : 1), worker: -1 });
   log(w, `An apprentice begins learning ${DISCOVERIES[id].name}…`);
   return { ok: true, reason: '' };
 }
@@ -99,16 +111,33 @@ export function activitiesTick(w: World) {
       if (a.progress >= a.total) {
         w.activities.splice(w.activities.indexOf(a), 1);
         if (a.kind === 'investigate') {
-          w.disc[a.disc] = 'known'; emit(w, { k: 'discover', x: worker.x, y: worker.y, owner: 0 });
-          log(w, `Discovery: ${DISCOVERIES[a.disc].name}! ${DISCOVERIES[a.disc].effect}`, 'good');
+          w.disc[a.disc] = 'known';
+          w.specialists ??= {};
+          w.specialists[a.disc] = worker.id;
+          if (a.disc === 'kiln') {
+            for (const b of w.buildings) if (b.owner === 0) { const nm = Math.round(b.maxHp * 1.35); b.hp += nm - b.maxHp; b.maxHp = nm; }
+          }
+          emit(w, { k: 'discover', x: worker.x, y: worker.y, owner: 0 });
+          log(w, `Discovery: ${DISCOVERIES[a.disc].name} (mastered by ${worker.name})! ${DISCOVERIES[a.disc].effect}`, 'good');
         } else {
-          w.disc[a.disc] = 'preserved'; emit(w, { k: 'preserved', x: worker.x, y: worker.y, owner: 0 });
+          w.disc[a.disc] = 'preserved';
+          if (w.specialists) delete w.specialists[a.disc];
+          emit(w, { k: 'preserved', x: worker.x, y: worker.y, owner: 0 });
           log(w, `${DISCOVERIES[a.disc].name} is now taught to apprentices — future generations will keep it.`, 'good');
         }
         setOrder(worker, { t: 'idle' }); autoWork(w, worker);
       }
     }
   }
+}
+
+function nearWater(w: World, x: number, y: number): boolean {
+  const tx = Math.floor(x), ty = Math.floor(y);
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+    const c = w.terrain[ty + dy]?.[tx + dx];
+    if (c === '~' || c === '=' || c === 'L') return true;
+  }
+  return false;
 }
 
 /** Slow checks for landmarks and clues. */
@@ -131,5 +160,16 @@ export function cluesTick(w: World) {
   raise('preservation', w.stats.meat >= 15 || isWinter(w) || w.time >= w.winter.start);
   raise('portable', !!w.landmarks.find((l) => l.id === 'cave')?.visited);
   raise('heat', hasDisc(w, 'cooking') && hasDisc(w, 'portable'));
+  raise('pottery', hasDisc(w, 'cooking') && w.buildings.some((b) => b.owner === 0 && b.kind === 'stockpile' && b.done));
+  raise('farming', w.stats.food >= 80 || w.gen >= 2 || w.time >= w.winter.end);
+  raise('boats', (hasDisc(w, 'portable') || hasDisc(w, 'cooking')) && (
+    w.nodes.some((n) => n.kind === 'fish' && isExplored(w, n.x, n.y)) ||
+    w.units.some((u) => u.owner === 0 && nearWater(w, u.x, u.y))
+  ));
+  raise('kiln', hasDisc(w, 'pottery') && hasDisc(w, 'heat'));
+  raise('irrigation', hasDisc(w, 'farming') && (
+    w.buildings.some((b) => b.owner === 0 && b.kind === 'field' && b.done) ||
+    w.stats.food >= 250
+  ));
 }
 

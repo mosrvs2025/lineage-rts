@@ -1,10 +1,12 @@
+import { DISCOVERIES } from '../data/discoveries';
 import { activitiesTick, cluesTick } from './discovery';
 import { aiSecond } from './ai';
 import { economySecond, trainingTick } from './econ';
 import { nearestFree, rebuildBlocked } from './grid';
 import { ensureFog, updateFog } from './fog';
 import { checkEnd, updateObjectives } from './objectives';
-import type { World } from './types';
+import { hasDisc } from './rules';
+import type { DiscoveryId, World } from './types';
 import { carcassAt, DT, separate, updateUnit } from './units';
 import { emit, isWinter, log, rand, reindex } from './util';
 import { makeUnit } from './world';
@@ -13,7 +15,13 @@ import { creditKill, eldersSecond, upgradesTick } from './upgrades';
 export const TICKS_PER_SEC = Math.round(1 / DT);
 
 function regrow(w: World) {
-  for (const n of w.nodes) if (n.regen && n.amount < n.max) n.amount = Math.min(n.max, n.amount + n.regen);
+  const farmMult = hasDisc(w, 'irrigation') ? 2.5 : hasDisc(w, 'farming') ? 2 : 1;
+  for (const n of w.nodes) {
+    if (n.regen && n.amount < n.max) {
+      const r = n.kind === 'bush' ? n.regen * farmMult : n.regen;
+      n.amount = Math.min(n.max, n.amount + r);
+    }
+  }
 }
 
 function cleanup(w: World) {
@@ -25,7 +33,20 @@ function cleanup(w: World) {
     if (u.kind === 'deer') carcassAt(w, u);
     if (u.kind === 'mammoth') carcassAt(w, u, 260);
     creditKill(w, u);
-    if (u.owner === 0) { w.stats.lost++; log(w, `${u.name} the ${u.kind} has fallen.`, 'bad'); }
+    if (u.owner === 0) {
+      w.stats.lost++;
+      log(w, `${u.name} the ${u.kind} has fallen.`, 'bad');
+      if (w.specialists) {
+        for (const [id, uid] of Object.entries(w.specialists) as [DiscoveryId, number][]) {
+          if (uid === u.id && w.disc[id] === 'known') {
+            delete w.specialists[id];
+            w.activities = w.activities.filter((a) => !(a.kind === 'teach' && a.disc === id));
+            w.disc[id] = 'faded';
+            log(w, `${u.name} fell before teaching ${DISCOVERIES[id].name} — the knowledge fades to remembered clues!`, 'bad');
+          }
+        }
+      }
+    }
     else if (u.owner === 1) w.stats.kills++;
   }
   for (const b of [...w.buildings]) {

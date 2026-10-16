@@ -191,7 +191,7 @@ export class Game {
   }
   movePlace(wx: number, wy: number, yOffset = 0) {
     if (!this.place) return;
-    const d = { shelter: [2, 2], stockpile: [2, 2], toolshelter: [2, 2], lodge: [3, 2], circle: [3, 3], rack: [2, 2], watch: [2, 2], palisade: [1, 1], hearth: [3, 3] }[this.place.kind];
+    const d = { shelter: [2, 2], stockpile: [2, 2], toolshelter: [2, 2], lodge: [3, 2], circle: [3, 3], rack: [2, 2], field: [2, 2], watch: [2, 2], palisade: [1, 1], hearth: [3, 3] }[this.place.kind];
     this.place.tx = Math.round(wx - d[0] / 2);
     this.place.ty = Math.round(wy - d[1] / 2 - yOffset);
   }
