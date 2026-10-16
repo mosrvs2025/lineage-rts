@@ -381,3 +381,51 @@ kbd { font: 600 10px var(--ui); padding: 1px 5px; border-radius: 4px; background
 #modal.clanscreen { place-items: start center; overflow-y: auto; padding: 18px 14px 28px; } #modal.clanscreen .clan { margin: auto; } .clan h2 { margin-top: 4px; }
 .mfeat { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; } .mfeat li { font-size: 11px; color: #e6d6a8; padding-left: 12px; position: relative; line-height: 1.25; } .mfeat li::before { content: ''; position: absolute; left: 2px; top: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--gold); }
 @media (max-width: 899px), (max-height: 559px) { .mfeat { display: none; } }
+
+/* Playtest pass: bottom-anchored phone controls and tap-to-inspect status. */
+button.plate, button#clock { text-align: left; }
+button.plate:focus-visible, button#clock:focus-visible, .cb:focus-visible, .dk:focus-visible { outline: 2px solid var(--team); outline-offset: 2px; }
+.resource-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.resource-grid > div { background: #ffffff08; padding: 10px; border: 1px solid var(--edge2); border-radius: 8px; }
+.resource-grid dt { font-size: 12px; color: var(--muted); }
+.resource-grid dd { margin: 4px 0 0; color: var(--gold); font-size: 18px; font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) and (orientation: portrait) {
+  .pp #chips { gap: 3px; }
+  .pp .plate { height: 44px; min-width: 0; padding: 0 3px; font-size: 12px; gap: 3px; }
+  .pp .plate .ic { font-size: 14px; }
+  .pp #clock { min-height: 44px; }
+  .pp #fab { display: none !important; }
+  .pp #dock { position: fixed; inset: auto 0 0; z-index: 8; display: flex; flex-direction: row; align-items: stretch; width: auto; height: calc(64px + var(--sb)); padding: 4px max(4px,var(--sr)) calc(4px + var(--sb)) max(4px,var(--sl)); gap: 3px; overflow-x: auto; overflow-y: hidden; background: var(--panel); border-top: 1px solid var(--gold2); }
+  .pp #dock .dk, .pp #fab.open #dock .dk { position: relative; flex: 1 0 44px; min-width: 44px; width: auto; height: 54px; margin: 0; border-radius: 8px; transform: none !important; opacity: 1; pointer-events: auto; transition: none; }
+  .pp #dock .dk .ic { font-size: 20px; }
+  .pp #dock .dk span { font-size: 8px; }
+  .pp #bubble, .pp #bubble.dragged { inset: auto 0 calc(64px + var(--sb)); width: auto; max-height: min(48dvh,360px); border-width: 1px 0 0; border-radius: 12px 12px 0 0; transform: none !important; animation: none; box-shadow: 0 -6px 20px #0007; }
+  .pp #bubble.folded #cmdcard { display: block; }
+  .pp #bubble #bbody { max-height: calc(min(48dvh,360px) - 36px); overflow-y: auto; overscroll-behavior: contain; }
+  .pp #bubble #bgrip { min-height: 36px; cursor: default; padding: 2px 8px; }
+  .pp #bubble #bgrip .grip { height: auto; background: none; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+  .pp #bubble #bpin { display: none; }
+  .pp #bubble #bfold { display: inline-flex; width: auto; min-width: 70px; min-height: 36px; gap: 6px; }
+  .pp #bubble:not(.unit-selection) #bfold { display: none; }
+  .pp #bbody #cmds { grid-template-columns: repeat(5,minmax(0,1fr)); grid-auto-rows: minmax(52px,auto); gap: 4px; }
+  .pp #bbody #cmdcard { padding: 0 6px 6px; }
+  .pp #bbody #selpanel { padding: 4px 8px; min-height: 0; }
+  .pp #bbody .pf { width: 42px; height: 42px; font-size: 26px; }
+  .pp #bbody .si h3 { margin-bottom: 3px; font-size: 13px; gap: 6px; }
+  .pp #bbody .si h3 small { font-size: 10px; }
+  .pp #bbody .stats { margin-top: 3px; gap: 4px; }
+  .pp #bbody .stats span { font-size: 10px; padding: 1px 4px; }
+  .pp #bbody .sp { gap: 8px; }
+  .pp #mini { left: auto; right: 6px; bottom: calc(70px + var(--sb) + var(--selection-h,0px)); transition: bottom .15s; }
+  .pp #panel { inset: auto 0 calc(64px + var(--sb)); padding: 0 6px; z-index: 12; }
+  .pp #panel .sheet { max-height: min(65dvh,560px); overflow-y: auto; border-radius: 14px 14px 0 0; }
+  .pp #jobs:not(.dragged) { top: auto; bottom: calc(70px + var(--sb)); z-index: 12; }
+  .pp #placebar { bottom: calc(70px + var(--sb)); z-index: 13; }
+  .pp #app.noworld #dock { display: none; }
+}
+@media (max-width: 560px) and (orientation: portrait) {
+  .pp #chips { overflow-x: auto; scrollbar-width: none; }
+  .pp .plate { min-width: 44px; flex: 1 0 44px; }
+}
+
+.cb[hidden] { display: none !important; }

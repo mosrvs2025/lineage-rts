@@ -1,0 +1,126 @@
+// @vitest-environment happy-dom
+import { readFileSync } from 'node:fs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Hud } from '../src/ui/hud';
+import { ResourceHistory } from '../src/ui/resource-summary';
+import { newWorld } from './helpers';
+import { step } from '../src/sim/step';
+import type { Game } from '../src/ui/game';
+
+function setup() {
+  const w = newWorld(); step(w);
+  const game = {
+    world: w, sel: [] as number[], selB: null as number | null, mode: 'normal', place: null,
+    speed: 1, queueMode: false, showcase: false, menuOpen: false, showBars: false,
+    cam: { setInsets: vi.fn(), centerOn: vi.fn() },
+    liveSel() { return this.sel; },
+    selectUnits(ids: number[]) { this.sel = ids; },
+    clearSelection() { this.sel = []; this.selB = null; },
+    cancelPlace: vi.fn(),
+  };
+  const hud = new Hud(game as unknown as Game);
+  hud.tick(1000);
+  return { hud, game, w, click: (action: string) => {
+    const button = document.querySelector<HTMLButtonElement>(`[data-act="${action}"]`);
+    expect(button, action).not.toBeNull(); button!.click();
+  } };
+}
+
+beforeEach(() => {
+  (window as unknown as {happyDOM:{setViewport(v:{width:number;height:number}):void}}).happyDOM.setViewport({width:412,height:915});
+  document.body.innerHTML = readFileSync('index.html','utf8').split('<body>')[1].split('<script type="module"')[0];
+  document.head.innerHTML = `<style>${readFileSync('src/style.css','utf8')}</style>`;
+  localStorage.clear();
+
+});
+
+describe('mobile playtest fixes through the real HUD event handlers', () => {
+  it('puts the dock outside the hidden fan and keeps common unit commands outside the advanced fold', () => {
+    const {hud,game,w} = setup();
+    game.sel = [w.units.find(u=>u.owner===0&&u.kind==='gatherer')!.id];
+    hud.tick(1200);
+    expect(document.querySelector('#dock')!.parentElement!.id).toBe('app');
+    const dockStyle=getComputedStyle(document.getElementById('dock')!);
+    expect(dockStyle.position).toBe('fixed');
+    expect(dockStyle.flexDirection).toBe('row');
+    expect(getComputedStyle(document.getElementById('bubble')!).transform).toBe('none');
+    expect(getComputedStyle(document.querySelector('#cmds [data-act="move"]')!).display).not.toBe('none');
+    expect(getComputedStyle(document.querySelector('#cmds [data-act="queue"]')!).display).toBe('none');
+    expect(document.querySelector('#bubble')!.classList.contains('hidden')).toBe(false);
+    expect(document.querySelector('#bubble')!.classList.contains('folded')).toBe(true);
+    for(const act of ['move','work','stop','retreat','build']) expect(document.querySelector(`#cmds [data-act="${act}"]`)!.classList.contains('quick')).toBe(true);
+    expect(document.querySelector('#cmds [data-act="queue"]')!.classList.contains('quick')).toBe(false);
+    expect(document.querySelector('#cmds [data-act="hold"]')!.classList.contains('quick')).toBe(false);
+    (document.getElementById('bfold') as HTMLButtonElement).click();
+    expect(document.getElementById('bfold')!.getAttribute('aria-expanded')).toBe('true');
+    expect(document.getElementById('bubble')!.classList.contains('folded')).toBe(false);
+    expect(getComputedStyle(document.getElementById('bubble')!).display).not.toBe('none');
+    expect(getComputedStyle(document.getElementById('cmdcard')!).display).not.toBe('none');
+    expect(getComputedStyle(document.getElementById('cmds')!).display).toBe('grid');
+    expect(getComputedStyle(document.querySelector('#cmds [data-act="queue"]')!).display).not.toBe('none');
+    game.sel = [w.units.find(u=>u.owner===0&&u.kind==='leader')!.id];hud.tick(1400);
+    expect(document.getElementById('bfold')!.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('#cmds [data-act="amove"]')!.classList.contains('quick')).toBe(true);
+  });
+  it('keeps building commands visible and restores the desktop console after rotation', () => {
+    const {hud,game,w}=setup();
+    game.selB=w.buildings.find(b=>b.owner===0&&b.kind==='hearth')!.id;hud.tick(1200);
+    expect(document.getElementById('bubble')!.classList.contains('unit-selection')).toBe(false);
+    const train=document.querySelector<HTMLElement>('#cmds [data-act="train:gatherer"]')!;
+    expect(train.hasAttribute('hidden')).toBe(false);
+    expect(getComputedStyle(train).display).not.toBe('none');
+    (window as unknown as {happyDOM:{setViewport(v:{width:number;height:number}):void}}).happyDOM.setViewport({width:1280,height:800});
+    hud.bub.apply();hud.tick(1400);
+    expect(document.getElementById('selpanel')!.parentElement!.id).toBe('hud');
+    expect(document.getElementById('app')!.classList.contains('pp')).toBe(false);
+    expect(getComputedStyle(document.getElementById('dock')!).position).toBe('absolute');
+  });
+  it('ignores legacy floating/pinned positions and reserves the measured bottom controls in the camera', () => {
+    localStorage.setItem('lineage.hud.v2',JSON.stringify({pos:{bubble:[.3,.4],fab:[.5,.5]},pinned:true,folded:true}));
+    const {hud,game,w}=setup();game.sel=[w.units.find(u=>u.owner===0&&u.kind==='gatherer')!.id];hud.tick(1200);
+    expect(document.getElementById('bubble')!.classList.contains('pinned')).toBe(false);
+    expect(document.getElementById('bubble')!.style.top).toBe('');
+    const rect=(height:number,bottom=height)=>({height,bottom,width:412,top:0,left:0,right:412,x:0,y:0,toJSON(){return {};}});
+    vi.spyOn(document.getElementById('topbar')!,'getBoundingClientRect').mockReturnValue(rect(104));
+    vi.spyOn(document.getElementById('dock')!,'getBoundingClientRect').mockReturnValue(rect(64));
+    vi.spyOn(document.getElementById('bubble')!,'getBoundingClientRect').mockReturnValue(rect(180));
+    hud.layout();expect(game.cam.setInsets).toHaveBeenLastCalledWith(104,252);
+  });
+  it('exposes resource and season sheets and preserves focused resource buttons across updates', () => {
+    const {hud,w,click}=setup();
+    const food = document.querySelector<HTMLButtonElement>('[data-act="inspect:food"]')!;
+    food.focus();click('inspect:food');
+    expect(document.getElementById('panel')!.textContent).toContain('Meal demand');
+    expect(document.getElementById('panel')!.textContent).toContain('Measuring');
+    w.res.food += 5;w.time += 6;hud.tick(1200);
+    expect(document.querySelector('[data-act="inspect:food"]')).toBe(food);
+    expect(document.activeElement).toBe(food);
+    click('inspect:season');
+    expect(document.getElementById('panel')!.textContent).toContain('Winter');
+    click('inspect:pop');
+    expect(document.getElementById('panel')!.textContent).toContain('Housing capacity');
+  });
+  it('cycles idle workers one at a time and applies quick commands with one click', () => {
+    const {game,w,click,hud}=setup();
+    const workers=w.units.filter(u=>u.owner===0&&u.kind==='gatherer');
+    workers.forEach(u=>{u.order={t:'idle'};});
+    click('nextidle');const first=game.sel[0];expect(game.sel).toHaveLength(1);
+    click('nextidle');expect(game.sel).toHaveLength(1);expect(game.sel[0]).not.toBe(first);
+    hud.tick(1200);click('work');expect(game.mode).toBe('move');
+    click('move');expect(game.mode).toBe('normal');
+    game.sel=[];hud.tick(1400);expect(document.getElementById('bubble')!.classList.contains('hidden')).toBe(true);
+  });
+});
+
+describe('resource measurements', () => {
+  it('uses simulation time, excludes rivals from food demand, and resets after loading or rewinding', () => {
+    const history=new ResourceHistory(),w=newWorld();w.time=0;history.sample(w);
+    expect(history.rates(w,'food').net).toBeNull();
+    w.res.food+=10;w.stats.food+=15;w.time=10;history.sample(w);
+    expect(history.rates(w,'food').net).toBe(60);
+    expect(history.rates(w,'food').gathered).toBe(90);
+    expect(history.rates(w,'food').foodDemand).toBe(w.units.filter(u=>u.owner===0).length*5);
+    w.time=5;history.sample(w);expect(history.rates(w,'food').net).toBeNull();
+    const loaded={...w,time:20};history.sample(loaded);expect(history.rates(loaded,'food').net).toBeNull();
+  });
+});
