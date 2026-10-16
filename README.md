@@ -156,3 +156,13 @@ Known limitations / not yet done:
 * Art is procedural, not hand-drawn; characters are small canvas-drawn figures with simple walk/work/attack animation. Units never collide, they only softly separate.
 * The game now **requires WebGL** (a clear message is shown if it is unavailable). Real-GPU and phone performance is **unmeasured** — this environment only has software rendering, which is far slower than hardware. Render resolution is capped at 1.5× device pixels, shadow maps shrink on small screens, and the bundle is ≈ 617 kB (≈ 160 kB gzipped) because of Three.js.
 * Not tested on real phones/tablets; performance there has not been measured (population is small — rival capped at 22, no hard cap on yours beyond housing).
+
+### Clan leader asset pass
+
+Clan leaders now load original skinned GLB bodies for Humans, Neanderthals and Denisovans. The new silhouette includes a bone crown, broad fur mantle, tooth necklace, shaped leather clothing, team-colored bib and folded cape. Elbows blend between bones; the imported body uses smooth shading. Existing procedural leaders stay visible until loading succeeds, and remain as a fallback on asset failure. Weapons, tools, fog, generation colors, selection and existing procedural animation remain in use. This pass does **not** add authored animation clips or painted texture maps.
+
+- Editable source: `scripts/build-leader.mjs`; regenerate with `node scripts/build-leader.mjs`.
+- Outputs: `public/assets/characters/leader-{human,neanderthal,denisovan}.glb`, about 350 KiB and 9,054 triangles each. GLBs can be imported into Blender for further editing. No external asset license or service is required.
+- Offline review: `docs/leader-preview.png`; regenerate with `python scripts/render-leader.py` (NumPy and Pillow). This is a CPU-rendered rest-pose review, **not a gameplay screenshot**.
+- Asset tests: `npm test -- tests/characters.test.ts` verifies actual GLTFLoader decoding, exact joint ordering, normalized weights, blended elbows, team-color coverage, bounds and payload budget.
+- Visual verification limitation: the remote browser could not initialize WebGL. Offline geometry inspection and simulation/build checks are available; in-game appearance, animation and physical-phone frame rate still require a GPU browser review. Blender was unavailable in the implementation environment.

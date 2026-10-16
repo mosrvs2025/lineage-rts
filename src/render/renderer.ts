@@ -16,6 +16,7 @@ import { MAPS } from '../data/maps';
 import { MAT, blobGeo, blobMat, buildBuilding, enhance, makeBushGeo, makeCarcassGeo, makeRockGeos, makeTreeGeos, merge, shared } from './models';
 import { Post } from './post';
 import type { Rig } from './rigs';
+import { leaderGeometry, leaderMaterial } from './characters';
 import { animateRig, createRig } from './rigs';
 
 export interface Overlay {
@@ -586,6 +587,11 @@ export class Renderer {
       seen.add(u.id);
       let r = this.rigs.get(u.id);
       if (!r) { r = createRig(u, w, time); this.root.add(r.root); this.rigs.set(u.id, r); }
+      // Upgrade an existing fallback in place when its GLB finishes loading.
+      if (u.kind === 'leader') {
+        const asset = leaderGeometry(u.owner === 0 ? w.species : w.rivalSpecies, u.owner, u.gen);
+        if (asset && r.asset !== asset) { r.mesh.geometry = asset; r.mesh.material = leaderMaterial; r.asset = asset; }
+      }
       const show = u.owner === 0 || isVisible(w, u.x, u.y);
       r.root.visible = show;
       if (!show) continue;
