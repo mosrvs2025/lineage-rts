@@ -16,7 +16,6 @@ import { MAPS } from '../data/maps';
 import { MAT, blobGeo, blobMat, buildBuilding, enhance, makeBushGeo, makeCarcassGeo, makeRockGeos, makeTreeGeos, merge, shared } from './models';
 import { Post } from './post';
 import type { Rig } from './rigs';
-import { leaderGeometry, leaderMaterial } from './characters';
 import { animateRig, createRig } from './rigs';
 
 export interface Overlay {
@@ -587,11 +586,6 @@ export class Renderer {
       seen.add(u.id);
       let r = this.rigs.get(u.id);
       if (!r) { r = createRig(u, w, time); this.root.add(r.root); this.rigs.set(u.id, r); }
-      // Upgrade an existing fallback in place when its GLB finishes loading.
-      if (u.kind === 'leader') {
-        const asset = leaderGeometry(u.owner === 0 ? w.species : w.rivalSpecies, u.owner, u.gen);
-        if (asset && r.asset !== asset) { r.mesh.geometry = asset; r.mesh.material = leaderMaterial; r.asset = asset; }
-      }
       const show = u.owner === 0 || isVisible(w, u.x, u.y);
       r.root.visible = show;
       if (!show) continue;
@@ -601,12 +595,13 @@ export class Renderer {
       if (moving && u.owner !== 2 && Math.random() < dt * 5 && this.quality !== 'low') this.particles.spawn(x, this.heightAt(x, y) + 0.05, y, (Math.random() - 0.5) * 0.4, 0.3, (Math.random() - 0.5) * 0.4, 0.55, 0.12, 0.32, 0xa89a78, -0.1, 1.2, 0.28);
       r.sel.visible = selSet.has(u.id); r.sel.scale.setScalar(1.15 + Math.sin(time * 5) * 0.04); r.buff.visible = u.buff > 0;
     }
-    for (const [id, r] of this.rigs) if (!seen.has(id)) { this.rigs.delete(id); this.dying.push({ rig: r, t: 0 }); r.sel.visible = false; r.buff.visible = false; }
+    for (const [id, r] of this.rigs) if (!seen.has(id)) { this.rigs.delete(id); this.dying.push({ rig: r, t: 0 }); r.sel.visible = false; r.buff.visible = false; r.visual?.motion.die(); }
     for (const d of [...this.dying]) {
       d.t += dt; const r = d.rig, k = Math.min(1, d.t / 0.55), e = k * k * (3 - 2 * k);
-      if (r.kind === 'person') { r.root.rotation.x = -1.5 * e; r.b.shL.rotation.x = -1.2 * e; r.b.shR.rotation.x = -1.6 * e; r.b.hipL.rotation.x = 0.4 * e; } else r.root.rotation.z = 1.5 * e;
+      if (r.visual) { r.visual.motion.mixer.update(Math.min(dt, .1)); }
+      else if (r.kind === 'person') { r.root.rotation.x = -1.5 * e; r.b.shL.rotation.x = -1.2 * e; r.b.shR.rotation.x = -1.6 * e; r.b.hipL.rotation.x = 0.4 * e; } else r.root.rotation.z = 1.5 * e;
       if (d.t > 1.0) r.root.position.y -= dt * 0.35;
-      if (d.t > 1.9) { this.root.remove(r.root); this.dying.splice(this.dying.indexOf(d), 1); }
+      if (d.t > 1.9) { r.visual?.motion.dispose(); r.visual?.root.traverse(o => { if (o instanceof THREE.SkinnedMesh) o.skeleton.dispose(); }); this.root.remove(r.root); this.dying.splice(this.dying.indexOf(d), 1); }
     }
   }
 

@@ -1,34 +1,92 @@
 import { readFileSync } from 'node:fs';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { SkinnedMesh, Color } from 'three';
+import { SkinnedMesh, Vector3 } from 'three';
+import { CharacterMotion, characterClip } from '../src/render/character-motion';
+import { clone } from 'three/addons/utils/SkeletonUtils.js';
+import type { Unit, World } from '../src/sim/types';
 
-const expectedBones = ['root', 'hips', 'spine', 'head', 'shL', 'elL', 'handL', 'shR', 'elR', 'handR', 'hipL', 'kneeL', 'hipR', 'kneeR'];
-describe('shipped clan leader assets', () => {
-  for (const species of ['human', 'neanderthal', 'denisovan']) {
-    it(`${species}: loads with compatible skin, visible team colors and bounded size`, async () => {
-      const data = readFileSync(`public/assets/characters/leader-${species}.glb`);
-      const gltf = await new GLTFLoader().parseAsync(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength), '');
-      const body = gltf.scene.getObjectByName('Lineage_ClanLeader') as SkinnedMesh;
-      expect(body.isSkinnedMesh).toBe(true);
-      expect(body.skeleton.bones.map(b => b.name)).toEqual(expectedBones);
-      const g = body.geometry, weights = g.getAttribute('skinWeight'), indices = g.getAttribute('skinIndex');
-      let blended = 0;
-      for (let i = 0; i < weights.count; i++) {
-        expect(weights.getX(i) + weights.getY(i) + weights.getZ(i) + weights.getW(i)).toBeCloseTo(1);
-        expect(indices.getX(i)).toBeLessThan(expectedBones.length);
-        expect(indices.getY(i)).toBeLessThan(expectedBones.length);
-        if (weights.getY(i) > 0 && weights.getY(i) < 1) blended++;
-      }
-      expect(blended).toBeGreaterThan(0);
-      const colors = g.getAttribute('color'), team = new Color('#27b7c6');
-      let teamVertices = 0;
-      for (let i = 0; i < colors.count; i++) if (Math.abs(colors.getX(i) - team.r) < .005 && Math.abs(colors.getY(i) - team.g) < .005 && Math.abs(colors.getZ(i) - team.b) < .005) teamVertices++;
-      expect(teamVertices / colors.count).toBeGreaterThan(.1);
-      g.computeBoundingBox();
-      expect(g.boundingBox!.min.y).toBeGreaterThan(-.02);
-      expect(g.boundingBox!.max.y).toBeLessThan(1.5);
-      expect(data.byteLength).toBeLessThan(900_000);
+const unit = (kind: Unit['kind'], order: Unit['order']): Unit => ({ kind, order, tgt: -1, cd: .8 } as Unit);
+describe('authored warband assets and animation', () => {
+  for (const kind of ['barbarian', 'rogue']) {
+    it(`${kind}: native clips deform the actual skin and cloned units animate independently`, async () => {
+      const data = readFileSync(`public/assets/characters/warband-${kind}.glb`);
+      const asset = await new GLTFLoader().parseAsync(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength), '');
+      expect(asset.animations).toHaveLength(16);
+      const a = clone(asset.scene), b = clone(asset.scene);
+      const first = new CharacterMotion(a, asset.animations), second = new CharacterMotion(b, asset.animations);
+      expect(a.getObjectByName('handslotr')).toBeDefined();
+      expect(a.getObjectByName('handslotl')).toBeDefined();
+      const boneA = a.getObjectByName('lowerlegl')!, boneB = b.getObjectByName('lowerlegl')!;
+      first.play('Walking_A', 1, 0); second.play('Idle', 1, 0);
+      first.mixer.update(.25); second.mixer.update(.25);
+      expect(boneA.quaternion.angleTo(boneB.quaternion)).toBeGreaterThan(.01);
+      a.updateMatrixWorld(true);
+      let bodies = 0;
+      a.traverse(o => {
+        if (!(o instanceof SkinnedMesh)) return;
+        bodies++; o.skeleton.update();
+        const pos = o.geometry.getAttribute('position'), index = o.geometry.getAttribute('skinIndex'), weights = o.geometry.getAttribute('skinWeight');
+        expect(o.geometry.getAttribute('color')).toBeDefined();
+        for (let i = 0; i < weights.count; i++) {
+          expect(weights.getX(i)+weights.getY(i)+weights.getZ(i)+weights.getW(i)).toBeCloseTo(1, 3);
+          expect(index.getX(i)).toBeLessThan(o.skeleton.bones.length);
+        }
+        const p = new Vector3().fromBufferAttribute(pos, 0); o.applyBoneTransform(0, p);
+        expect([p.x,p.y,p.z].every(Number.isFinite)).toBe(true);
+      });
+      expect(bodies).toBe(6);
+      first.die(); first.update(.1, unit('leader', { t: 'idle' }), true);
+      expect(first.current).toBe('Death_A');
+      expect(first.dead).toBe(true);
+      expect(second.dead).toBe(false);
+      expect(data.byteLength).toBeLessThan(1_100_000);
+      first.dispose(); second.dispose();
     });
   }
+  it('runtime factory merges body draws, keeps faces neutral, and gives clones separate bones', async () => {
+    vi.stubGlobal('document', { createElement: () => ({ width:64, height:64, getContext: () => ({ createRadialGradient: () => ({ addColorStop() {} }), fillRect() {} }) }) });
+    const { instantiateWarband } = await import('../src/render/warband');
+    const bytes = readFileSync('public/assets/characters/warband-barbarian.glb');
+    const source = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength), '');
+    const w = { species:'human', rivalSpecies:'neanderthal' } as World;
+    const player = instantiateWarband(source, {...unit('guard',{t:'idle'}), owner:0, gen:1}, w);
+    const rival = instantiateWarband(source, {...unit('brute',{t:'idle'}), owner:1, gen:1}, w);
+    const bodies: SkinnedMesh[] = []; player.root.traverse(o => { if(o instanceof SkinnedMesh) bodies.push(o); });
+    expect(bodies).toHaveLength(1);
+    expect(player.right).toBeDefined(); expect(player.left).toBeDefined();
+    expect(player.root.getObjectByName('Barbarian_Round_Shield')!.visible).toBe(true);
+    expect(rival.nativeWeapon!.name).toBe('2H_Axe');
+    expect(player.root.getObjectByName('head')).not.toBe(rival.root.getObjectByName('head'));
+    player.motion.play('Walking_A',1,0); player.motion.mixer.update(.3);
+    rival.motion.play('Death_A',1,0); rival.motion.mixer.update(.3);
+    player.root.updateMatrixWorld(true); bodies[0].skeleton.update();
+    const p = new Vector3().fromBufferAttribute(bodies[0].geometry.getAttribute('position'),10);
+    bodies[0].applyBoneTransform(10,p);
+    expect([p.x,p.y,p.z].every(Number.isFinite)).toBe(true);
+    const originalHead = source.scene.getObjectByName('Barbarian_Head') as SkinnedMesh;
+    const originalColors = originalHead.geometry.getAttribute('color');
+    // The source stays immutable so player/rival recolors cannot leak across clones.
+    expect(originalColors.count).toBeGreaterThan(0);
+    const sourceSections: SkinnedMesh[] = []; source.scene.traverse(o => { if(o instanceof SkinnedMesh) sourceSections.push(o); });
+    const headOffset = sourceSections.slice(0,sourceSections.indexOf(originalHead)).reduce((sum,o)=>sum+o.geometry.getAttribute('position').count,0);
+    const mergedColors = bodies[0].geometry.getAttribute('color');
+    for(let i=0;i<originalColors.count;i++) {
+      expect(mergedColors.getX(headOffset+i)).toBeCloseTo(originalColors.getX(i));
+      expect(mergedColors.getY(headOffset+i)).toBeCloseTo(originalColors.getY(i));
+      expect(mergedColors.getZ(headOffset+i)).toBeCloseTo(originalColors.getZ(i));
+    }
+    expect(player.root.getObjectByName('Barbarian_Hat')!.visible).toBe(false);
+    expect(rival.root.getObjectByName('Barbarian_Hat')!.visible).toBe(true);
+    player.motion.dispose(); rival.motion.dispose(); vi.unstubAllGlobals();
+  });
+  it('maps actual jobs and combat roles to distinct authored clips', () => {
+    expect(characterClip(unit('scout', {t:'idle'}), true)).toBe('Running_A');
+    expect(characterClip(unit('guard', {t:'attack',target:1}), false)).toBe('1H_Melee_Attack_Stab');
+    expect(characterClip(unit('brute', {t:'attack',target:1}), false)).toBe('2H_Melee_Attack_Chop');
+    expect(characterClip(unit('hunter', {t:'attack',target:1}), false)).toBe('2H_Ranged_Shoot');
+    expect(characterClip(unit('stalker', {t:'attack',target:1}), false)).toBe('Throw');
+    expect(characterClip(unit('gatherer', {t:'gather',node:1}), false, 'wood')).toBe('1H_Melee_Attack_Chop');
+    expect(characterClip(unit('gatherer', {t:'gather',node:1}), false, 'food')).toBe('PickUp');
+  });
 });

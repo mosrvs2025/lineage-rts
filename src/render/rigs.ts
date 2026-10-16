@@ -1,6 +1,6 @@
 /** Creates and animates unit rigs: skinned people, plus simple articulated deer and wolves. */
 import * as THREE from 'three';
-import { leaderGeometry, leaderMaterial } from './characters';
+import { createWarband, type Warband } from './warband';
 import { SPECIES } from '../data/species';
 import { UNITS } from '../data/units';
 import { hasDisc } from '../sim/rules';
@@ -10,7 +10,7 @@ import { MAT, blobGeo, blobMat, animalGeo, makeSkeleton, personGeo } from './mod
 
 export interface Rig {
   root: THREE.Group; kind: 'person' | 'deer' | 'wolf' | 'mammoth'; unitKind: string;
-  asset?: THREE.BufferGeometry;
+  visual?: Warband;
   mesh: THREE.Mesh;                                  // body (SkinnedMesh for people)
   b: Record<string, THREE.Bone>;                     // bones by name (people)
   legA?: THREE.Mesh; legB?: THREE.Mesh;              // animal leg pairs
@@ -41,8 +41,7 @@ export function createRig(u: Unit, w: World, time: number): Rig {
   const pg = personGeo(u.kind, sp, u.owner === 0 ? 0 : 1, u.gen, u.id);
   const { bones, skeleton } = makeSkeleton();
   const b: Record<string, THREE.Bone> = {}; bones.forEach((bn) => { b[bn.name] = bn; });
-  const asset = u.kind === 'leader' ? leaderGeometry(sp, u.owner, u.gen) : undefined;
-  const mesh = new THREE.SkinnedMesh(asset ?? pg.body, asset ? leaderMaterial : MAT.unit); mesh.add(bones[0]); mesh.bind(skeleton); mesh.frustumCulled = false; mesh.castShadow = true;
+  const mesh = new THREE.SkinnedMesh(pg.body, MAT.unit); mesh.add(bones[0]); mesh.bind(skeleton); mesh.frustumCulled = false; mesh.castShadow = true;
   const mk = (g: THREE.BufferGeometry) => { const m = new THREE.Mesh(g, MAT.unit); m.visible = false; m.castShadow = false; return m; };
   const axe = mk(pg.toolAxe), pick = mk(pg.toolPick), hammer = mk(pg.toolHammer);
   b.handR.add(axe, pick, hammer);
@@ -54,7 +53,7 @@ export function createRig(u: Unit, w: World, time: number): Rig {
   const pack = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.16), MAT.pack.food); pack.position.set(0, 0.12, -0.24); pack.visible = false; pack.castShadow = true; b.spine.add(pack);
   root.add(mesh);
   root.scale.setScalar(SPECIES[sp].scale * (SCALE[u.kind] ?? 1));
-  return { root, asset, kind: 'person', unitKind: u.kind, mesh, b, pack, axe, pick, hammer, spear, bow, torch, flame, ...base };
+  return { root, kind: 'person', unitKind: u.kind, mesh, b, pack, axe, pick, hammer, spear, bow, torch, flame, ...base };
 }
 
 const ARMED = ['guard', 'leader', 'raider', 'scout', 'elder', 'brute', 'champion', 'slinger', 'stalker'];
@@ -92,6 +91,24 @@ export function animateRig(r: Rig, u: Unit, c: AnimCtx): boolean {
     r.mesh.rotation.x = r.kind === 'wolf' && u.order.t === 'attack' && u.cd > def.cd - 0.3 ? -0.18 : Math.sin(r.phase) * 0.03 * w8;
     r.mesh.rotation.z = Math.sin(r.phase * 0.5) * 0.03 * w8;
     return moving;
+  }
+
+  // Swap the whole native rig, not just its geometry: authored clips use different bones.
+  if (!r.visual) {
+    r.visual = createWarband(u, w);
+    if (r.visual) {
+      r.root.add(r.visual.root); r.mesh.visible = false;
+      const attach = (item: THREE.Object3D | undefined, hand: THREE.Object3D) => {
+        if (!item) return;
+        item.removeFromParent(); item.position.set(0, 0, 0);
+        item.scale.setScalar(1 / .62); item.rotation.z = -Math.PI / 2;
+        hand.add(item);
+      };
+      for (const item of [r.spear, r.axe, r.pick, r.hammer]) attach(item, r.visual.right);
+      attach(r.bow, r.visual.left); attach(r.torch, r.visual.left);
+      r.pack!.removeFromParent(); r.pack!.scale.setScalar(1 / .62);
+      r.pack!.position.set(0, 0, -.26); r.visual.root.getObjectByName('chest')!.add(r.pack!);
+    }
   }
 
   // ------------------------------------------------------------ people
@@ -185,5 +202,10 @@ export function animateRig(r: Rig, u: Unit, c: AnimCtx): boolean {
   r.pack!.visible = !!carry; if (carry) r.pack!.material = MAT.pack[u.carry.res!];
   const torch = u.owner === 0 && hasDisc(w, 'portable') && (u.kind === 'hunter' || u.kind === 'guard' || u.kind === 'leader');
   r.torch!.visible = torch; if (torch) r.flame!.scale.set(1, 0.8 + 0.3 * Math.sin(time * 13 + u.id), 1);
+  if (r.visual) {
+    r.visual.motion.update(dt, u, moving, node?.res);
+    // Slot axes differ from the placeholder hands. Keep spear/tall staff upright at rest.
+    if (r.spear) { r.spear.rotation.z = -Math.PI / 2; if (r.visual.nativeWeapon) r.spear.visible = false; }
+  }
   return moving;
 }

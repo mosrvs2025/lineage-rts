@@ -59,7 +59,7 @@ The app is a static Vite build; `vercel.json` already describes it (framework `v
 
 ## Technology and architecture
 
-* **Stack:** TypeScript + Vite; **Three.js (WebGL)** for a tilted-perspective 3D view; plain DOM for the HUD and a 2D overlay canvas for health bars and order lines. No image assets: terrain texture, height field and all models (low-poly trees, tents, longhouse, watch tower, people, deer, wolves) are generated in code (`src/render/art.ts`, `models.ts`). Vitest for tests.
+* **Stack:** TypeScript + Vite; **Three.js (WebGL)** for a tilted-perspective 3D view; plain DOM for the HUD and a 2D overlay canvas for health bars and order lines. Terrain texture, height field and environment models (low-poly trees, tents, longhouse, watch tower, people, deer, wolves) are generated in code (`src/render/art.ts`, `models.ts`). Vitest for tests.
 * **Simulation is separate from rendering.** `src/sim/*` is a deterministic fixed-step (20 Hz), seeded, JSON-serializable simulation with no DOM access; it runs headlessly in tests. `src/render/*` draws a `World` in 3D (it never changes it); `src/ui/*` is input, HUD and the game loop.
 * **Data-driven content:** units (`src/data/units.ts`), buildings (`src/data/buildings.ts`) and the discovery network (`src/data/discoveries.ts`) are tables; objectives live in `src/sim/objectives.ts`.
 * **Saves:** `localStorage` (manual + autosave slots) in a versioned envelope `{format:"lineage-rts-save", version:1, world}`; export/import as a JSON file. Loading validates structure, version and entity ids, and reports errors instead of crashing (see `src/sim/save.ts`).
@@ -153,16 +153,19 @@ Known limitations / not yet done:
 * Rival AI is scripted and simple (no real economy; it ignores fog); trade is a single gift action.
 * Apprenticeship is simplified to a *Teach* activity at a Teaching circle; individual specialist death does not yet cause knowledge loss mid-generation.
 * Only one succession (gen 1 → 2); the second winter is mild; balance has been tuned with scripted bots, not human playtesting.
-* Art is procedural, not hand-drawn; characters are small canvas-drawn figures with simple walk/work/attack animation. Units never collide, they only softly separate.
+* Environment art is procedural; humanoids now use adapted skinned character assets and authored animation clips. Units never collide, they only softly separate.
 * The game now **requires WebGL** (a clear message is shown if it is unavailable). Real-GPU and phone performance is **unmeasured** — this environment only has software rendering, which is far slower than hardware. Render resolution is capped at 1.5× device pixels, shadow maps shrink on small screens, and the bundle is ≈ 617 kB (≈ 160 kB gzipped) because of Three.js.
 * Not tested on real phones/tablets; performance there has not been measured (population is small — rival capped at 22, no hard cap on yours beyond housing).
 
-### Clan leader asset pass
+### Animated warband characters
 
-Clan leaders now load original skinned GLB bodies for Humans, Neanderthals and Denisovans. The new silhouette includes a bone crown, broad fur mantle, tooth necklace, shaped leather clothing, team-colored bib and folded cape. Elbows blend between bones; the imported body uses smooth shading. Existing procedural leaders stay visible until loading succeeds, and remain as a fallback on asset failure. Weapons, tools, fog, generation colors, selection and existing procedural animation remain in use. This pass does **not** add authored animation clips or painted texture maps.
+All eleven humanoid roles now use adapted KayKit barbarian/ranger bodies with their own native rigs and authored animations. Guards have shields, leaders and brutes wear bear pelts, brutes carry a large two-handed axe, and hunters/workers use their contextual equipment. Clan body proportions, faction colors and successor colors are retained. The existing procedural character remains visible while each shared GLB loads, and stays as a fallback if loading fails.
 
-- Editable source: `scripts/build-leader.mjs`; regenerate with `node scripts/build-leader.mjs`.
-- Outputs: `public/assets/characters/leader-{human,neanderthal,denisovan}.glb`, about 350 KiB and 9,054 triangles each. GLBs can be imported into Blender for further editing. No external asset license or service is required.
-- Offline review: `docs/leader-preview.png`; regenerate with `python scripts/render-leader.py` (NumPy and Pillow). This is a CPU-rendered rest-pose review, **not a gameplay screenshot**.
-- Asset tests: `npm test -- tests/characters.test.ts` verifies actual GLTFLoader decoding, exact joint ordering, normalized weights, blended elbows, team-color coverage, bounds and payload budget.
-- Visual verification limitation: the remote browser could not initialize WebGL. Offline geometry inspection and simulation/build checks are available; in-game appearance, animation and physical-phone frame rate still require a GPU browser review. Blender was unavailable in the implementation environment.
+Movement, spear thrusts, axe attacks, ranged attacks, throws, chopping, gathering, research and death use role-specific authored clips with blended transitions. Walking and running are separate. The renderer merges the six skinned body sections into one body draw per character; instance skeletons and animation mixers remain independent. Original gradient-atlas colors are baked into vertices, so no external texture requests are needed.
+
+- Source: KayKit Adventurers 1.0 by Kay Lousberg, CC0. See `docs/character-assets.md` and `public/assets/characters/KayKit-LICENSE.txt`.
+- Rebuild adaptations: `python scripts/import-warband.py /path/to/KayKit-Character-Pack-Adventures-1.0` (NumPy/Pillow).
+- Output: two shared GLBs, approximately 745 KiB each, with sixteen retained animation clips. There is no separate model download for each unit.
+- Offline review: `npm run art:preview` creates `docs/warband-preview.png` from the runtime factory and actual clip poses. It includes a 58-degree overhead view, matching the game camera's pitch. This is an offline CPU render, **not a gameplay screenshot**.
+- Verification: `npm test -- tests/characters.test.ts` loads the shipped GLBs, checks live bone motion, independent cloned skeletons, death transitions, normalized weights, role/command mapping, one merged body draw, equipment and neutral face colors. Production build/typecheck and existing simulation tests also pass.
+- Remaining visual checks: the remote browser cannot initialize WebGL. In-game lighting, animation/equipment alignment throughout every attack, and real-phone frame rate still require GPU-browser review. These are stylized fantasy assets, not a complete Warcraft-quality art overhaul; buildings, terrain and wildlife retain their existing models.
