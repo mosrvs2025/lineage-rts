@@ -59,7 +59,7 @@ The app is a static Vite build; `vercel.json` already describes it (framework `v
 
 ## Technology and architecture
 
-* **Stack:** TypeScript + Vite; **Three.js (WebGL)** for a tilted-perspective 3D view; plain DOM for the HUD and a 2D overlay canvas for health bars and order lines. No image assets: terrain texture, height field and all models (low-poly trees, tents, longhouse, watch tower, people, deer, wolves) are generated in code (`src/render/art.ts`, `models.ts`). Vitest for tests.
+* **Stack:** TypeScript + Vite; **Three.js (WebGL)** for a tilted-perspective 3D view; plain DOM for the HUD and a 2D overlay canvas for health bars and order lines. Terrain texture, height field and environment models (low-poly trees, tents, longhouse, watch tower, people, deer, wolves) are generated in code (`src/render/art.ts`, `models.ts`). Vitest for tests.
 * **Simulation is separate from rendering.** `src/sim/*` is a deterministic fixed-step (20 Hz), seeded, JSON-serializable simulation with no DOM access; it runs headlessly in tests. `src/render/*` draws a `World` in 3D (it never changes it); `src/ui/*` is input, HUD and the game loop.
 * **Data-driven content:** units (`src/data/units.ts`), buildings (`src/data/buildings.ts`) and the discovery network (`src/data/discoveries.ts`) are tables; objectives live in `src/sim/objectives.ts`.
 * **Saves:** `localStorage` (manual + autosave slots) in a versioned envelope `{format:"lineage-rts-save", version:1, world}`; export/import as a JSON file. Loading validates structure, version and entity ids, and reports errors instead of crashing (see `src/sim/save.ts`).
@@ -155,6 +155,19 @@ Known limitations / not yet done:
 * No **gate** (palisades block everyone, including your own units); no follow / focus-target commands, formations, squad stances or morale; no close battle camera.
 * Rival AI is scripted and simple (no real economy; it ignores fog); trade is a single gift action.
 * Balance in Generation 3+ has been verified via simulation tests, not extensive human playtesting.
-* Art is procedural, not hand-drawn; characters are small canvas-drawn figures with simple walk/work/attack animation. Units never collide, they only softly separate.
+* Environment art is procedural; humanoids now use adapted skinned character assets and authored animation clips. Units never collide, they only softly separate.
 * The game now **requires WebGL** (a clear message is shown if it is unavailable). Real-GPU and phone performance is **unmeasured** — this environment only has software rendering, which is far slower than hardware. Render resolution is capped at 1.5× device pixels, shadow maps shrink on small screens, and the bundle is ≈ 617 kB (≈ 160 kB gzipped) because of Three.js.
 * Not tested on real phones/tablets; performance there has not been measured (population is small — rival capped at 22, no hard cap on yours beyond housing).
+
+### Animated warband characters
+
+All eleven humanoid roles now use adapted KayKit barbarian/ranger bodies with their own native rigs and authored animations. Guards have shields, leaders and brutes wear bear pelts, brutes carry a large two-handed axe, and hunters/workers use their contextual equipment. Clan body proportions, faction colors and successor colors are retained. The existing procedural character remains visible while each shared GLB loads, and stays as a fallback if loading fails.
+
+Movement, spear thrusts, axe attacks, ranged attacks, throws, chopping, gathering, research and death use role-specific authored clips with blended transitions. Walking and running are separate. The renderer merges the six skinned body sections into one body draw per character; instance skeletons and animation mixers remain independent. Original gradient-atlas colors are baked into vertices, so no external texture requests are needed.
+
+- Source: KayKit Adventurers 1.0 by Kay Lousberg, CC0. See `docs/character-assets.md` and `public/assets/characters/KayKit-LICENSE.txt`.
+- Rebuild adaptations: `python scripts/import-warband.py /path/to/KayKit-Character-Pack-Adventures-1.0` (NumPy/Pillow).
+- Output: two shared GLBs, approximately 745 KiB each, with sixteen retained animation clips. There is no separate model download for each unit.
+- Offline review: `npm run art:preview` creates `docs/warband-preview.png` from the runtime factory and actual clip poses. It includes a 58-degree overhead view, matching the game camera's pitch. This is an offline CPU render, **not a gameplay screenshot**.
+- Verification: `npm test -- tests/characters.test.ts` loads the shipped GLBs, checks live bone motion, independent cloned skeletons, death transitions, normalized weights, role/command mapping, one merged body draw, equipment and neutral face colors. Production build/typecheck and existing simulation tests also pass.
+- Remaining visual checks: the remote browser cannot initialize WebGL. In-game lighting, animation/equipment alignment throughout every attack, and real-phone frame rate still require GPU-browser review. These are stylized fantasy assets, not a complete Warcraft-quality art overhaul; buildings, terrain and wildlife retain their existing models.
