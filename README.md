@@ -99,7 +99,9 @@ Each map has its own generator (`src/sim/mapgen.ts`), start positions and landma
 
 ### Phone portrait layout
 
-On narrow portrait screens (≤ 560 px wide) the interface switches to a thumb-friendly layout: resources on one row, clock and controls on the next; the dock becomes a single **action bubble** you can drag anywhere (position remembered) that fans its eight actions out in an arc that always stays on screen; and the selection + commands live in a **floating card** with a drag handle, a *pin* (keeps it open with nothing selected) and a *fold* button. Construction sites show a ground progress ring, dust and wood chips; upgrades and research show their own rings. Landscape phones and desktop keep the classic console.
+On narrow portrait screens (≤ 560 px wide), an always-visible action dock sits at the bottom safe area. Selection details and common unit commands sit immediately above it; Move, Work/Attack, Build, Stop, Retreat and leader Rally remain visible as appropriate. **More** reveals advanced Queue, Hold and Patrol actions. Building training/upgrade actions are always available when a building is selected. Camera insets and the minimap account for the current selection card height. Older saved floating-card positions no longer move these core controls; Jobs and Objectives can still be repositioned. Landscape and desktop keep the classic console.
+
+Resource counters are tappable buttons opening live summary sheets. Food shows gathered/harvested rate (before cooking bonuses), meal demand, workers and spoilage; all resources show stored stock and recent net stock change. Rates use simulation time and reset on load/rewind. Population opens housing/worker totals, season opens timing and winter rules, and the idle counter cycles individual idle gatherers. Counter buttons remain mounted across updates to preserve focus.
 
 ### Command conveniences (Warcraft-style)
 
@@ -171,3 +173,8 @@ Movement, spear thrusts, axe attacks, ranged attacks, throws, chopping, gatherin
 - Offline review: `npm run art:preview` creates `docs/warband-preview.png` from the runtime factory and actual clip poses. It includes a 58-degree overhead view, matching the game camera's pitch. This is an offline CPU render, **not a gameplay screenshot**.
 - Verification: `npm test -- tests/characters.test.ts` loads the shipped GLBs, checks live bone motion, independent cloned skeletons, death transitions, normalized weights, role/command mapping, one merged body draw, equipment and neutral face colors. Production build/typecheck and existing simulation tests also pass.
 - Remaining visual checks: the remote browser cannot initialize WebGL. In-game lighting, animation/equipment alignment throughout every attack, and real-phone frame rate still require GPU-browser review. These are stylized fantasy assets, not a complete Warcraft-quality art overhaul; buildings, terrain and wildlife retain their existing models.
+
+
+### Mobile HUD playtest verification
+
+`tests/hud.test.ts` exercises real HUD click handlers and responsive CSS in Happy DOM: immediate quick commands, advanced disclosure, resource/season/population sheets, stable focused counters, idle-worker cycling and measured resource rates. The suite also checks the fixed horizontal dock and that the primary command card remains displayed when advanced commands are folded. These are DOM/CSS checks, not a physical-phone or GPU-browser visual playtest. Safe-area behavior and real-device ergonomics still need on-device review.

@@ -21,13 +21,14 @@ import { setSetting, settings } from './settings';
 import type { Quality } from './settings';
 import type { Game, SaveSlot } from './game';
 import { icon } from './icons';
+import { ResourceHistory } from './resource-summary';
 import { Bubbles } from './bubbles';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 const roman = (g: number) => ROMAN[g] ?? String(g);
-type PanelId = 'build' | 'disc' | null;
+type PanelId = 'build' | 'disc' | 'inspect' | null;
 type Cost = Partial<Record<string, number>>;
 
 const KIND_ICON: Record<string, string> = { gatherer: 'gatherer', scout: 'scout', hunter: 'hunter', guard: 'guard', raider: 'raider', leader: 'leader', elder: 'elder', slinger: 'slinger', brute: 'brute', champion: 'champion', stalker: 'stalker', deer: 'deer', wolf: 'wolf' };
@@ -48,7 +49,7 @@ const buildingTitle = (b: { kind: BuildingKind; tier: number }) => (b.tier > 0 ?
 
 function cbtn(o: BtnOpts): string {
   const tip = o.tip ? ` data-tip="${esc(JSON.stringify({ t: o.tip.t, d: o.tip.d, k: o.tip.k ?? o.key, c: o.tip.cost ?? o.cost }))}"` : '';
-  return `<button class="cb ${o.on ? 'on' : ''} ${o.why ? 'dis' : ''} ${o.cls ?? ''}" data-act="${o.act}" ${o.why ? `data-why="${esc(o.why)}"` : ''}${tip}>
+  return `<button class="cb ${['move', 'work', 'amove', 'build', 'stop', 'retreat', 'rally'].includes(o.act) ? 'quick' : ''} ${o.on ? 'on' : ''} ${o.why ? 'dis' : ''} ${o.cls ?? ''}" data-act="${o.act}" ${o.why ? `data-why="${esc(o.why)}"` : ''}${tip}>
     ${icon(o.ic)}<span class="cl">${o.label}</span>${o.key ? `<kbd>${o.key}</kbd>` : ''}${o.cost ? `<span class="cr">${chips(o.cost, o.w)}</span>` : ''}${o.badge ? `<i class="badge">${o.badge}</i>` : ''}${o.cd && o.cd > 0 ? `<i class="cdw" style="--cd:${Math.min(1, o.cd).toFixed(3)}"></i>` : ''}</button>`;
 }
 
@@ -67,6 +68,10 @@ function portrait(species: Species) {
 
 export class Hud {
   private panel: PanelId = null;
+  private inspecting = 'food';
+  private history = new ResourceHistory();
+  private idleCursor = -1;
+  private workMode = false;
   private lastChips = ''; private lastCmds = ''; private lastObj = ''; private lastPanel = ''; private lastJobs = ''; private lastSel = ''; private lastDock = ''; private lastClock = '';
   private lastLog = ''; private lastTick = 0; private jobsOpen = false; private objOpen: boolean | null = null;
   private springToast = false; private lastSpeed = 1;
@@ -103,7 +108,7 @@ export class Hud {
       (e.target as HTMLInputElement).value = '';
       if (err) this.toast(`Import failed: ${err}`, 'bad'); else { this.closeModal(); this.toast('Save imported.', 'good'); }
     });
-    this.bub = new Bubbles(() => this.layout(), { subOpen: () => this.panelOpen(), closeSub: () => this.closePanels(), notify: (m) => this.toast(m) });
+    this.bub = new Bubbles(() => this.layout(), { notify: (m) => this.toast(m) });
     // HUD boxes never let a touch fall through to the map underneath
     for (const id of ['alertbtn', 'topbar', 'objectives', 'toasts', 'fab', 'bubble', 'jobs', 'panel', 'hud', 'dock', 'placebar', 'modal']) $(id).addEventListener('pointerdown', (e) => e.stopPropagation());
     // the first map touch while a transient window is open only dismisses it (it never also selects units)
@@ -115,7 +120,11 @@ export class Hud {
   layout() {
     if (this.objOpen === null) this.objOpen = window.innerWidth >= 900 && window.innerHeight >= 560;
     const small = window.innerWidth < 900 || window.innerHeight < 560;
-    if (this.bub?.phone) this.g.cam.setInsets(104, 96); else this.g.cam.setInsets(small ? 44 : 60, small ? 120 : 196);
+    if (this.bub?.phone) {
+      const top = Math.ceil($('topbar').getBoundingClientRect().bottom);
+      const card = $('bubble').classList.contains('hidden') ? 0 : $('bubble').getBoundingClientRect().height;
+      this.g.cam.setInsets(top, Math.min(window.innerHeight * .55, $('dock').getBoundingClientRect().height + card + 8));
+    } else this.g.cam.setInsets(small ? 44 : 60, small ? 120 : 196);
   }
 
   // ------------------------------------------------------------ tooltips & toasts
@@ -172,6 +181,21 @@ export class Hud {
     const g = this.g, w = g.world;
     const [cmd, arg] = a.split(':');
     switch (cmd) {
+      case 'inspect':
+        if (!w) break;
+        this.bub.closeFab(); this.closeJobs(); this.inspecting = arg;
+        this.panel = this.panel === 'inspect' && this.inspecting === $('panel').dataset.inspect ? null : 'inspect';
+        $('panel').dataset.inspect = arg; this.renderPanel(true); break;
+      case 'nextidle': {
+        if (!w) break;
+        this.closePanels();
+        const idle = w.units.filter(u => u.owner === 0 && u.kind === 'gatherer' && u.order.t === 'idle');
+        if (!idle.length) { this.toast('Everyone is working.'); break; }
+        const index = idle.findIndex(u => u.id === this.idleCursor);
+        const next = idle[(index + 1) % idle.length]; this.idleCursor = next.id;
+        g.selectUnits([next.id]); g.cam.centerOn(next.x, next.y); break;
+      }
+      case 'work': this.closePanels(); this.workMode = true; g.mode = 'move'; this.toast('Tap a resource to gather, or a construction site to build.'); break;
       case 'pause': if (g.speed === 0) g.speed = this.lastSpeed || 1; else { this.lastSpeed = g.speed; g.speed = 0; } break;
       case 'speed': g.speed = g.speed === 0 ? 1 : g.speed >= 3 ? 1 : g.speed + 1; this.lastSpeed = g.speed; break;
       case 'sound': setSetting('muted', !settings.muted); this.renderTop(); break;
@@ -185,13 +209,13 @@ export class Hud {
       case 'setrally': g.mode = g.mode === 'rally' ? 'normal' : 'rally'; if (g.mode === 'rally') this.toast('Tap where new recruits should gather.'); break;
       case 'gotoalert': { const a = w?.alert; if (a) { g.cam.centerOn(a.x, a.y); g.ping(a.x, a.y, 'rgba(255,90,70,.95)'); } else this.toast('No recent attacks.'); break; }
       case 'objtoggle': this.objOpen = !this.objOpen; this.lastObj = ''; break;
-      case 'objrestore': this.objOpen = true; this.lastObj = ''; break;
+      case 'objrestore': this.closePanels(); this.objOpen = true; this.lastObj = ''; break;
       case 'placeb': g.startPlace(arg as BuildingKind); break;
       case 'place-ok': { const err = g.confirmPlace(); if (err) { sfx.error(); this.toast(err, 'bad'); } else { sfx.place(); this.toast('Construction started.', 'good'); } break; }
       case 'place-cancel': g.cancelPlace(); break;
-      case 'move': g.mode = g.mode === 'move' ? 'normal' : 'move'; break;
-      case 'amove': g.mode = g.mode === 'amove' ? 'normal' : 'amove'; break;
-      case 'patrol': g.mode = g.mode === 'patrol' ? 'normal' : 'patrol'; break;
+      case 'move': this.closePanels(); this.workMode = false; g.mode = g.mode === 'move' ? 'normal' : 'move'; break;
+      case 'amove': this.closePanels(); g.mode = g.mode === 'amove' ? 'normal' : 'amove'; break;
+      case 'patrol': this.closePanels(); g.mode = g.mode === 'patrol' ? 'normal' : 'patrol'; break;
       case 'queue': g.queueMode = !g.queueMode; this.toast(g.queueMode ? 'Queue on: new orders wait their turn.' : 'Queue off.'); break;
       case 'hold': if (w) cmdHold(w, g.sel); break;
       case 'stop': if (w) cmdStop(w, g.sel); break;
@@ -418,7 +442,9 @@ export class Hud {
     this.lastTick = now;
     const w = this.g.world; if (!w) return;
     this.renderTop(); this.renderChips(w, now); this.renderClock(w); this.renderObjectives(w); this.renderDock(w); this.renderSelection(w); this.renderCommands(w);
-    this.bub.update(this.g.liveSel().length > 0 || this.g.selB !== null);
+    this.history.sample(w);
+    const selection = this.g.liveSel();
+    this.bub.update(selection.length > 0 || this.g.selB !== null, selection.length ? selection.join(',') : `b:${this.g.selB}`, selection.length > 0);
     if (++this.placeN % 25 === 0) this.bub.place();
     { const a = w.alert, recent = !!a && !this.g.showcase && w.time - a.t < 15; const ab = $('alertbtn'); ab.classList.toggle('hidden', !recent); if (recent) ab.innerHTML = `${icon('warn')}<span>Under attack</span><kbd>F</kbd>`; }
     $('app').style.setProperty('--lane', `${$('toasts').offsetHeight}px`);
@@ -448,13 +474,30 @@ export class Hud {
       this.prevRes[r] = n;
       const f = this.flash[r] ?? 0, cls = f > now ? 'up' : -f > now ? 'down' : '';
       const low = r === 'food' && n < 25 ? 'low' : '';
-      return `<div class="plate ${r} ${cls} ${low}" data-tip="${esc(JSON.stringify({ t: label, d: { food: 'Feeds the clan. Loose food rots in winter.', wood: 'Buildings, tools and fuel.', stone: 'Tools, weapons and construction.', knowledge: 'From the hearth, teaching circle and exploration. Fuels discoveries.', provisions: 'Smoked food that never spoils. Feeds expeditions beyond supply range.' }[r] ?? '' }))}">${icon(r)}<b>${n}</b>${extra}</div>`;
+      return `<button type="button" data-act="inspect:${r}" aria-label="Inspect ${label}" aria-controls="panel" aria-haspopup="dialog" class="plate ${r} ${cls} ${low}" data-tip="${esc(JSON.stringify({ t: label, d: { food: 'Feeds the clan. Loose food rots in winter.', wood: 'Buildings, tools and fuel.', stone: 'Tools, weapons and construction.', knowledge: 'From the hearth, teaching circle and exploration. Fuels discoveries.', provisions: 'Smoked food that never spoils. Feeds expeditions beyond supply range.' }[r] ?? '' }))}">${icon(r)}<b>${n}</b>${extra}</button>`;
     };
     const cap = popCap(w), pop = popCount(w);
-    const popPlate = `<div class="plate pop ${pop >= cap ? 'low' : ''}" data-tip="${esc(JSON.stringify({ t: 'Population', d: 'Clan members / housing. Build shelters to grow.' }))}">${icon('pop')}<b>${pop}<i>/${cap}</i></b></div>`;
+    const popPlate = `<button type="button" data-act="inspect:pop" aria-label="Inspect population" class="plate pop ${pop >= cap ? 'low' : ''}" data-tip="${esc(JSON.stringify({ t: 'Population', d: 'Clan members / housing. Build shelters to grow.' }))}">${icon('pop')}<b>${pop}<i>/${cap}</i></b></button>`;
+    const idle = w.units.filter(u => u.owner === 0 && u.kind === 'gatherer' && u.order.t === 'idle').length;
+    const idlePlate = `<button type="button" class="plate idle" data-act="nextidle" aria-label="Next idle worker (${idle})">${icon('idle')}<b>${idle}</b></button>`;
     const html = plate('food', 'Food', w.res.food) + plate('wood', 'Wood', w.res.wood) + plate('stone', 'Stone', w.res.stone) + plate('knowledge', 'Knowledge', w.res.knowledge) +
-      (w.res.provisions > 0 || hasDisc(w, 'preservation') ? plate('provisions', 'Provisions', w.res.provisions) : '') + popPlate;
-    if (html !== this.lastChips) { $('chips').innerHTML = html; this.lastChips = html; }
+      (w.res.provisions > 0 || hasDisc(w, 'preservation') ? plate('provisions', 'Provisions', w.res.provisions) : '') + popPlate + idlePlate;
+    if (html !== this.lastChips) {
+      const template = document.createElement('template'); template.innerHTML = html;
+      const chips = $('chips');
+      for (const next of Array.from(template.content.children) as HTMLElement[]) {
+        const current = chips.querySelector<HTMLElement>(`[data-act="${next.dataset.act}"]`);
+        if (!current) chips.appendChild(next);
+        else {
+          for (const attribute of Array.from(next.attributes)) current.setAttribute(attribute.name, attribute.value);
+          if (current.innerHTML !== next.innerHTML) current.innerHTML = next.innerHTML;
+        }
+      }
+      for (const current of Array.from(chips.children) as HTMLElement[]) {
+        if (!template.content.querySelector(`[data-act="${current.dataset.act}"]`) && !html.includes(`data-act="${current.dataset.act}"`)) current.remove();
+      }
+      this.lastChips = html;
+    }
   }
 
   private renderClock(w: World) {
@@ -532,6 +575,7 @@ export class Hud {
   private renderSelection(w: World) {
     const g = this.g, ids = g.liveSel();
     let html = '';
+    $('cmds').classList.toggle('unit-commands', ids.length > 0);
     if (ids.length) {
       const us = ids.map((i) => w._u!.get(i)!).filter(Boolean);
       if (us.length === 1) {
@@ -572,10 +616,13 @@ export class Hud {
   // ------------------------------------------------------------ command card
   private renderCommands(w: World) {
     const g = this.g, ids = g.liveSel();
+    if (g.mode !== 'move') this.workMode = false;
     let h = '';
+    $('cmds').classList.toggle('unit-commands', ids.length > 0);
     if (ids.length) {
       const us = ids.map((i) => w._u!.get(i)!).filter(Boolean);
-      h += cbtn({ act: 'move', ic: 'move', label: 'Move', key: 'M', on: g.mode === 'move', tip: { t: 'Move', d: 'Then tap the destination. You can also right-click or just tap.' } });
+      h += cbtn({ act: 'move', ic: 'move', label: 'Move', key: 'M', on: g.mode === 'move' && !this.workMode, tip: { t: 'Move', d: 'Then tap the destination. You can also right-click or just tap.' } });
+      if (us.some(u => u.kind === 'gatherer')) h += cbtn({ act: 'work', ic: 'jobs', label: 'Work', on: g.mode === 'move' && this.workMode, tip: { t: 'Work', d: 'Then tap a resource or an unfinished building.' } });
       if (us.some((u) => UNITS[u.kind].dmg > 3 || u.kind === 'hunter')) h += cbtn({ act: 'amove', ic: 'attack', label: 'Attack', key: 'A', on: g.mode === 'amove', tip: { t: 'Attack-move', d: 'Advance and engage anything on the way.' } });
       if (us.some((u) => UNITS[u.kind].dmg > 3)) h += cbtn({ act: 'patrol', ic: 'patrol', label: 'Patrol', key: 'P', on: g.mode === 'patrol', tip: { t: 'Patrol', d: 'Then tap a point: they walk back and forth between here and there, fighting anything they meet.' } });
       h += cbtn({ act: 'queue', ic: 'queue', label: 'Queue', key: '⇧', on: g.queueMode, tip: { t: 'Queue orders (Shift)', d: 'While on, each order is added after the current one instead of replacing it. With a mouse, just hold Shift.' } });
@@ -634,10 +681,36 @@ export class Hud {
     if (!this.panel || !w) { el.classList.add('hidden'); el.innerHTML = ''; this.lastPanel = ''; return; }
     const body = this.panel === 'build'
       ? `<h3>${icon('build')}Construction</h3><div class="bgrid">${BUILD_ORDER.map((k) => this.buildCard(k)).join('')}</div>`
-      : this.discPanel();
+      : this.panel === 'inspect' ? this.inspectPanel(w) : this.discPanel();
     const html = `<div class="sheet"><button data-act="closepanel" class="xbtn" aria-label="Close">${icon('close')}</button>${body}</div>`;
     if (force || html !== this.lastPanel) { el.innerHTML = html; this.lastPanel = html; }
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-labelledby', 'panel-heading');
+    el.querySelector('h3')?.setAttribute('id', 'panel-heading');
     el.classList.remove('hidden');
+  }
+
+  private inspectPanel(w: World) {
+    const target = this.inspecting, jobs = jobCounts(w);
+    const row = (label: string, value: string | number) => `<div><dt>${label}</dt><dd>${value}</dd></div>`;
+    if (target === 'season') {
+      const winter = isWinter(w), before = w.time < w.winter.start;
+      const heading = winter ? 'Winter' : before ? 'Winter preparations' : 'Spring';
+      const countdown = winter ? `Spring in ${fmtTime(w.winter.end - w.time)}` : before ? `Winter in ${fmtTime(w.winter.start - w.time)}` : 'Winter has passed';
+      return `<h3>${icon(winter ? 'snow' : 'sun')}${heading}</h3><p>${countdown} · Generation ${roman(w.gen)}</p><p>Winter increases meal demand and spoils loose food. Keep units near warmth and preserve food for expeditions.</p><div class="row"><button class="btn" data-act="disc">Discoveries</button><button class="btn" data-act="objrestore">Objectives</button></div>`;
+    }
+    if (target === 'pop') {
+      return `<h3>${icon('pop')}Population &amp; workers</h3><dl class="resource-grid">${row('Clan members', popCount(w))}${row('Housing capacity', popCap(w))}${row('Idle workers', jobs.idle)}${row('Building / researching', jobs.build)}</dl><div class="row"><button class="btn" data-act="nextidle">Next idle worker</button><button class="btn" data-act="jobs">Worker jobs</button><button class="btn" data-act="build">Build housing</button></div>`;
+    }
+    const resource = (['food','wood','stone','knowledge','provisions'].includes(target) ? target : 'food') as keyof World['res'];
+    const labels: Record<keyof World['res'], string> = { food:'Food', wood:'Wood', stone:'Stone', knowledge:'Knowledge', provisions:'Provisions' };
+    const rates = this.history.rates(w, resource);
+    const rate = (n: number | null, signed = false) => n === null ? 'Measuring…' : `${signed && n > 0 ? '+' : ''}${n.toFixed(1)} / min`;
+    let stats = row('Stored', Math.floor(w.res[resource])) + row('Recent net stock change', rate(rates.net, true));
+    if (resource === 'food') stats += row('Gathered &amp; harvested before cooking', rate(rates.gathered)) + row('Meal demand', rate(rates.foodDemand)) + row('Food workers', jobs.food) + row('Food spoiled this campaign', Math.floor(w.stats.spoiled));
+    else if (resource === 'wood' || resource === 'stone') stats += row('Assigned workers', jobs[resource]);
+    const note = resource === 'food' ? 'Meal demand excludes spoilage and smoking. Gathered/harvested food is measured before cooking bonuses.' : resource === 'provisions' ? 'Smoking racks turn loose food into provisions. Provisions do not spoil and support expeditions.' : resource === 'knowledge' ? 'Hearths and teaching circles generate knowledge; investigations and teaching spend it.' : 'Workers collect resources and deliver them to a nearby drop-off.';
+    return `<h3>${icon(resource)}${labels[resource]}</h3><dl class="resource-grid">${stats}</dl><p>${note}</p><p class="fine">Recent change uses up to 30 seconds of simulation time and includes income, spending and upkeep.</p><div class="row"><button class="btn" data-act="jobs">Worker jobs</button>${['food','wood','stone'].includes(resource) ? `<button class="btn primary" data-act="job:${resource}">Assign a worker</button>` : `<button class="btn" data-act="disc">Discoveries</button>`}</div>`;
   }
 
   private buildCard(k: BuildingKind) {

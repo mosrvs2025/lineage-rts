@@ -18,7 +18,7 @@
 
     <header id="topbar">
       <div id="chips"></div>
-      <div id="clock"></div>
+      <button type="button" id="clock" data-act="inspect:season" aria-label="Inspect season and generation"></button>
       <div id="topbtns">
         <button data-act="pause" id="b-pause" class="ib" aria-label="Pause"></button>
         <button data-act="speed" id="b-speed" class="ib" aria-label="Game speed">1x</button>
@@ -32,7 +32,7 @@
     <button id="alertbtn" class="hidden" data-act="gotoalert" aria-label="Jump to attack"></button>
     <nav id="dock"></nav>
     <div id="fab" class="hidden"><button id="fabbtn" aria-label="Actions menu"></button></div>
-    <div id="bubble" class="hidden"><div id="bgrip"><span class="grip"></span><button id="bpin" class="mini pinbtn" aria-label="Pin: lock position and keep open"></button><button id="bfold" class="mini" aria-label="Fold"></button></div><div id="bbody"></div></div>
+    <div id="bubble" class="hidden"><div id="bgrip"><span class="grip">Commands</span><button id="bpin" class="mini pinbtn" aria-label="Pin: lock position and keep open"></button><button id="bfold" class="mini" aria-label="More commands"></button></div><div id="bbody"></div></div>
 
     <footer id="hud">
       <div id="mini"><canvas id="minimap" width="216" height="144"></canvas></div>
