@@ -94,7 +94,7 @@ export class Bot {
     if (this.opts.gift && w.time > 150 && w.time < w.truceUntil - 150 + 1 && w.res.food > 120) { /* skip */ }
     if (this.opts.gift && w.time >= w.truceUntil && w.res.food >= 140 && w.time < 700) cmdGift(w);
     // generation
-    if (canSucceed(w)) { advanceGeneration(w, 0); this.trace.push(`${Math.floor(w.time)}s succession`); }
+    if (w.gen === 1 && canSucceed(w)) { advanceGeneration(w, 0); this.trace.push(`${Math.floor(w.time)}s succession`); }
     if (w.gen >= 2) this.expedition();
   }
 

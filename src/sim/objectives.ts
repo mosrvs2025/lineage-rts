@@ -1,3 +1,4 @@
+import { DISC_ORDER } from '../data/discoveries';
 import { hasDisc } from './rules';
 import type { World } from './types';
 import { compass, fmtTime } from './util';
@@ -20,9 +21,17 @@ export function objectiveList(w: World): Objective[] {
       { id: 'succeed', gen: 1, text: 'Advance to the next generation', done: false },
     ];
   }
+  if (w.gen === 2 && !w.endless) {
+    return [
+      { id: 'prov', gen: 2, text: `Stock ${OUTPOST_REQUIRE} provisions for an expedition`, done: d.prov },
+      { id: 'era2', gen: 2, text: 'Investigate a Generation II discovery (Pottery, Farming, Boats or Controlled heat)', done: d.era2 },
+      { id: 'outpost', gen: 2, text: `Raise an outpost at the Far Meadow (${compass(w, meadowOf(w))})`, done: !!d.outpost },
+    ];
+  }
   return [
-    { id: 'prov', gen: 2, text: `Stock ${OUTPOST_REQUIRE} provisions for an expedition`, done: d.prov },
-    { id: 'outpost', gen: 2, text: `Raise an outpost at the Far Meadow (${compass(w, meadowOf(w))})`, done: false },
+    { id: 'era2p', gen: w.gen, text: 'Preserve a Generation II discovery at a Teaching circle', done: d.era2p },
+    { id: 'era3', gen: w.gen, text: 'Master a Generation III discovery (High-heat kilns or Seasonal irrigation)', done: d.era3 },
+    { id: 'rival', gen: w.gen, text: 'Defeat the rival clan\'s hearth to claim the entire valley', done: false },
   ];
 }
 
@@ -32,17 +41,26 @@ export function updateObjectives(w: World) {
   if (has(w, 'stockpile') && has(w, 'toolshelter')) d.base = true;
   if (hasDisc(w, 'preservation')) d.smoke = true;
   if (has(w, 'rack')) d.rack = true;
-  if (w.disc.cooking === 'preserved' || w.disc.preservation === 'preserved' || w.disc.portable === 'preserved' || w.disc.heat === 'preserved') d.teach = true;
+  if (DISC_ORDER.some((id) => w.disc[id] === 'preserved')) d.teach = true;
   if (w.time >= w.winter.end && w.gen === 1) d.winter = true;
   if (w.gen >= 2 && w.res.provisions >= OUTPOST_REQUIRE) d.prov = true;
+  if (['heat', 'pottery', 'farming', 'boats'].some((id) => hasDisc(w, id as never))) d.era2 = true;
+  if (['heat', 'pottery', 'farming', 'boats'].some((id) => w.disc[id as never] === 'preserved')) d.era2p = true;
+  if (hasDisc(w, 'kiln') || hasDisc(w, 'irrigation')) d.era3 = true;
+  if (w.buildings.some((b) => b.owner === 0 && b.outpost && b.done)) d.outpost = true;
 }
 
 /** Victory/defeat check. */
 export function checkEnd(w: World) {
   if (w.status !== 'playing') return;
-  if (w.gen >= 2 && w.buildings.some((b) => b.owner === 0 && b.outpost && b.done)) {
+  if (!w.endless && w.gen >= 2 && w.buildings.some((b) => b.owner === 0 && b.outpost && b.done)) {
     w.status = 'won';
     w.endMsg = 'Your descendants stand at the Far Meadow, fed by food their ancestors learned to smoke. The lineage reaches beyond the valley.';
+    return;
+  }
+  if (w.endless && !w.buildings.some((b) => b.owner === 1 && b.kind === 'hearth')) {
+    w.status = 'won';
+    w.endMsg = 'Across generations of inherited knowledge, your civilization has united the entire land and outlasted every rival.';
     return;
   }
   const hearth = w.buildings.some((b) => b.owner === 0 && b.kind === 'hearth');

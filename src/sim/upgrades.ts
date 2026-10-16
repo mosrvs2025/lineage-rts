@@ -95,7 +95,8 @@ function towerFire(w: World, b: Building) {
   b.cd = (b.cd ?? 0) - DT;
   if (b.cd > 0) return;
   const c = bCenter(b);
-  const range = b.tier >= 2 ? 11 : 9, dmg = b.tier >= 2 ? 9 : 6;
+  const range = b.tier >= 2 ? 11 : 9;
+  const dmg = (b.tier >= 2 ? 9 : 6) * (b.owner === 0 && hasDisc(w, 'kiln') ? 1.3 : 1);
   let best: { x: number; y: number; hp: number } | undefined, bd = range;
   for (const u of w.units) {
     if (u.owner === b.owner || u.kind === 'deer' || u.hp <= 0) continue;

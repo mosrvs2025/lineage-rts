@@ -224,6 +224,23 @@ export function buildingParts(kind: BuildingKind, owner: 0 | 1, w: number, h: nu
       P.push({ g: cyl(0.42, 0.45, 0.06, 9), c: '#2b2622', p: [0, 0.05, 0] });
       break;
     }
+    case 'field': {
+      P.push({ g: box(1.88, 0.08, 1.88), c: '#4e3924', p: [0, 0.04, 0] });
+      for (let r = 0; r < 4; r++) {
+        const z = -0.66 + r * 0.44;
+        P.push({ g: box(1.66, 0.09, 0.22), c: shade('#5c432a', 0.9 + (r % 2) * 0.12), p: [0, 0.09, z] });
+        for (let c = 0; c < 6; c++) {
+          const x = -0.65 + c * 0.26, h1 = 0.34 + ((r + c) % 3) * 0.08;
+          P.push(
+            { g: cyl(0.02, 0.03, h1, 5), c: '#6a9e3a', p: [x, 0.12 + h1 / 2, z] },
+            { g: sph(0.065, 0), c: (r + c) % 2 ? '#d8b44a' : '#82b446', p: [x, 0.14 + h1, z], s: [0.8, 1.4, 0.8] },
+          );
+        }
+      }
+      for (const sx of [-0.9, 0.9]) for (const sz of [-0.9, 0.9]) P.push({ g: cyl(0.035, 0.04, 0.42, 5), c: '#6a4a2c', p: [sx, 0.21, sz] });
+      P.push(...banner(0.88, -0.88, 1.15, team));
+      break;
+    }
     case 'watch': {
       dirt(1.1, 1.1);
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) P.push({ g: cyl(0.06, 0.09, 3.0, 6), c: '#6a4526', p: [sx * 0.7, 1.5, sz * 0.7], r: [-sz * 0.05, 0, sx * 0.05] });
@@ -304,6 +321,11 @@ function tierParts(kind: BuildingKind, tier: number, team: string, P: Part[]) {
     case 'rack': {
       P.push({ g: box(2.1, 1.1, 1.1), c: '#5a4030', p: [0, 0.55, 0.0] }, { g: cone(1, 0.7, 4), c: '#8b6a3a', p: [0, 1.45, 0], r: [0, Math.PI / 4, 0], s: [1.55, 1, 0.9] });
       P.push({ g: cyl(0.12, 0.14, 0.8, 6), c: '#4a4a52', p: [0.6, 1.7, 0.1] }, { g: box(0.5, 0.7, 0.05), c: '#20150e', p: [0, 0.35, 0.56] });
+      break;
+    }
+    case 'field': {
+      for (const s of [-1, 1]) P.push({ g: box(1.96, 0.18, 0.1), c: '#9a9ca6', p: [0, 0.09, s * 0.93] }, { g: box(0.1, 0.18, 1.96), c: '#9a9ca6', p: [s * 0.93, 0.09, 0] });
+      P.push({ g: box(1.72, 0.06, 0.14), c: '#3a86b8', p: [0, 0.11, 0] });
       break;
     }
     case 'watch': {

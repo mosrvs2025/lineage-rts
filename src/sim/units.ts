@@ -21,10 +21,21 @@ const footprint = (b: Building): Rect => ({ x: b.x, y: b.y, w: b.w, h: b.h });
 
 type MoveResult = 'arrived' | 'moving' | 'stuck';
 
+function onWaterEdge(w: World, x: number, y: number): boolean {
+  const tx = Math.floor(x), ty = Math.floor(y);
+  if (w.terrain[ty]?.[tx] === '=') return true;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const c = w.terrain[ty + dy]?.[tx + dx];
+    if (c === '~' || c === '=' || c === 'L') return true;
+  }
+  return false;
+}
+
 function speedOf(w: World, u: Unit) {
   let s = UNITS[u.kind].speed;
   if (u.owner === 0) {
     if (u.kind === 'scout') s *= w.trait === 'recon' ? 1.2 : 1;
+    if (hasDisc(w, 'boats') && onWaterEdge(w, u.x, u.y)) s *= 1.4;
   }
   if (u.owner === 0 && hasTech(w, 'fleet') && (u.kind === 'scout' || u.kind === 'raider' || u.kind === 'slinger' || u.kind === 'stalker')) s *= 1.15;
   if (u.buff > 0) s *= 1.35;
@@ -223,7 +234,7 @@ function doGather(w: World, u: Unit) {
   const r = moveTo(w, u, node.x + 0.5, node.y + 0.5, 1.5, { x: node.x, y: node.y, w: 1, h: 1 });
   if (r === 'stuck') { setOrder(u, { t: 'idle' }); return; }
   if (r === 'arrived') {
-    u.work += gatherRate(w, u, node.res, node.kind === 'carcass') * DT;
+    u.work += gatherRate(w, u, node.res, node.kind === 'carcass', node.kind === 'fish') * DT;
     while (u.work >= 1 && u.carry.n < cap && node.amount >= 1) {
       u.work -= 1; u.carry.res = node.res; u.carry.n++; node.amount--; u.carry.meat = node.kind === 'carcass';
       if (u.owner === 0 && u.carry.n % 2 === 1) emit(w, { k: node.res === 'wood' ? 'chop' : node.res === 'stone' ? 'mine' : 'pick', x: node.x + 0.5, y: node.y + 0.5, owner: 0 });

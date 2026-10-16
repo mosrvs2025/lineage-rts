@@ -39,9 +39,10 @@ export function makeUnit(w: World, kind: UnitKind, owner: Owner, x: number, y: n
 
 export function makeBuilding(w: World, kind: BuildingKind, owner: Owner, tx: number, ty: number, done: boolean): Building {
   const d = BUILDINGS[kind];
+  const mhp = owner === 0 && (w.disc?.kiln === 'known' || w.disc?.kiln === 'preserved') ? Math.round(d.hp * 1.35) : d.hp;
   const b: Building = {
     id: w.nextId++, kind, owner, x: tx, y: ty, w: d.w, h: d.h,
-    hp: done ? d.hp : Math.max(1, d.hp * 0.1), maxHp: d.hp, progress: done ? 1 : 0, done,
+    hp: done ? mhp : Math.max(1, mhp * 0.1), maxHp: mhp, progress: done ? 1 : 0, done,
     queue: [], tick: 0, tier: 0,
   };
   w.buildings.push(b); w._b?.set(b.id, b);
@@ -87,7 +88,12 @@ export function createWorld(species: Species, seed = 1337, mapId = 'valley', riv
     W, H, terrain: [], nextId: 1, units: [], buildings: [], nodes: [],
     res: { ...M.start, knowledge: 5, provisions: 0 },
     stats: { food: 0, meat: 0, kills: 0, lost: 0, spoiled: 0 },
-    disc: { cooking: 'hidden', preservation: 'hidden', portable: 'hidden', heat: 'hidden' },
+    disc: {
+      cooking: 'hidden', preservation: 'hidden', portable: 'hidden',
+      heat: 'hidden', pottery: 'hidden', farming: 'hidden', boats: 'hidden',
+      kiln: 'hidden', irrigation: 'hidden',
+    },
+    specialists: {},
     techs: {},
     activities: [], explored: '0'.repeat(W * H),
     landmarks: [

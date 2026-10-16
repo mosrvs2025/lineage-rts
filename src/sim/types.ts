@@ -7,9 +7,12 @@ export type UnitKind =
 export type CostMap = Partial<Record<Res | 'knowledge', number>>;
 export type BuildingKind =
   | 'hearth' | 'shelter' | 'stockpile' | 'toolshelter' | 'lodge'
-  | 'circle' | 'rack' | 'watch' | 'palisade';
+  | 'circle' | 'rack' | 'field' | 'watch' | 'palisade';
 export type Owner = 0 | 1 | 2; // 0 player clan, 1 rival clan, 2 wildlife
-export type DiscoveryId = 'cooking' | 'preservation' | 'portable' | 'heat';
+export type DiscoveryId =
+  | 'cooking' | 'preservation' | 'portable' | 'heat'
+  | 'pottery' | 'farming' | 'boats'
+  | 'kiln' | 'irrigation';
 export type DiscState = 'hidden' | 'clue' | 'known' | 'preserved' | 'faded';
 
 export interface Pt { x: number; y: number }
@@ -135,6 +138,8 @@ export interface World {
   res: { food: number; wood: number; stone: number; knowledge: number; provisions: number };
   stats: { food: number; meat: number; kills: number; lost: number; spoiled: number };
   disc: Record<DiscoveryId, DiscState>;
+  specialists?: Partial<Record<DiscoveryId, number>>;
+  endless?: boolean;
   techs: Record<string, boolean>;
   activities: Activity[];
   explored: string;
