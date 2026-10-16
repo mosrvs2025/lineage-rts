@@ -361,9 +361,67 @@ kbd { font: 600 10px var(--ui); padding: 1px 5px; border-radius: 4px; background
 .cb .cdw::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: conic-gradient(from calc(var(--cd) * 360deg), rgba(255,220,140,.9) 0 2deg, transparent 0); mix-blend-mode: screen; opacity: .8; }
 .cb.dis:has(.cdw) { opacity: .85; filter: none; }
 
-/* ---- clan & map selection */
-.clancards.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.clan .h2b { margin-top: 18px; }
+/* ---- clan & map selection + 3D character showcase */
+#modal.clanscreen { place-items: start center; overflow-y: auto; padding: 16px 14px 28px; }
+#modal.clanscreen .clan { width: min(1140px, 100%); margin: auto; }
+.clan h2 { margin-top: 2px; }
+.clan-top-grid { display: grid; grid-template-columns: 1.38fr 1fr; gap: 16px; align-items: stretch; }
+.clancards.three { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.clancard { padding: 12px 10px 14px; justify-content: flex-start; }
+.portrait-wrap { position: relative; width: 112px; height: 112px; border-radius: 50%; padding: 3px; background: radial-gradient(circle at 50% 32%, var(--band, #4a3a28), #14100b 75%); border: 3px solid var(--edge); box-shadow: 0 6px 20px rgba(0,0,0,.65), inset 0 0 18px rgba(0,0,0,.65); overflow: hidden; transition: border-color .2s, transform .2s, box-shadow .2s; }
+.clancard:hover .portrait-wrap { transform: scale(1.04); border-color: var(--gold2); }
+.clancard.on .portrait-wrap { border-color: var(--gold); box-shadow: 0 0 22px rgba(232,189,99,.55), 0 6px 20px rgba(0,0,0,.7); }
+.clancard .portrait { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; border: none; box-shadow: none; display: block; }
+.stat-bars { width: 100%; display: grid; gap: 4px; margin: 6px 0 4px; padding: 6px 8px; border-radius: 9px; background: rgba(0,0,0,.32); border: 1px solid var(--edge2); }
+.sbar { display: grid; grid-template-columns: 58px 1fr; align-items: center; gap: 6px; font-size: 10.5px; color: #cfc3a4; text-align: left; }
+.strack { height: 5px; border-radius: 999px; background: rgba(0,0,0,.65); overflow: hidden; border: 1px solid rgba(255,255,255,.06); }
+.strack i { display: block; height: 100%; border-radius: 999px; box-shadow: 0 0 8px rgba(232,189,99,.45); }
+
+/* 3D Character & Unit Showcase Stage */
+.stage-card { background: var(--panel); border: 2px solid var(--gold2); border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; text-align: left; box-shadow: inset 0 1px 0 rgba(255,235,190,.18), 0 8px 26px rgba(0,0,0,.65); }
+.stage-hdr { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.stage-kicker { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); font-weight: 600; }
+.stage-hdr h3 { margin: 1px 0 0; font-family: var(--disp); font-size: 20px; color: var(--gold); letter-spacing: .05em; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.uniq-pill { font: 700 9.5px var(--ui); text-transform: uppercase; letter-spacing: .08em; padding: 2px 7px; border-radius: 999px; background: rgba(232,189,99,.18); border: 1px solid var(--gold); color: #ffe59e; font-style: normal; }
+.gen-pills { display: flex; gap: 4px; background: rgba(0,0,0,.38); padding: 3px; border-radius: 9px; border: 1px solid var(--edge2); }
+.gpill { padding: 3px 8px; border-radius: 6px; font: 700 10.5px var(--disp); background: transparent; border: 1px solid transparent; color: var(--muted); }
+.gpill.on { background: linear-gradient(180deg, #5a4526, #2b2112); border-color: var(--gold); color: var(--gold); box-shadow: 0 0 10px rgba(232,189,99,.35); }
+.stage-viewport { position: relative; height: 224px; border-radius: 12px; background: radial-gradient(circle at 50% 62%, #3a2918 0%, #19130d 62%, #0d0a07 100%); border: 1px solid var(--edge); overflow: hidden; box-shadow: inset 0 0 28px rgba(0,0,0,.85); }
+#clan-stage-canvas { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+#clan-stage-canvas:active { cursor: grabbing; }
+.drag-hint { position: absolute; top: 8px; left: 10px; font-size: 10.5px; color: rgba(240,233,216,.65); display: inline-flex; align-items: center; gap: 4px; pointer-events: none; background: rgba(0,0,0,.42); padding: 2px 8px; border-radius: 999px; }
+.pose-bar { position: absolute; bottom: 8px; right: 8px; display: flex; gap: 4px; background: rgba(10,8,6,.72); padding: 3px; border-radius: 8px; border: 1px solid var(--edge2); }
+.ppill { padding: 2px 8px; border-radius: 5px; font: 600 10px var(--ui); text-transform: uppercase; letter-spacing: .05em; background: transparent; border: 1px solid transparent; color: var(--muted); }
+.ppill.on { background: rgba(232,189,99,.22); border-color: var(--gold); color: #ffe7a8; }
+.unit-tabs { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.utab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 5px 2px; border-radius: 8px; background: rgba(0,0,0,.35); border: 1px solid var(--edge2); color: #d8cdb4; transition: border-color .15s, transform .1s; }
+.utab .ic { font-size: 17px; color: #efe0b8; }
+.utab span { font-size: 9px; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.utab.uniq { border-color: rgba(232,189,99,.45); }
+.utab.on { background: linear-gradient(180deg, #4a3d26, #241c11); border-color: var(--gold); box-shadow: 0 0 12px rgba(232,189,99,.4); }
+.utab.on .ic, .utab.on span { color: var(--gold); }
+.stage-unit-info { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 9px; background: rgba(0,0,0,.32); border: 1px solid var(--edge2); }
+.u-stats { display: flex; gap: 6px; flex: none; }
+.u-stats span { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; padding: 2px 6px; border-radius: 6px; background: rgba(0,0,0,.45); color: #efe0b8; }
+.u-stats .ic { font-size: 12px; color: var(--gold); }
+.stage-unit-info p { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.25; }
+.custom-bar { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding-top: 4px; border-top: 1px solid var(--edge2); }
+.cfield { display: flex; flex-direction: column; gap: 4px; }
+.cfield label { font: 700 10px var(--disp); text-transform: uppercase; letter-spacing: .1em; color: var(--gold); display: inline-flex; align-items: center; gap: 5px; }
+.leader-input-row { display: flex; gap: 5px; align-items: center; }
+#leader-name-input { width: 100%; min-width: 110px; height: 30px; padding: 0 9px; border-radius: 7px; border: 1px solid var(--edge); background: #120f0b; color: var(--text); font: 600 13px var(--disp); letter-spacing: .04em; outline: none; }
+#leader-name-input:focus { border-color: var(--gold); box-shadow: 0 0 8px rgba(232,189,99,.4); }
+.swatches { display: flex; gap: 6px; align-items: center; }
+.swatch { width: 24px; height: 24px; border-radius: 50%; background: var(--sw); border: 2px solid rgba(255,255,255,.28); padding: 0; transition: transform .12s, box-shadow .15s; }
+.swatch:hover { transform: scale(1.12); }
+.swatch.on { border-color: #fff; transform: scale(1.16); box-shadow: 0 0 12px var(--sw), 0 0 0 2px var(--gold); }
+
+/* In-game 3D unit selection portrait */
+.pf.p3d { position: relative; overflow: visible; padding: 0; background: radial-gradient(circle at 50% 35%, #4a3a24, #14100b 75%); }
+#sel-portrait-canvas { width: 100%; height: 100%; display: block; border-radius: 50%; }
+.pf-badge { position: absolute; right: -4px; bottom: -4px; width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(180deg, #3c3120, #1c160e); border: 2px solid var(--gold); display: grid; place-items: center; font-size: 15px; color: var(--gold); box-shadow: 0 2px 8px rgba(0,0,0,.75); font-style: normal; pointer-events: none; }
+
+.clan .h2b { margin-top: 16px; }
 .mapcards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .mapcard { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 12px; text-align: left; border: 2px solid var(--edge); background: var(--noise), linear-gradient(180deg, #3a3020, #1d1710); transition: transform .12s, border-color .15s; }
 .mapcard:hover { transform: translateY(-2px); border-color: var(--gold2); }
@@ -373,14 +431,25 @@ kbd { font: 600 10px var(--ui); padding: 1px 5px; border-radius: 4px; background
 .mapcard small { color: var(--muted); font-size: 11.5px; line-height: 1.3; }
 .mdiff { position: absolute; top: 12px; right: 12px; font: 700 9.5px var(--ui); letter-spacing: .1em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: rgba(0,0,0,.6); color: #fff; }
 .mdiff.d-harsh { color: #9fd0ff; } .mdiff.d-gentle { color: #a8f08a; } .mdiff.d-open { color: #ffd27a; }
+.mfeat { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; } .mfeat li { font-size: 11px; color: #e6d6a8; padding-left: 12px; position: relative; line-height: 1.25; } .mfeat li::before { content: ''; position: absolute; left: 2px; top: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--gold); }
+@media (max-width: 980px) {
+  .clan-top-grid { grid-template-columns: 1fr; }
+  .stage-viewport { height: 200px; }
+}
 @media (max-width: 899px), (max-height: 559px) {
   .clancards.three { gap: 8px; } .clancards.three .clancard li { font-size: 10px; }
+  .portrait-wrap { width: 72px; height: 72px; }
+  .stat-bars { display: none; }
+  .stage-viewport { height: 170px; }
+  .stage-unit-info { flex-direction: column; align-items: flex-start; gap: 4px; }
   .mapcards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; } .mapcard small { display: none; } .mapcard b { font-size: 13px; }
+  .mfeat { display: none; }
+  .pf-badge { width: 20px; height: 20px; font-size: 11px; right: -2px; bottom: -2px; }
 }
-@media (max-width: 560px) and (orientation: portrait) { .clancards.three { grid-template-columns: 1fr; } }
-#modal.clanscreen { place-items: start center; overflow-y: auto; padding: 18px 14px 28px; } #modal.clanscreen .clan { margin: auto; } .clan h2 { margin-top: 4px; }
-.mfeat { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; } .mfeat li { font-size: 11px; color: #e6d6a8; padding-left: 12px; position: relative; line-height: 1.25; } .mfeat li::before { content: ''; position: absolute; left: 2px; top: 5px; width: 5px; height: 5px; border-radius: 50%; background: var(--gold); }
-@media (max-width: 899px), (max-height: 559px) { .mfeat { display: none; } }
+@media (max-width: 560px) and (orientation: portrait) {
+  .clancards.three { grid-template-columns: 1fr; }
+  .custom-bar { grid-template-columns: 1fr; }
+}
 
 /* Playtest pass: bottom-anchored phone controls and tap-to-inspect status. */
 button.plate, button#clock { text-align: left; }
@@ -429,3 +498,4 @@ button.plate:focus-visible, button#clock:focus-visible, .cb:focus-visible, .dk:f
 }
 
 .cb[hidden] { display: none !important; }
+

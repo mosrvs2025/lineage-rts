@@ -1,9 +1,10 @@
-/** Low-poly 3D models built from primitives (no asset files) and the materials/shader patches they share. */
+/** Low-poly 3D models built from Blender-sculpted meshes and primitives, plus the materials/shader patches they share. */
 import * as THREE from 'three';
 import { SPECIES } from '../data/species';
 import type { Species } from '../sim/types';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { BuildingKind, UnitKind } from '../sim/types';
+import { blenderGeo } from './blenderMeshes';
 
 // ------------------------------------------------------------------ shared shader state (fog of war, snow, wind)
 const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
@@ -65,6 +66,7 @@ export function enhance<T extends THREE.MeshStandardMaterial>(m: T, o: { sway?: 
 
 /** Soft radial contact shadow shared by trees, buildings and units. */
 const blobTex = (() => {
+  if (typeof document === 'undefined') return null;
   const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d')!;
   const gr = g.createRadialGradient(32, 32, 2, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,0.85)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.38)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
   g.fillStyle = gr; g.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); return t;
@@ -273,9 +275,9 @@ function tierParts(kind: BuildingKind, tier: number, team: string, P: Part[]) {
   switch (kind) {
     case 'hearth': {
       for (let i = 0; i < 18; i++) { const a = (i / 18) * 6.283; P.push({ g: rock(0.26), c: shade('#b4b8c0', 0.8 + (i % 3) * 0.1), p: [Math.cos(a) * 1.55, 0.2, Math.sin(a) * 1.55], s: [1, 0.9, 1] }); }
-      // carved totem
-      P.push(post(1.75, 0.6, 2.6, 0.17));
-      [[0.5, '#c23a2a'], [1.0, '#e8dcc0'], [1.5, '#2a2a30'], [2.0, team]].forEach(([y, c]) => P.push({ g: box(0.4, 0.32, 0.34), c: c as string, p: [1.75, y as number, 0.6] }, { g: cone(0.08, 0.2, 4), c: '#d8c890', p: [1.75, (y as number) + 0.02, 0.8], r: [Math.PI / 2, 0, 0] }));
+      // Blender-sculpted ancestral spirit totem
+      P.push({ g: blenderGeo('totem_hearth'), c: '#7a5230', p: [1.75, 0, 0.6] });
+      [[0.5, '#c23a2a'], [1.0, '#e8dcc0'], [1.5, '#2a2a30'], [2.0, team]].forEach(([y, c]) => P.push({ g: box(0.36, 0.24, 0.34), c: c as string, p: [1.75, y as number, 0.6] }, { g: cone(0.08, 0.2, 4), c: '#d8c890', p: [1.75, (y as number) + 0.02, 0.8], r: [Math.PI / 2, 0, 0] }));
       P.push({ g: cone(0.3, 0.5, 4), c: '#c23a2a', p: [1.75, 2.85, 0.6], r: [0, Math.PI / 4, 0] });
       if (tier > 1) {
         for (const sx of [-1, 1]) for (const sz of [-1, 1]) P.push(post(sx * 1.25, sz * 1.25, 2.7, 0.1));
@@ -413,123 +415,139 @@ function mergeSkinned(parts: SPart[]): THREE.BufferGeometry {
 
 export interface PersonGeo { body: THREE.BufferGeometry; toolAxe: THREE.BufferGeometry; toolPick: THREE.BufferGeometry; toolHammer: THREE.BufferGeometry; torch: THREE.BufferGeometry; bow: THREE.BufferGeometry; spear: THREE.BufferGeometry }
 const personCache = new Map<string, PersonGeo>();
-export function personGeo(kind: UnitKind, species: Species, owner: 0 | 1, gen: number, variant = 0): PersonGeo {
-  const v = variant & 3, key = `${kind}${species}${owner}${gen >= 2 ? 2 : 1}${v}`;
+export function personGeo(kind: UnitKind, species: Species, owner: 0 | 1, gen: number, variant = 0, customBanner?: string): PersonGeo {
+  const v = variant & 3, bCol = owner === 0 && customBanner ? customBanner : '';
+  const key = `${kind}${species}${owner}${gen >= 3 ? 3 : gen >= 2 ? 2 : 1}${v}${bCol}`;
   const hit = personCache.get(key); if (hit) return hit;
   const sd = SPECIES[species], neo = sd.heavyBrow, deni = species === 'denisovan';
-  const team = owner === 0 ? (gen >= 2 ? '#38d39c' : '#27b7c6') : '#d84a36';
+  const team = owner === 0 ? (bCol || (gen >= 3 ? '#e8bd63' : gen >= 2 ? '#38d39c' : '#27b7c6')) : '#d84a36';
   const skin = sd.skin[v % 3], hair = sd.hair[v], tun = (TUNIC[kind] ?? TUNIC.gatherer)[v];
   const P: SPart[] = [];
   const add = (b: string, g: THREE.BufferGeometry, c: string, p?: V3, r?: V3, s?: V3) => P.push({ b, g, c, p, r, s });
-  const bw = species === 'neanderthal' ? 1.1 : deni ? 1.05 : 1;
-  // pelvis, tunic skirt, legs
-  add('hips', box(0.34 * bw, 0.14, 0.22 * bw), '#3a2a1c', [0, 0.46, 0]);
-  add('hips', box(0.32 * bw, 0.2, 0.2 * bw), tun, [0, 0.36, 0.0]);
-  add('hips', box(0.3 * bw, 0.04, 0.02), shade(tun, 0.7) as unknown as string, [0, 0.27, 0.11]);
+  const bw = species === 'neanderthal' ? 1.12 : deni ? 1.06 : 1;
+
+  // Blender-sculpted anatomical torso + tunic + belt + fur trim
+  const torsoKey = species === 'neanderthal' ? 'torso_neanderthal' : deni ? 'torso_denisovan' : 'torso_human';
+  add('spine', blenderGeo(torsoKey), tun);
+  add('hips', cyl(0.165 * bw, 0.185 * bw, 0.11, 10), '#3a2a1c', [0, 0.48, 0]);                    // leather belt
+  add('hips', sph(0.036, 0), '#e8bd63', [0, 0.48, 0.115 * bw], undefined, [1.2, 0.8, 0.6]);         // bronze/gold belt clasp
+  add('spine', box(0.08, 0.44, 0.025), team, [0.03, 0.66, 0.135 * bw], [0, 0, 0.48]);               // clan sash
+  add('spine', cyl(0.21 * bw, 0.22 * bw, 0.08, 10), shade(tun, 0.78) as unknown as string, [0, 0.81, 0]); // shoulder mantle collar
+
+  // Tapered anatomical legs, calves, leg wraps & boots
   for (const sx of [-1, 1]) {
     const side = sx < 0 ? 'L' : 'R';
-    add(`hip${side}`, box(0.125 * bw, 0.22, 0.135 * bw), shade('#6a4a30', 0.9) as unknown as string, [sx * 0.1, 0.33, 0]);
-    add(`knee${side}`, box(0.105 * bw, 0.2, 0.115 * bw), '#5a3e28', [sx * 0.1, 0.12, 0]);
-    add(`knee${side}`, box(0.115 * bw, 0.05, 0.19), '#33271c', [sx * 0.1, 0.025, 0.035]);
-    add(`knee${side}`, box(0.12 * bw, 0.025, 0.12), '#c9b99a', [sx * 0.1, 0.205, 0]); // leg wrap
+    add(`hip${side}`, cyl(0.072 * bw, 0.058 * bw, 0.23, 8), shade('#6a4a30', 0.9) as unknown as string, [sx * 0.1, 0.33, 0]);
+    add(`knee${side}`, cyl(0.056 * bw, 0.046 * bw, 0.20, 8), '#5a3e28', [sx * 0.1, 0.125, 0]);
+    add(`knee${side}`, box(0.115 * bw, 0.055, 0.195), '#2e2218', [sx * 0.1, 0.026, 0.035]);
+    add(`knee${side}`, cyl(0.062 * bw, 0.058 * bw, 0.035, 8), '#d4c3a2', [sx * 0.1, 0.205, 0]);      // hide leg wrap
   }
-  // torso
-  add('spine', box(0.4 * bw, 0.34, 0.26 * bw), tun, [0, 0.68, 0]);
-  add('spine', box(0.43 * bw, 0.05, 0.285 * bw), '#3a2a1c', [0, 0.54, 0]);
-  add('spine', box(0.075, 0.46, 0.02), team, [0.03, 0.66, 0.137 * bw], [0, 0, 0.5]);
-  add('spine', box(0.46 * bw, 0.07, 0.3 * bw), shade(tun, 0.82) as unknown as string, [0, 0.83, 0]);
-  // head
+
+  // Blender-sculpted cranium with species brow ridge, cheekbones, jaw & expressive eyes
+  const headKey = species === 'neanderthal' ? 'head_neanderthal' : deni ? 'head_denisovan' : 'head_human';
   const hr = species === 'neanderthal' ? 0.17 : deni ? 0.162 : 0.155;
-  add('head', sph(hr, 1), skin, [0, 0.92, 0.01], undefined, neo ? [1.08, 1, 1.12] : [1, 1.04, 1]);
-  add('head', sph(hr * 1.07, 1), hair, [0, 0.965, -0.035], undefined, [1, 0.85, 1]);
-  if (v === 2 || kind === 'leader') add('head', box(0.07, 0.22, 0.07), hair, [0, 0.86, -0.15]); // long hair
-  add('head', cyl(hr * 1.05, hr * 1.05, 0.05, 10), team, [0, 0.95, 0]);
-  add('head', box(0.04, 0.05, 0.05), skin, [0, 0.9, 0.17]);                                              // nose
-  add('head', sph(0.024, 0), '#1a1210', [0.065, 0.925, 0.145]); add('head', sph(0.024, 0), '#1a1210', [-0.065, 0.925, 0.145]);
-  if (neo) { add('head', box(0.26, 0.035, 0.07), '#3a2418', [0, 0.955, 0.15]); add('head', box(0.2, 0.07, 0.07), '#3a2418', [0, 0.82, 0.12]); }
-  else if (v === 1) add('head', box(0.16, 0.06, 0.06), hair, [0, 0.83, 0.12]);
-  add('head', box(0.03, 0.05, 0.03), skin, [0.155, 0.92, 0], undefined); add('head', box(0.03, 0.05, 0.03), skin, [-0.155, 0.92, 0]);
-  if (deni) {
-    for (const sx of [-1, 1]) add('head', box(0.02, 0.07, 0.02), '#c8502a', [sx * 0.085, 0.885, 0.15]);   // ochre cheek stripes
-    add('head', box(0.16, 0.02, 0.02), '#e8d8b0', [0, 0.975, 0.15]);                                          // bone headband
-    for (let i = 0; i < 5; i++) add('spine', sph(0.022, 0), i % 2 ? '#e8dcc0' : '#c8502a', [-0.08 + i * 0.04, 0.78 - Math.abs(i - 2) * 0.012, 0.15]); // bead necklace
+  add('head', blenderGeo(headKey), skin);
+  add('head', sph(hr * 1.06, 1), hair, [0, 0.965, -0.03], undefined, [1.02, 0.88, 1.04]);           // hair crown
+  for (const sx of [-1, 1]) {
+    add('head', cone(0.038, 0.22, 5), hair, [sx * 0.135, 0.84, -0.02], [0.1, 0, sx * 0.12]);        // braided side locks
+    add('head', sph(0.028, 0), '#f4efe6', [sx * 0.064, 0.926, 0.142], undefined, [1.1, 0.8, 0.7]);  // sclera
+    add('head', sph(0.019, 0), '#16100c', [sx * 0.063, 0.926, 0.154]);                              // pupil/iris
+    add('head', box(0.055, 0.018, 0.02), hair, [sx * 0.064, 0.955, 0.152], [0, 0, sx * -0.1]);      // eyebrow
+    add('head', sph(0.032, 0), skin, [sx * 0.155, 0.92, 0], undefined, [0.45, 0.85, 0.7]);          // ear
   }
-  // arms
+  if (v === 2 || kind === 'leader') add('head', cone(0.065, 0.26, 6), hair, [0, 0.84, -0.15], [0.2, 0, 0]);
+  add('head', cyl(hr * 1.03, hr * 1.04, 0.048, 12), team, [0, 0.955, 0.005]);                       // clan headband
+  if (neo) {
+    add('head', sph(0.11, 1), '#3a2418', [0, 0.825, 0.105], undefined, [1.15, 0.85, 0.95]);         // full beard
+    add('head', cone(0.085, 0.16, 5), '#3a2418', [0, 0.75, 0.12], [Math.PI - 0.15, 0, 0]);
+  } else if (v === 1) {
+    add('head', sph(0.09, 1), hair, [0, 0.83, 0.11], undefined, [1.1, 0.65, 0.85]);
+  }
+  if (deni) {
+    for (const sx of [-1, 1]) add('head', box(0.032, 0.018, 0.02), '#d84e28', [sx * 0.09, 0.895, 0.148], [0, sx * 0.2, 0]); // ochre cheek paint
+    add('head', box(0.16, 0.022, 0.022), '#ede2c8', [0, 0.98, 0.155]);                                                      // carved bone brow-bar
+    for (let i = 0; i < 5; i++) add('spine', cone(0.016, 0.055, 4), i % 2 ? '#ede2c8' : '#d84e28', [-0.08 + i * 0.04, 0.78 - Math.abs(i - 2) * 0.012, 0.145], [Math.PI - 0.3, 0, 0]); // tooth & ochre necklace
+  }
+
+  // Tapered anatomical arms, deltoids & hands
   const armCol = tun, hand = skin;
   for (const sx of [-1, 1]) {
     const side = sx < 0 ? 'L' : 'R';
-    add(`sh${side}`, box(0.095 * bw, 0.25, 0.095 * bw), armCol, [sx * 0.21, 0.64, 0]);
-    add(`el${side}`, box(0.085 * bw, 0.23, 0.085 * bw), skin, [sx * 0.21, 0.41, 0]);
-    add(`el${side}`, sph(0.055, 0), hand, [sx * 0.21, 0.29, 0]);
-    add(`sh${side}`, sph(0.075 * bw, 0), shade(tun, 0.85) as unknown as string, [sx * 0.21, 0.77, 0]);
+    add(`sh${side}`, sph(0.078 * bw, 1), shade(tun, 0.86) as unknown as string, [sx * 0.21, 0.765, 0], undefined, [1.05, 0.95, 1.0]);
+    add(`sh${side}`, cyl(0.056 * bw, 0.046 * bw, 0.24, 7), armCol, [sx * 0.21, 0.64, 0]);
+    add(`el${side}`, cyl(0.046 * bw, 0.038 * bw, 0.22, 7), skin, [sx * 0.21, 0.41, 0]);
+    add(`el${side}`, cyl(0.044 * bw, 0.042 * bw, 0.05, 7), '#4a3520', [sx * 0.21, 0.35, 0]);        // leather bracer
+    add(`el${side}`, sph(0.052, 0), hand, [sx * 0.21, 0.29, 0]);
   }
-  // role gear
+
+  // Role-specific regalia & armor
   if (kind === 'guard') {
-    add('spine', cyl(0.28, 0.32, 0.12, 8), '#d8cfc0', [0, 0.8, 0]);
-    add('spine', box(0.1, 0.1, 0.02), '#a89a84', [0, 0.72, 0.15]);
-    add('elL', cyl(0.27, 0.27, 0.05, 12), team, [-0.34, 0.45, 0.1], [0, 0, Math.PI / 2]);
-    add('elL', cyl(0.1, 0.1, 0.07, 8), '#e8dcc0', [-0.37, 0.45, 0.1], [0, 0, Math.PI / 2]);
+    add('spine', cyl(0.22, 0.25, 0.14, 10), '#d8cfc0', [0, 0.78, 0]);
+    add('spine', box(0.12, 0.12, 0.03), '#a89a84', [0, 0.71, 0.145]);
+    add('elL', cyl(0.28, 0.28, 0.045, 14), team, [-0.34, 0.45, 0.1], [0, 0, Math.PI / 2]);          // painted round shield
+    add('elL', cyl(0.29, 0.29, 0.03, 14), '#6a4a2c', [-0.335, 0.45, 0.1], [0, 0, Math.PI / 2]);     // shield rim
+    add('elL', sph(0.085, 0), '#e8bd63', [-0.365, 0.45, 0.1], undefined, [0.5, 1, 1]);              // shield boss
   }
   if (kind === 'elder') {
-    add('hips', cyl(0.24, 0.36, 0.5, 10), tun, [0, 0.3, 0]);                                         // long robe
-    add('spine', box(0.4, 0.07, 0.3), '#8a6a3c', [0, 0.5, 0]);                                       // sash
-    add('head', cone(0.1, 0.34, 6), '#f4f1ea', [0, 0.76, 0.15], [Math.PI, 0, 0]);                    // white beard
-    add('head', sph(0.12, 1), '#e8e4da', [0, 1.0, -0.04], undefined, [1, 0.7, 1]);                   // thin white hair
-    add('spine', box(0.34, 0.12, 0.22), '#7a5a8a', [0, 0.86, 0]);                                    // shawl
-    add('spine', box(0.07, 0.2, 0.07), '#c9a85a', [0, 0.76, 0.12]);                                  // pendant
+    add('hips', cyl(0.18, 0.29, 0.48, 10), tun, [0, 0.28, 0]);                                      // ceremonial robe
+    add('spine', box(0.36, 0.07, 0.26), '#8a6a3c', [0, 0.5, 0]);
+    add('head', cone(0.095, 0.32, 6), '#f4f1ea', [0, 0.75, 0.14], [Math.PI - 0.1, 0, 0]);           // flowing white beard
+    add('head', sph(0.13, 1), '#e8e4da', [0, 1.0, -0.04], undefined, [1, 0.75, 1]);
+    add('spine', cyl(0.22, 0.26, 0.14, 10), '#7a5a8a', [0, 0.82, 0]);                               // shaman shawl
+    add('spine', sph(0.048, 0), '#7fd0c0', [0, 0.74, 0.145]);                                       // spirit talisman
   }
   if (kind === 'slinger') {
-    add('head', box(0.34, 0.05, 0.3), '#b8452e', [0, 0.97, 0]);                                      // headband
-    add('spine', box(0.34, 0.1, 0.14), '#7a5a30', [0.0, 0.5, 0.0], [0, 0, 0.5]);                    // bandolier
-    add('spine', sph(0.11, 0), '#8a6a3c', [0.2, 0.42, 0.1]); add('spine', sph(0.04, 0), '#9a9ca6', [0.2, 0.52, 0.15]);   // stone pouch
-    add('spine', box(0.3, 0.28, 0.12), '#5f4a2c', [0, 0.65, -0.16]);                                 // quiver-like satchel
+    add('head', cyl(hr * 1.06, hr * 1.06, 0.055, 10), '#b8452e', [0, 0.965, 0]);
+    add('spine', box(0.32, 0.08, 0.16), '#7a5a30', [0.0, 0.66, 0.02], [0, 0, 0.55]);                // leather bandolier
+    add('hips', sph(0.095, 0), '#8a6a3c', [0.19, 0.44, 0.09]); add('hips', sph(0.04, 0), '#9a9ca6', [0.19, 0.51, 0.13]);
+    add('spine', box(0.26, 0.26, 0.11), '#5f4a2c', [0, 0.66, -0.15]);
   }
   if (kind === 'brute') {
-    add('spine', box(0.62, 0.2, 0.42), '#3a2c22', [0, 0.84, 0]);                                     // fur mantle
-    for (let i = 0; i < 6; i++) add('spine', cone(0.06, 0.2, 4), '#2e231b', [-0.26 + i * 0.104, 0.76, 0.2], [Math.PI, 0, 0]);
-    add('spine', box(0.44, 0.34, 0.2), '#4a392b', [0, 0.58, -0.18]);                                 // pelt back
-    add('head', box(0.34, 0.07, 0.1), '#2a1c14', [0, 0.99, 0.1]);                                    // heavy brow hair
-    add('hips', box(0.4, 0.2, 0.28), '#4a392b', [0, 0.38, 0]);                                       // fur kilt
+    for (const sx of [-1, 1]) add('spine', sph(0.18, 1), '#3a2c22', [sx * 0.2, 0.82, 0.0], undefined, [1.2, 0.85, 1.1]); // thick fur mantle
+    for (let i = 0; i < 6; i++) add('spine', cone(0.045, 0.18, 4), '#ede2c8', [-0.22 + i * 0.088, 0.75, 0.16], [Math.PI - 0.3, 0, 0]); // fang collar
+    add('spine', sph(0.24, 1), '#4a392b', [0, 0.64, -0.12], undefined, [1.1, 1.2, 0.6]);
+    add('hips', cyl(0.21, 0.25, 0.22, 10), '#4a392b', [0, 0.38, 0]);
   }
   if (kind === 'stalker') {
-    add('spine', box(0.4, 0.28, 0.06), '#7a5a3a', [0, 0.66, -0.15]);                                  // hide cape
-    for (let i = 0; i < 3; i++) add('spine', cyl(0.012, 0.012, 0.72, 4), '#8a6a40', [-0.12 + i * 0.05, 0.86, -0.19], [0.25, 0, 0.12]);  // javelins on the back
-    add('head', cone(0.03, 0.22, 4), '#3a6a5a', [0.1, 1.08, -0.04], [0, 0, -0.4]);                   // feather
+    add('spine', box(0.36, 0.34, 0.04), '#7a5a3a', [0, 0.64, -0.14], [0.08, 0, 0]);                 // hide hunting cloak
+    for (let i = 0; i < 3; i++) add('spine', cyl(0.012, 0.012, 0.74, 4), '#8a6a40', [-0.11 + i * 0.05, 0.86, -0.18], [0.25, 0, 0.12]);
+    add('head', cone(0.032, 0.24, 4), '#38d39c', [0.1, 1.09, -0.04], [0, 0, -0.38]);
   }
   if (kind === 'champion') {
-    add('spine', box(0.52, 0.18, 0.36), '#c9a85a', [0, 0.82, 0]);                                    // bronze-bone gorget
-    for (const sx of [-1, 1]) add(sx < 0 ? 'shL' : 'shR', sph(0.14, 0), '#d8cfc0', [sx * 0.23, 0.78, 0], undefined, [1.1, 0.7, 1.1]);   // bone pauldrons
-    add('spine', cyl(0.28, 0.3, 0.14, 8), '#d8cfc0', [0, 0.66, 0]);                                  // breastplate
-    add('head', cyl(hr * 1.15, hr * 1.2, 0.16, 10), '#d8cfc0', [0, 0.99, 0]);                       // helm
-    for (let i = 0; i < 5; i++) add('head', cone(0.03, 0.26 - Math.abs(i - 2) * 0.03, 4), '#c23a2a', [0, 1.12 + (i === 2 ? 0.04 : 0), -0.14 + i * 0.07], [0.2 * (i - 2), 0, 0]);   // crest
-    add('spine', box(0.36, 0.7, 0.03), team, [0, 0.5, -0.17], [0.08, 0, 0]);                         // cape
+    add('spine', cyl(0.23, 0.26, 0.16, 10), '#c9a85a', [0, 0.81, 0]);                               // bronze-bone gorget
+    for (const sx of [-1, 1]) add(sx < 0 ? 'shL' : 'shR', sph(0.13, 1), '#d8cfc0', [sx * 0.22, 0.78, 0], undefined, [1.15, 0.75, 1.1]);
+    add('spine', cyl(0.20, 0.22, 0.18, 10), '#d8cfc0', [0, 0.66, 0.01]);
+    add('head', cyl(hr * 1.12, hr * 1.16, 0.14, 12), '#d8cfc0', [0, 0.99, 0]);
+    for (let i = 0; i < 5; i++) add('head', cone(0.032, 0.27 - Math.abs(i - 2) * 0.03, 4), '#c23a2a', [0, 1.13 + (i === 2 ? 0.04 : 0), -0.14 + i * 0.07], [0.2 * (i - 2), 0, 0]);
+    add('spine', box(0.38, 0.68, 0.03), team, [0, 0.5, -0.16], [0.1, 0, 0]);
   }
-  if (kind === 'raider') { add('spine', cyl(0.28, 0.32, 0.1, 8), '#2a2a30', [0, 0.8, 0]); add('head', box(0.24, 0.045, 0.03), '#c23a2a', [0, 0.9, 0.165]); add('spine', box(0.06, 0.2, 0.02), '#c23a2a', [-0.1, 0.7, 0.14], [0, 0, 0.3]); }
-  if (kind === 'hunter') { add('spine', cyl(0.05, 0.06, 0.42, 6), '#6a4526', [-0.1, 0.72, -0.18], [0.2, 0, 0.15]); add('spine', cone(0.04, 0.1, 4), '#e6dcc4', [-0.14, 0.95, -0.2]); add('spine', box(0.03, 0.2, 0.02), '#8a8a8a', [0.12, 0.74, -0.15]); }
-  if (kind === 'scout') { add('head', cyl(0.015, 0.015, 0.3, 4), '#e8d8a0', [-0.1, 1.13, -0.02], [0, 0, 0.5]); add('spine', box(0.34, 0.1, 0.1), '#8a6a3c', [0, 0.52, -0.16]); }
+  if (kind === 'raider') { add('spine', cyl(0.22, 0.25, 0.11, 8), '#2a2a30', [0, 0.8, 0]); add('head', box(0.22, 0.04, 0.03), '#c23a2a', [0, 0.91, 0.155]); add('spine', box(0.06, 0.2, 0.02), '#c23a2a', [-0.1, 0.7, 0.14], [0, 0, 0.3]); }
+  if (kind === 'hunter') { add('spine', cyl(0.05, 0.06, 0.42, 6), '#6a4526', [-0.1, 0.72, -0.17], [0.2, 0, 0.15]); add('spine', cone(0.04, 0.1, 4), '#e6dcc4', [-0.14, 0.95, -0.19]); add('spine', box(0.03, 0.2, 0.02), '#8a8a8a', [0.12, 0.74, -0.14]); }
+  if (kind === 'scout') { add('head', cone(0.025, 0.28, 4), '#e8d8a0', [-0.1, 1.12, -0.02], [0, 0, 0.45]); add('spine', box(0.3, 0.1, 0.1), '#8a6a3c', [0, 0.52, -0.15]); }
   if (kind === 'leader') {
-    add('spine', box(0.42, 0.7, 0.03), team, [0, 0.5, -0.16], [0.1, 0, 0]);
-    add('spine', box(0.5, 0.06, 0.3), '#e8dcc0', [0, 0.84, 0]);
-    [[-0.08, '#f0ead0'], [0, '#c23a2a'], [0.08, '#f0ead0']].forEach(([x, col], i) => add('head', cone(0.028, 0.3, 4), col as string, [x as number, 1.2 + (i === 1 ? 0.05 : 0), -0.03], [0, 0, (x as number) * 3]));
-    add('spine', cyl(0.02, 0.02, 0.1, 5), '#e8dcc0', [0, 0.78, 0.15]);
+    add('spine', box(0.42, 0.72, 0.03), team, [0, 0.5, -0.15], [0.12, 0, 0]);                       // chieftain cape
+    for (const sx of [-1, 1]) add('spine', sph(0.14, 1), '#5a4028', [sx * 0.19, 0.83, -0.02], undefined, [1.2, 0.7, 1.1]); // fur mantle
+    add('head', blenderGeo('crown_leader'), '#f0e5cc');                                              // Blender-sculpted antler/ivory crown
+    add('head', sph(0.032, 0), '#e8bd63', [0, 0.965, 0.172]);                                       // golden crown gem
+    add('spine', sph(0.042, 0), '#e8bd63', [0, 0.76, 0.145]);                                       // chieftain medallion
   }
-  if (kind === 'gatherer' && v === 3) add('spine', box(0.5 * bw, 0.1, 0.1), '#8a6a3c', [0, 0.58, -0.17]);
+  if (kind === 'gatherer' && v === 3) add('spine', box(0.42 * bw, 0.1, 0.1), '#8a6a3c', [0, 0.58, -0.15]);
   // hand-held weapons (authored along -y from the hand, so thrusting along the arm points the weapon forward)
   const hands: Record<string, Part[]> = {
-    guard: [{ g: cyl(0.022, 0.022, 1.6, 5), c: '#8b6a40', p: [0, -0.45, 0.0] }, { g: cone(0.05, 0.22, 5), c: '#c7c9d0', p: [0, -1.36, 0], r: [Math.PI, 0, 0] }],
-    leader: [{ g: cyl(0.022, 0.022, 1.6, 5), c: '#8b6a40', p: [0, -0.45, 0.0] }, { g: cone(0.05, 0.22, 5), c: '#e8d8a0', p: [0, -1.36, 0], r: [Math.PI, 0, 0] }, { g: box(0.06, 0.1, 0.06), c: '#c23a2a', p: [0, -1.1, 0] }],
+    guard: [{ g: cyl(0.022, 0.022, 1.6, 6), c: '#8b6a40', p: [0, -0.45, 0.0] }, { g: cyl(0.03, 0.03, 0.08, 6), c: '#5a3d25', p: [0, -1.22, 0] }, { g: cone(0.055, 0.25, 6), c: '#d0d4dc', p: [0, -1.38, 0], r: [Math.PI, 0, 0] }],
+    leader: [{ g: cyl(0.024, 0.024, 1.65, 6), c: '#8b6a40', p: [0, -0.45, 0.0] }, { g: cone(0.06, 0.26, 6), c: '#f0e2a8', p: [0, -1.4, 0], r: [Math.PI, 0, 0] }, { g: box(0.07, 0.12, 0.07), c: team, p: [0, -1.14, 0] }, { g: sph(0.038, 0), c: '#e8bd63', p: [0, -1.24, 0] }],
     raider: [{ g: cyl(0.025, 0.025, 0.7, 5), c: '#6a4526', p: [0, -0.22, 0] }, { g: rock(0.15), c: '#80828c', p: [0, -0.6, 0], s: [0.8, 1.1, 0.8] }],
-    scout: [{ g: cyl(0.018, 0.018, 1.45, 4), c: '#a78858', p: [0, -0.42, 0] }],
-    elder: [{ g: cyl(0.025, 0.03, 1.5, 5), c: '#6a4526', p: [0, -0.4, 0] }, { g: sph(0.09, 0), c: '#7fd0c0', p: [0, -1.18, 0] }, { g: box(0.2, 0.03, 0.03), c: '#c9a85a', p: [0, -1.02, 0] }],
-    slinger: [{ g: cyl(0.01, 0.01, 0.6, 3), c: '#cbb98a', p: [0, -0.3, 0] }, { g: sph(0.05, 0), c: '#9a9ca6', p: [0, -0.62, 0] }],
-    brute: [{ g: cyl(0.04, 0.05, 0.8, 6), c: '#6a4526', p: [0, -0.25, 0] }, { g: sph(0.2, 1), c: '#7a6a58', p: [0, -0.7, 0], s: [1, 1.2, 1] }, { g: cone(0.04, 0.12, 4), c: '#d8d0b8', p: [0.18, -0.68, 0], r: [0, 0, -1.4] }, { g: cone(0.04, 0.12, 4), c: '#d8d0b8', p: [-0.18, -0.68, 0], r: [0, 0, 1.4] }],
-    stalker: [{ g: cyl(0.016, 0.016, 1.15, 4), c: '#a07a48', p: [0, -0.36, 0] }, { g: cone(0.035, 0.16, 4), c: '#3a3a40', p: [0, -0.98, 0], r: [Math.PI, 0, 0] }],
-    champion: [{ g: cyl(0.024, 0.024, 1.8, 5), c: '#8b6a40', p: [0, -0.5, 0.0] }, { g: cone(0.065, 0.3, 5), c: '#e8e0c8', p: [0, -1.55, 0], r: [Math.PI, 0, 0] }, { g: box(0.08, 0.14, 0.08), c: '#c23a2a', p: [0, -1.3, 0] }, { g: box(0.14, 0.05, 0.05), c: '#c9a85a', p: [0, -1.38, 0] }],
+    scout: [{ g: cyl(0.018, 0.018, 1.45, 5), c: '#a78858', p: [0, -0.42, 0] }, { g: cone(0.035, 0.16, 5), c: '#c7c9d0', p: [0, -1.2, 0], r: [Math.PI, 0, 0] }],
+    elder: [{ g: cyl(0.025, 0.03, 1.5, 6), c: '#6a4526', p: [0, -0.4, 0] }, { g: sph(0.095, 1), c: '#7fd0c0', p: [0, -1.18, 0] }, { g: box(0.22, 0.035, 0.035), c: '#e8bd63', p: [0, -1.02, 0] }],
+    slinger: [{ g: cyl(0.01, 0.01, 0.6, 4), c: '#cbb98a', p: [0, -0.3, 0] }, { g: sph(0.055, 0), c: '#9a9ca6', p: [0, -0.62, 0] }],
+    brute: [{ g: cyl(0.042, 0.052, 0.82, 6), c: '#6a4526', p: [0, -0.25, 0] }, { g: sph(0.21, 1), c: '#7a6a58', p: [0, -0.7, 0], s: [1, 1.2, 1] }, { g: cone(0.045, 0.14, 4), c: '#ede2c8', p: [0.19, -0.68, 0], r: [0, 0, -1.4] }, { g: cone(0.045, 0.14, 4), c: '#ede2c8', p: [-0.19, -0.68, 0], r: [0, 0, 1.4] }],
+    stalker: [{ g: cyl(0.016, 0.016, 1.18, 5), c: '#a07a48', p: [0, -0.36, 0] }, { g: cone(0.038, 0.18, 5), c: '#3a3a40', p: [0, -1.0, 0], r: [Math.PI, 0, 0] }],
+    champion: [{ g: cyl(0.026, 0.026, 1.82, 6), c: '#8b6a40', p: [0, -0.5, 0.0] }, { g: cone(0.07, 0.32, 6), c: '#f2ead2', p: [0, -1.56, 0], r: [Math.PI, 0, 0] }, { g: box(0.08, 0.14, 0.08), c: team, p: [0, -1.3, 0] }, { g: box(0.16, 0.05, 0.05), c: '#e8bd63', p: [0, -1.38, 0] }],
   };
   const g: PersonGeo = {
     body: mergeSkinned(P),
     spear: merge(hands[kind] ?? [{ g: box(0.01, 0.01, 0.01), c: '#000', p: [0, 0, 0] }]),
-    bow: merge([{ g: new THREE.TorusGeometry(0.42, 0.018, 4, 14, Math.PI), c: '#6a4526', p: [0, 0, 0.05], r: [0, Math.PI / 2, Math.PI / 2] }, { g: cyl(0.004, 0.004, 0.84, 3), c: '#eeeeee', p: [0, 0, 0.05] }]),
+    bow: merge([{ g: new THREE.TorusGeometry(0.42, 0.018, 5, 16, Math.PI), c: '#6a4526', p: [0, 0, 0.05], r: [0, Math.PI / 2, Math.PI / 2] }, { g: cyl(0.004, 0.004, 0.84, 3), c: '#eeeeee', p: [0, 0, 0.05] }]),
     toolAxe: merge([{ g: cyl(0.022, 0.022, 0.66, 5), c: '#7a5230', p: [0, -0.2, 0] }, { g: box(0.05, 0.14, 0.22), c: '#a5a7b0', p: [0, -0.5, 0.08] }]),
     toolPick: merge([{ g: cyl(0.022, 0.022, 0.66, 5), c: '#7a5230', p: [0, -0.2, 0] }, { g: box(0.05, 0.06, 0.44), c: '#8b8d97', p: [0, -0.5, 0] }]),
     toolHammer: merge([{ g: cyl(0.022, 0.022, 0.5, 5), c: '#7a5230', p: [0, -0.12, 0] }, { g: box(0.11, 0.11, 0.24), c: '#8b8d97', p: [0, -0.4, 0] }]),

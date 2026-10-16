@@ -79,7 +79,7 @@ export function spawnSpot(w: World, b: Building): { x: number; y: number } {
   return pref;
 }
 
-export function createWorld(species: Species, seed = 1337, mapId = 'valley', rival?: Species): World {
+export function createWorld(species: Species, seed = 1337, mapId = 'valley', rival?: Species, opts?: { leaderName?: string; bannerColor?: string }): World {
   const W = 72, H = 48;
   const M = MAPS[mapId] ?? MAPS.valley;
   const w: World = {
@@ -104,6 +104,7 @@ export function createWorld(species: Species, seed = 1337, mapId = 'valley', riv
     winter: { ...M.winter },
     trait: 'founder', lineage: [], done: {}, status: 'playing', endMsg: '',
     truceUntil: 0, hungerT: 0, log: [],
+    bannerColor: opts?.bannerColor,
   };
   reindex(w);
 
@@ -154,7 +155,7 @@ export function createWorld(species: Species, seed = 1337, mapId = 'valley', riv
   // ---- people
   const hs = nearestFree(w, P.x + 1.5, P.y + 4.6);
   const leader = makeUnit(w, 'leader', 0, hs.x, hs.y);
-  leader.name = SPECIES[species].leader;
+  leader.name = opts?.leaderName?.trim() || SPECIES[species].leader;
   w.lineage.push({ name: leader.name, gen: 1, trait: 'Founder' });
   for (let i = 0; i < 5; i++) makeUnit(w, 'gatherer', 0, hs.x - 2 + i, hs.y + 0.8);
   makeUnit(w, 'hunter', 0, hs.x + 2.5, hs.y - 0.5);

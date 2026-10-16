@@ -23,6 +23,8 @@ import type { Game, SaveSlot } from './game';
 import { icon } from './icons';
 import { ResourceHistory } from './resource-summary';
 import { Bubbles } from './bubbles';
+import { Preview3D } from '../render/preview3d';
+import type { PreviewPose } from '../render/preview3d';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -36,6 +38,42 @@ const DISC_ICON: Record<DiscoveryId, string> = {
   cooking: 'food', preservation: 'rack', portable: 'discover', heat: 'build',
   pottery: 'pottery', farming: 'farming', boats: 'boats',
   kiln: 'kiln', irrigation: 'irrigation',
+};
+
+const CLAN_STATS: Record<Species, { label: string; v: number }[]> = {
+  human: [
+    { label: 'Foraging', v: 92 },
+    { label: 'Cold Grit', v: 70 },
+    { label: 'Might', v: 74 },
+    { label: 'Scouting', v: 88 },
+  ],
+  neanderthal: [
+    { label: 'Foraging', v: 72 },
+    { label: 'Cold Grit', v: 96 },
+    { label: 'Might', v: 95 },
+    { label: 'Scouting', v: 68 },
+  ],
+  denisovan: [
+    { label: 'Foraging', v: 88 },
+    { label: 'Cold Grit', v: 84 },
+    { label: 'Might', v: 80 },
+    { label: 'Scouting', v: 96 },
+  ],
+};
+
+const BANNER_COLORS = [
+  { hex: '#27b7c6', name: 'Glacier Cyan' },
+  { hex: '#e89a3c', name: 'Amber Ochre' },
+  { hex: '#38d39c', name: 'Jade Moss' },
+  { hex: '#d84e28', name: 'Cinnabar Red' },
+  { hex: '#a864e8', name: 'Twilight Violet' },
+  { hex: '#e8bd63', name: 'Sunburst Gold' },
+];
+
+const CHIEF_NAMES: Record<Species, string[]> = {
+  human: ['Auren', 'Kaelen', 'Sora', 'Talon', 'Nira', 'Vael', 'Orin', 'Lyra'],
+  neanderthal: ['Torag', 'Bruk', 'Krag', 'Ursa', 'Drom', 'Vorg', 'Grom', 'Skar'],
+  denisovan: ['Zhur', 'Khul', 'Tayan', 'Altai', 'Sayan', 'Mergen', 'Nokh', 'Bayan'],
 };
 
 function chips(cost: Cost, w?: World): string {
@@ -54,16 +92,8 @@ function cbtn(o: BtnOpts): string {
 }
 
 function portrait(species: Species) {
-  const d = SPECIES[species], neo = d.heavyBrow, deni = species === 'denisovan';
-  const skin = d.skin[0], hair = d.hair[0];
-  return `<svg viewBox="0 0 120 120" class="portrait"><defs><radialGradient id="pg${species}" cx=".5" cy=".35" r=".8"><stop offset="0" stop-color="${d.band}"/><stop offset="1" stop-color="#14110d"/></radialGradient></defs>
-    <rect width="120" height="120" fill="url(#pg${species})"/>
-    <path d="M10 120c0-26 20-40 50-40s50 14 50 40z" fill="#8a5a36"/><path d="M40 84l20 18 20-18" fill="none" stroke="#3a2418" stroke-width="3"/>
-    <ellipse cx="60" cy="52" rx="${neo ? 27 : 24}" ry="${neo ? 29 : 30}" fill="${skin}"/>
-    <path d="M${neo ? 30 : 33} 44c0-22 14-30 ${neo ? 30 : 27}-30s${neo ? 30 : 27} 8 ${neo ? 30 : 27} 30c-6-8-14-12-${neo ? 30 : 27}-12s-${neo ? 24 : 21} 4-${neo ? 30 : 27} 12z" fill="${hair}"/>
-    ${neo ? '<path d="M36 50h48v6c-12-3-36-3-48 0z" fill="#4a2c1c" opacity=".55"/><path d="M42 72c6 10 30 10 36 0 0 10-6 16-18 16s-18-6-18-16z" fill="#3a2418"/>' : '<path d="M44 72c6 6 26 6 32 0" stroke="#8a4a3a" stroke-width="2" fill="none"/>'}
-    <circle cx="50" cy="57" r="2.6" fill="#1a1210"/><circle cx="70" cy="57" r="2.6" fill="#1a1210"/>${deni ? '<path d="M41 62v9M79 62v9" stroke="#c8502a" stroke-width="3"/><path d="M44 92h32" stroke="#e8dcc0" stroke-width="4" stroke-dasharray="3 3"/>' : ''}
-    <rect x="34" y="40" width="52" height="5" fill="#27b7c6"/></svg>`;
+  const d = SPECIES[species];
+  return `<div class="portrait-wrap" style="--band:${d.band}"><img src="portraits/${species}.png" alt="${esc(d.plural)}" class="portrait" loading="eager" draggable="false"/></div>`;
 }
 
 export class Hud {
@@ -76,6 +106,9 @@ export class Hud {
   private lastLog = ''; private lastTick = 0; private jobsOpen = false; private objOpen: boolean | null = null;
   private springToast = false; private lastSpeed = 1;
   private pickedSuccessor = 0; private pickedSpecies: Species = 'human'; private pickedMap = 'valley';
+  private previewUnit: UnitKind = 'leader'; private previewPose: PreviewPose = 'idle'; private previewGen = 1;
+  private pickedBanner = '#27b7c6'; private pickedLeader = SPECIES.human.leader;
+  readonly preview3d = new Preview3D();
   readonly bub: Bubbles;
   private placeN = 0;
   private prevRes: Record<string, number> = {}; private flash: Record<string, number> = {};
@@ -101,6 +134,7 @@ export class Hud {
     $('modal').addEventListener('input', (e) => {
       const t = e.target as HTMLInputElement;
       if (t.dataset.set === 'music' || t.dataset.set === 'sfx') { setSetting(t.dataset.set, Number(t.value) / 100); (t.nextElementSibling as HTMLElement).textContent = t.value; if (t.dataset.set === 'sfx') sfx.click(); }
+      if (t.id === 'leader-name-input') { this.pickedLeader = t.value.trim() || SPECIES[this.pickedSpecies].leader; }
     });
     $<HTMLInputElement>('importfile').addEventListener('change', async (e) => {
       const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
@@ -254,9 +288,32 @@ export class Hud {
       case 'quality': setSetting('quality', arg as Quality); this.openSettings(); return;
       case 'toggle': setSetting(arg as 'edgePan' | 'muted' | 'hints' | 'voices' | 'bars', !settings[arg as 'edgePan' | 'muted' | 'hints' | 'voices' | 'bars']); this.openSettings(); this.renderTop(); return;
       case 'play': this.openClan(); return;
-      case 'species': this.pickedSpecies = arg as Species; this.openClan(); return;
+      case 'species': {
+        this.pickedSpecies = arg as Species;
+        this.pickedLeader = SPECIES[this.pickedSpecies].leader;
+        const uDef = UNITS[this.previewUnit];
+        if (uDef.only && uDef.only !== this.pickedSpecies) {
+          this.previewUnit = this.pickedSpecies === 'human' ? 'slinger' : this.pickedSpecies === 'neanderthal' ? 'brute' : 'stalker';
+        }
+        this.openClan(); return;
+      }
+      case 'punit': this.previewUnit = arg as UnitKind; this.openClan(); return;
+      case 'ppose': this.previewPose = arg as PreviewPose; this.openClan(); return;
+      case 'pgen': this.previewGen = Number(arg); this.openClan(); return;
+      case 'banner': this.pickedBanner = arg; this.openClan(); return;
+      case 'randname': {
+        const pool = CHIEF_NAMES[this.pickedSpecies].filter((n) => n !== this.pickedLeader);
+        this.pickedLeader = pool[Math.floor(Math.random() * pool.length)] ?? SPECIES[this.pickedSpecies].leader;
+        this.openClan(); return;
+      }
       case 'map': this.pickedMap = arg; this.openClan(); return;
-      case 'start': this.closeModal(); g.startNew(this.pickedSpecies, this.pickedMap); return;
+      case 'start': {
+        const inp = document.getElementById('leader-name-input') as HTMLInputElement | null;
+        if (inp && inp.value.trim()) this.pickedLeader = inp.value.trim();
+        this.closeModal();
+        g.startNew(this.pickedSpecies, this.pickedMap, { leaderName: this.pickedLeader, bannerColor: this.pickedBanner });
+        return;
+      }
       case 'continue': { const err = g.load(arg as SaveSlot); if (err) this.toast(err, 'bad'); else this.closeModal(); return; }
       case 'resume': this.closeModal(); break;
       case 'save': { const ok = g.save('manual'); this.toast(ok ? 'Game saved.' : 'Could not save (browser storage unavailable).', ok ? 'good' : 'bad'); this.openMenu(); return; }
@@ -311,20 +368,77 @@ export class Hud {
 
   openClan() {
     const sp = this.pickedSpecies, mp = this.pickedMap, rv = SPECIES[sp].rival;
-    const card = (s: Species) => { const d = SPECIES[s]; return `
+    const uniqKind: UnitKind = sp === 'human' ? 'slinger' : sp === 'neanderthal' ? 'brute' : 'stalker';
+    const roster: UnitKind[] = ['leader', uniqKind, 'gatherer', 'hunter', 'guard', 'elder', 'champion'];
+    const uDef = UNITS[this.previewUnit];
+
+    const card = (s: Species) => {
+      const d = SPECIES[s], bars = CLAN_STATS[s];
+      return `
       <button data-act="species:${s}" class="clancard ${sp === s ? 'on' : ''}">
-        ${portrait(s)}<h3>${d.plural}</h3><p class="ctag">${d.tag}</p>
-        <ul>${d.perks.map((p) => `<li>${icon('check')}${p}</li>`).join('')}</ul>${sp === s ? `<span class="chosen">${icon('check')} Chosen</span>` : ''}
-      </button>`; };
+        ${portrait(s)}
+        <h3>${d.plural}</h3>
+        <p class="ctag">${d.tag}</p>
+        <div class="stat-bars">${bars.map((b) => `<div class="sbar"><span>${b.label}</span><div class="strack"><i style="width:${b.v}%;background:${d.band}"></i></div></div>`).join('')}</div>
+        <ul>${d.perks.map((p) => `<li>${icon('check')}${p}</li>`).join('')}</ul>
+        ${sp === s ? `<span class="chosen">${icon('check')} Chosen</span>` : ''}
+      </button>`;
+    };
     const mcard = (id: string) => { const m = MAPS[id]; return `
       <button data-act="map:${id}" class="mapcard b-${m.biome} ${mp === id ? 'on' : ''}">
         <span class="mthumb">${mapThumb(id)}</span><b>${m.name}</b><span class="mdiff d-${m.difficulty.toLowerCase()}">${m.difficulty}</span><small>${m.desc}</small><ul class="mfeat">${m.features.map((f) => `<li>${f}</li>`).join('')}</ul>
       </button>`; };
     this.openModal(`
       <div class="clan">
-        <h2>Choose your clan</h2><p class="sub">Your rival will be the ${SPECIES[rv].plural}. Differences are modest — every clan can win.</p>
-        <div class="clancards three">${SPECIES_ORDER.map(card).join('')}</div>
-        <h2 class="h2b">Choose your land</h2>
+        <h2>Choose Your Lineage &amp; Hero</h2><p class="sub">Your rival will be the ${SPECIES[rv].plural}. Sculpted 3D characters, custom clan war-paint, and ancestral regalia.</p>
+        <div class="clan-top-grid">
+          <div class="clancards three">${SPECIES_ORDER.map(card).join('')}</div>
+          <div class="stage-card">
+            <div class="stage-hdr">
+              <div>
+                <span class="stage-kicker">${SPECIES[sp].name} · Gen ${roman(this.previewGen)}</span>
+                <h3>${uDef.name}${uDef.only ? ' <i class="uniq-pill">Clan Exclusive</i>' : ''}</h3>
+              </div>
+              <div class="gen-pills" title="Preview Generation Regalia">
+                ${[1, 2, 3].map((g) => `<button data-act="pgen:${g}" class="gpill ${this.previewGen === g ? 'on' : ''}">Gen ${roman(g)}</button>`).join('')}
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <canvas id="clan-stage-canvas" width="380" height="320"></canvas>
+              <span class="drag-hint">${icon('move')} Drag to rotate 3D model</span>
+              <div class="pose-bar">
+                ${(['idle', 'walk', 'attack', 'work'] as PreviewPose[]).map((p) => `<button data-act="ppose:${p}" class="ppill ${this.previewPose === p ? 'on' : ''}">${p}</button>`).join('')}
+              </div>
+            </div>
+            <div class="unit-tabs">
+              ${roster.map((k) => `<button data-act="punit:${k}" class="utab ${this.previewUnit === k ? 'on' : ''} ${UNITS[k].only ? 'uniq' : ''}" title="${esc(UNITS[k].name)}">${icon(KIND_ICON[k])}<span>${UNITS[k].name.split(' ').pop()}</span></button>`).join('')}
+            </div>
+            <div class="stage-unit-info">
+              <div class="u-stats">
+                <span>${icon('heart')}<b>${uDef.hp}</b> HP</span>
+                <span>${icon('attack')}<b>${uDef.dmg}</b> DMG</span>
+                <span>${icon('move')}<b>${uDef.speed.toFixed(1)}</b> SPD</span>
+              </div>
+              <p>${esc(uDef.desc)}</p>
+            </div>
+            <div class="custom-bar">
+              <div class="cfield">
+                <label for="leader-name-input">${icon('leader')}Founder</label>
+                <div class="leader-input-row">
+                  <input id="leader-name-input" type="text" maxlength="18" value="${esc(this.pickedLeader)}" placeholder="Leader name"/>
+                  <button data-act="randname" class="mini" title="Randomize chieftain name">${icon('sparkle')}</button>
+                </div>
+              </div>
+              <div class="cfield">
+                <label>War-Paint</label>
+                <div class="swatches">
+                  ${BANNER_COLORS.map((c) => `<button data-act="banner:${c.hex}" class="swatch ${this.pickedBanner === c.hex ? 'on' : ''}" style="--sw:${c.hex}" title="${c.name}" aria-label="${c.name}"></button>`).join('')}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <h2 class="h2b">Choose Your Land</h2>
         <div class="mapcards">${MAP_ORDER.map(mcard).join('')}</div>
         <div class="row"><button data-act="title" class="btn">${icon('door')}Back</button><button data-act="start" class="btn primary big">${icon('play')}Begin</button></div>
       </div>`, 'titlescreen clanscreen');
@@ -588,7 +702,8 @@ export class Hud {
               .map(([id]) => DISCOVERIES[id].name)
           : [];
         const specNote = specs.length ? `<p class="fine">${icon('discover')}<b>Specialist:</b> ${esc(specs.join(', '))} (teach at a Circle or it fades if ${esc(u.name)} falls!)</p>` : '';
-        html = `<div class="sp"><div class="pf">${icon(KIND_ICON[u.kind])}</div>
+        const bCol = u.owner === 0 ? (w.bannerColor ?? '#27b7c6') : '#d84e28';
+        html = `<div class="sp"><div class="pf p3d" style="--team:${bCol}"><canvas id="sel-portrait-canvas" width="128" height="128"></canvas><i class="pf-badge">${icon(KIND_ICON[u.kind])}</i></div>
           <div class="si"><h3>${esc(u.name)}<small>${['', 'Veteran ', 'Elite '][rankOf(u)]}${d.name}${u.gen > 1 ? ' · Gen ' + roman(u.gen) : ''}${u.kills ? ` · ${u.kills} kills` : ''}</small><button class="mini clr" data-act="desel" aria-label="Deselect">${icon('close')}</button></h3>
           <div class="hp ${pct < 35 ? 'low' : ''}"><i style="width:${pct}%"></i><span>${icon('heart')}${Math.ceil(u.hp)} / ${u.maxHp}</span></div>
           <div class="stats"><span>${icon('attack')}${d.dmg}</span><span>${icon('move')}${d.speed.toFixed(1)}</span>${u.carry.n ? `<span>${icon(u.carry.res!)}${u.carry.n}</span>` : ''}<span class="st">${doing}</span></div>
@@ -775,5 +890,29 @@ export class Hud {
 
   private prog(f: number, label: string) {
     return `<div class="prog"><div style="width:${Math.round(f * 100)}%"></div><span>${label} ${Math.round(f * 100)}%</span></div>`;
+  }
+
+  frame3D(nowSec: number) {
+    const stageCanvas = document.getElementById('clan-stage-canvas');
+    const portraitCanvas = document.getElementById('sel-portrait-canvas');
+    if (!stageCanvas && !portraitCanvas) return;
+
+    const w = this.g.world;
+    const ids = w && portraitCanvas ? this.g.liveSel() : [];
+    const liveUnit = w && ids.length === 1 ? (w._u?.get(ids[0]) ?? null) : null;
+
+    this.preview3d.renderFrame(
+      nowSec,
+      stageCanvas ? {
+        species: this.pickedSpecies,
+        unitKind: this.previewUnit,
+        pose: this.previewPose,
+        bannerColor: this.pickedBanner,
+        gen: this.previewGen,
+        variant: 0,
+      } : null,
+      liveUnit,
+      w,
+    );
   }
 }

@@ -47,6 +47,7 @@ export class Game {
   private lastAuto = performance.now();
   species: Species = 'human';
   mapId = 'valley';
+  customOpts?: { leaderName?: string; bannerColor?: string };
   endShown = false;
   showcase = false;        // title-screen demo world (never saved)
   private moodT = 0; private dangerUntil = 0; private stung = false;
@@ -65,9 +66,10 @@ export class Game {
   get paused() { return this.speed === 0 || (this.menuOpen && !this.showcase); }
 
   // ------------------------------------------------------------ lifecycle
-  startNew(species: Species, mapId = this.mapId) {
+  startNew(species: Species, mapId = this.mapId, opts?: { leaderName?: string; bannerColor?: string }) {
     this.species = species; this.mapId = mapId;
-    const w = createWorld(species, 1337 + Math.floor(Math.random() * 100000), mapId);
+    if (opts) this.customOpts = opts;
+    const w = createWorld(species, 1337 + Math.floor(Math.random() * 100000), mapId, undefined, this.customOpts);
     updateFog(w);
     for (const u of w.units) if (u.owner === 0 && u.kind === 'gatherer') autoWork(w, u);
     this.setWorld(w);
@@ -103,7 +105,7 @@ export class Game {
     this.hud.refresh(true);
   }
 
-  restart() { this.startNew(this.species); }
+  restart() { this.startNew(this.species, this.mapId, this.customOpts); }
 
   // ------------------------------------------------------------ persistence
   save(slot: SaveSlot): boolean {
@@ -272,6 +274,7 @@ export class Game {
     } else {
       this.renderer.clear();
     }
+    this.hud.frame3D(now / 1000);
     requestAnimationFrame((t) => this.frame(t));
   }
 }

@@ -116,4 +116,21 @@ describe('save / load', () => {
     good.world.units[0].id = good.world.units[1].id;
     expect(deserialize(JSON.stringify(good)).ok).toBe(false);
   });
+  it('supports custom founder leader name, clan banner color, and Blender 3D meshes', async () => {
+    const { createWorld } = await import('../src/sim/world');
+    const { blenderGeo } = await import('../src/render/blenderMeshes');
+    const { personGeo } = await import('../src/render/models');
+    const w = createWorld('denisovan', 99, 'valley', undefined, { leaderName: 'Altai-Khan', bannerColor: '#a864e8' });
+    expect(w.bannerColor).toBe('#a864e8');
+    expect(w.lineage[0].name).toBe('Altai-Khan');
+    const ldr = mine(w, 'leader')[0];
+    expect(ldr.name).toBe('Altai-Khan');
+
+    for (const k of ['torso_human', 'torso_neanderthal', 'torso_denisovan', 'head_human', 'head_neanderthal', 'head_denisovan', 'crown_leader', 'totem_hearth'] as const) {
+      const g = blenderGeo(k);
+      expect(g.getAttribute('position').count).toBeGreaterThan(20);
+    }
+    const p = personGeo('leader', 'denisovan', 0, 2, 1, '#a864e8');
+    expect(p.body.getAttribute('position').count).toBeGreaterThan(50);
+  });
 });

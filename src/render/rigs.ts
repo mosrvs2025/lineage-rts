@@ -20,12 +20,18 @@ export interface Rig {
 }
 
 const ringGeo = new THREE.RingGeometry(0.4, 0.5, 28).rotateX(-Math.PI / 2);
+const chevGeo = new THREE.ConeGeometry(0.11, 0.22, 3).rotateX(Math.PI / 2);
+chevGeo.translate(0, 0, 0.54);
 const ease = (t: number) => t * t * (3 - 2 * t);
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
 export function createRig(u: Unit, w: World, time: number): Rig {
   const root = new THREE.Group(); root.rotation.order = 'YXZ';
-  const sel = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xfff6a0, transparent: true, opacity: 0.95, depthWrite: false })); sel.position.y = 0.06; sel.renderOrder = 5; sel.visible = false; sel.scale.setScalar(1.15); root.add(sel);
+  const selCol = u.owner === 0 ? (w.bannerColor || 0xfff6a0) : 0xff7a6a;
+  const selMat = new THREE.MeshBasicMaterial({ color: selCol, transparent: true, opacity: 0.95, depthWrite: false });
+  const sel = new THREE.Mesh(ringGeo, selMat); sel.position.y = 0.06; sel.renderOrder = 5; sel.visible = false; sel.scale.setScalar(1.15);
+  const chev = new THREE.Mesh(chevGeo, selMat); chev.renderOrder = 5; sel.add(chev);
+  root.add(sel);
   const buff = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd54a, transparent: true, opacity: 0.8, depthWrite: false })); buff.position.y = 0.07; buff.scale.setScalar(1.6); buff.visible = false; root.add(buff);
   const sh = new THREE.Mesh(blobGeo, blobMat); sh.scale.set(1.15, 1, 1.15); sh.position.y = 0.03; sh.renderOrder = 2; root.add(sh);
   const base = { sel, buff, ang: 0, phase: Math.random() * 6, seed: Math.random() * 100, born: time, atk: 0, stride: 0 };
@@ -38,7 +44,7 @@ export function createRig(u: Unit, w: World, time: number): Rig {
     return { root, kind: u.kind, unitKind: u.kind, mesh, b: {}, legA, legB, ...base };
   }
   const sp = u.owner === 0 ? w.species : w.rivalSpecies;
-  const pg = personGeo(u.kind, sp, u.owner === 0 ? 0 : 1, u.gen, u.id);
+  const pg = personGeo(u.kind, sp, u.owner === 0 ? 0 : 1, u.gen, u.id, w.bannerColor);
   const { bones, skeleton } = makeSkeleton();
   const b: Record<string, THREE.Bone> = {}; bones.forEach((bn) => { b[bn.name] = bn; });
   const mesh = new THREE.SkinnedMesh(pg.body, MAT.unit); mesh.add(bones[0]); mesh.bind(skeleton); mesh.frustumCulled = false; mesh.castShadow = true;

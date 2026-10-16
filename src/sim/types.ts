@@ -140,6 +140,7 @@ export interface World {
   disc: Record<DiscoveryId, DiscState>;
   specialists?: Partial<Record<DiscoveryId, number>>;
   endless?: boolean;
+  bannerColor?: string;
   techs: Record<string, boolean>;
   activities: Activity[];
   explored: string;
