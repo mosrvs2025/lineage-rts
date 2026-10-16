@@ -49,7 +49,7 @@ export function instantiateWarband(source: GLTF, u: Unit, w: World): Warband {
   const kind: BodyKind = light.includes(u.kind) ? 'rogue' : 'barbarian';
   const root = clone(source.scene);
   const species = u.owner === 0 ? w.species : w.rivalSpecies;
-  const team = new THREE.Color(u.owner === 0 ? u.gen >= 2 ? '#38d39c' : '#27b7c6' : '#d84a36');
+  const team = new THREE.Color(u.owner === 0 ? (w.bannerColor || (u.gen >= 3 ? '#e8bd63' : u.gen >= 2 ? '#38d39c' : '#27b7c6')) : '#d84a36');
   root.traverse(o => {
     if (!(o instanceof THREE.Mesh)) return;
     o.castShadow = true; o.frustumCulled = false; o.material = material;
@@ -57,7 +57,7 @@ export function instantiateWarband(source: GLTF, u: Unit, w: World): Warband {
     if (!(o instanceof THREE.SkinnedMesh)) {
       o.visible = (o.name === 'Barbarian_Round_Shield' && ['guard', 'champion'].includes(u.kind)) || o.name.endsWith('_Cape') || (o.name === 'Barbarian_Hat' && ['leader', 'brute', 'champion'].includes(u.kind));
     }
-    const key = `${kind}:${o.name}:${u.owner === 0 ? u.gen >= 2 ? 2 : 0 : 1}:${species}:${u.kind === 'elder' ? 'elder' : 'adult'}`;
+    const key = `${kind}:${o.name}:${team.getHexString()}:${species}:${u.kind === 'elder' ? 'elder' : 'adult'}`;
     let geometry = colors.get(key);
     if (!geometry) {
       const painted = o.geometry.clone() as THREE.BufferGeometry;
