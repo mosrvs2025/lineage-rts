@@ -233,12 +233,12 @@ export class TutorialController {
     if (cur) {
       cur.reward(this.g);
       sfx.good();
-      this.g.hud.toast(`Tutorial Step Complete: ${cur.rewardText}!`, 'good');
+      this.g.hud?.toast(`Tutorial Step Complete: ${cur.rewardText}!`, 'good');
     }
     this.stepIdx++;
     if (this.stepIdx >= TUTORIAL_STEPS.length) {
       this.stop(true);
-      this.g.hud.toast('Path of the First Fire complete! Your clan is ready to conquer the winter.', 'good');
+      this.g.hud?.toast('Path of the First Fire complete! Your clan is ready to conquer the winter.', 'good');
       return;
     }
     this.lastHtml = '';

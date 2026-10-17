@@ -305,7 +305,7 @@ export class Renderer {
       } else if (l.id === 'shrine') {
         const ring = new THREE.Mesh(new THREE.RingGeometry(2.1, 2.35, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x7fd0ff, transparent: true, opacity: 0.5, depthWrite: false }));
         ring.position.y = 0.1; g.add(ring);
-        const stones: Part[] = [0, 1, 2, 3, 4].map((i) => {
+        const stones: Parameters<typeof merge>[0] = [0, 1, 2, 3, 4].map((i) => {
           const a = (i / 5) * Math.PI * 2;
           return { g: new THREE.BoxGeometry(0.38, 1.55 + (i % 2) * 0.3, 0.26), c: '#7c828f', p: [Math.cos(a) * 1.35, 0.78, Math.sin(a) * 1.35] as [number, number, number] };
         });

@@ -676,7 +676,6 @@ export class Hud {
   }
 
   openCampaign() {
-    this.preview3d.unmountStage();
     const prog = loadCampaignProgress();
     const ch = getCampaignChapter(this.pickedChapter) ?? CAMPAIGN_CHAPTERS[0];
     this.pickedChapter = ch.id;
@@ -746,7 +745,6 @@ export class Hud {
   }
 
   openMultiplayer() {
-    this.preview3d.unmountStage();
     const ch = mp.channel;
     const msgs = mp.messages.filter((m) => m.channel === ch);
     const peers = Array.from(mp.peers.values());
