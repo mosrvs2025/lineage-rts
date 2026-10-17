@@ -178,8 +178,9 @@ describe('mobile playtest fixes through the real HUD event handlers', () => {
     click('mp-leave');
 
     // 4. Specialist Abilities: Elder Blessing, Scout Signal Flare, and Stockpile Barter
-    const elder = w.units.find((u) => u.owner === 0 && u.kind === 'elder')!;
-    elder.hp = 30;
+    const elder = { ...w.units[0], id: w.nextId++, kind: 'elder' as const, name: 'Elder Kael', hp: 30, maxHp: 75, ability: 0 };
+    w.units.push(elder);
+    step(w);
     const knBefore = w.res.knowledge;
     game.sel = [elder.id];
     hud.tick(1600);
