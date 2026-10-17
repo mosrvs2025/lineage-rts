@@ -168,6 +168,8 @@ export class Preview3D {
     target.addEventListener('pointercancel', up);
   }
 
+  private lastBustT = 0;
+
   /** Render either the Clan Selection 3D Hero Stage or the in-game 3D Unit Portrait if visible. */
   renderFrame(nowSec: number, stageCfg: StageConfig | null, liveUnit: Unit | null, liveWorld: World | null) {
     const dt = Math.min(0.1, Math.max(0.001, nowSec - this.lastT));
@@ -190,6 +192,12 @@ export class Preview3D {
 
     const hudCanvas = document.getElementById('sel-portrait-canvas') as HTMLCanvasElement | null;
     if (hudCanvas && liveUnit && liveWorld) {
+      const mobile = window.innerWidth < 900 || window.innerHeight < 560 || navigator.maxTouchPoints > 0;
+      const bustDt = nowSec - this.lastBustT;
+      if (mobile && bustDt < 0.055 && this.cfgKey.startsWith(`${liveUnit.owner === 0 ? liveWorld.species : liveWorld.rivalSpecies}|${liveUnit.kind}|`)) {
+        return;
+      }
+      this.lastBustT = nowSec;
       const sp = liveUnit.owner === 0 ? liveWorld.species : liveWorld.rivalSpecies;
       const mv = Math.hypot(liveUnit.x - liveUnit.ox, liveUnit.y - liveUnit.oy) / 0.05 > 0.2;
       const pose: PreviewPose = mv
@@ -199,7 +207,7 @@ export class Preview3D {
         : liveUnit.order.t === 'gather' || liveUnit.order.t === 'build'
         ? 'work'
         : 'idle';
-      this.renderToCanvas(hudCanvas, dt, nowSec, {
+      this.renderToCanvas(hudCanvas, Math.min(0.1, Math.max(dt, bustDt)), nowSec, {
         species: sp,
         unitKind: liveUnit.kind,
         gen: liveUnit.gen,
@@ -288,8 +296,10 @@ export class Preview3D {
       this.cam.lookAt(0, 0.86, 0);
     }
 
+    const mobile = window.innerWidth < 900 || window.innerHeight < 560 || navigator.maxTouchPoints > 0;
     const rect = target.getBoundingClientRect();
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const maxDpr = opts.bustOnly ? (mobile ? 1 : 1.5) : (mobile ? 1.25 : 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
     const w = Math.max(64, Math.round((rect.width || target.width || 200) * dpr));
     const h = Math.max(64, Math.round((rect.height || target.height || 200) * dpr));
     if (target.width !== w || target.height !== h) {

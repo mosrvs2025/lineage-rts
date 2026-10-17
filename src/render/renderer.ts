@@ -66,8 +66,13 @@ export class Renderer {
   private gw = 0;
   private waterNormal!: THREE.Texture;
   private fogData = new Uint8Array(4);
+  private fogField = new Float32Array(1);
   private fogTex!: THREE.DataTexture;
   private fogTick = -99;
+  private fogHash = -1;
+  private minimapAt = -99;
+  private minimapFogCanvas: HTMLCanvasElement | null = null;
+  private minimapFogHash = -1;
   private wearW = 0; private wearH = 0; private wearData = new Uint8Array(1); private wearTex!: THREE.DataTexture; private wearAt = 0;
   private blobs!: THREE.InstancedMesh;
   private ice: THREE.Mesh | null = null;
@@ -100,12 +105,17 @@ export class Renderer {
   private dprCap = 1.5;
   private shadowSize = 2048;
 
+  private isMobile(): boolean {
+    return window.innerWidth < 900 || window.innerHeight < 560 || navigator.maxTouchPoints > 0;
+  }
+
   constructor(public canvas: HTMLCanvasElement, public cam: Camera) {
-    this.three = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    const mobile = this.isMobile();
+    this.three = new THREE.WebGLRenderer({ canvas, antialias: !mobile, powerPreference: 'high-performance' });
     this.three.outputColorSpace = THREE.SRGBColorSpace;
     this.three.toneMapping = THREE.NeutralToneMapping;
     this.three.shadowMap.enabled = true;
-    this.three.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.three.shadowMap.type = mobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     this.scene.background = new THREE.Color(0x10151c);
     this.scene.fog = new THREE.Fog(0x9db0c4, 70, 170);
     this.scene.add(this.root, this.hemi, this.sun, this.sun.target, this.particles.points, this.sparks.points, this.arrows.group, this.rings.group, this.ambient.group, this.grass.mesh);
@@ -128,28 +138,30 @@ export class Renderer {
   // ------------------------------------------------------------------ quality
   private pickQuality(): Q {
     if (settings.quality !== 'auto') return settings.quality;
-    const small = window.innerWidth < 900 || window.innerHeight < 560 || navigator.maxTouchPoints > 0;
-    return small ? 'medium' : 'high';
+    return this.isMobile() ? 'medium' : 'high';
   }
   private applyQuality() {
-    const q = this.quality;
-    this.dprCap = q === 'high' ? 1.75 : q === 'medium' ? 1.25 : 1;
-    this.shadowSize = q === 'high' ? 2048 : 1024;
+    const q = this.quality, mobile = this.isMobile();
+    this.dprCap = q === 'high' ? (mobile ? 1.35 : 1.75) : q === 'medium' ? (mobile ? 1.1 : 1.25) : 1;
+    this.shadowSize = q === 'high' && !mobile ? 2048 : 1024;
     this.sun.castShadow = q !== 'low';
+    this.three.shadowMap.enabled = q !== 'low';
+    this.three.shadowMap.type = q === 'high' && !mobile ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     if (this.sun.shadow.mapSize.x !== this.shadowSize) { this.sun.shadow.mapSize.set(this.shadowSize, this.shadowSize); this.sun.shadow.map?.dispose(); this.sun.shadow.map = null; }
-    this.grass.spacing = q === 'high' ? 0.19 : q === 'medium' ? 0.3 : 0.55; this.grass.radius = q === 'high' ? 22 : q === 'medium' ? 18 : 13;
-    this.grass.mesh.visible = true;
+    this.grass.spacing = q === 'high' ? 0.19 : q === 'medium' ? (mobile ? 0.42 : 0.3) : 0.65;
+    this.grass.radius = q === 'high' ? 22 : q === 'medium' ? (mobile ? 13 : 17) : 10;
+    this.grass.mesh.visible = q !== 'low';
     this.resize();
-    this.nodeSig = ''; this.fogTick = -99;
+    this.nodeSig = ''; this.fogTick = -99; this.fogHash = -1;
     if (this.bakedFor) this.grass.update(this.cam.x, this.cam.y, this.bakedFor, this.heightAt, this.winterLevel, true);
   }
-  /** Automatic quality: step down when the frame rate stays low. */
+  /** Automatic quality: step down quickly when the frame rate drops on mobile/tablets. */
   private watchPerf(dt: number) {
     if (settings.quality !== 'auto' || dt <= 0 || dt > 0.25) return;
     this.perfAcc += dt; this.perfN++; this.perfCool = Math.max(0, this.perfCool - dt);
-    if (this.perfN < 100) return;
+    if (this.perfN < 45) return;
     const avg = this.perfAcc / this.perfN; this.perfAcc = 0; this.perfN = 0;
-    if (avg > 0.036 && this.perfCool <= 0 && this.quality !== 'low') { this.quality = this.quality === 'high' ? 'medium' : 'low'; this.perfCool = 6; this.applyQuality(); }
+    if (avg > 0.029 && this.perfCool <= 0 && this.quality !== 'low') { this.quality = this.quality === 'high' ? 'medium' : 'low'; this.perfCool = 4; this.applyQuality(); }
   }
 
   resize() {
@@ -160,6 +172,7 @@ export class Renderer {
     this.overlay.width = Math.round(r.width * this.dpr); this.overlay.height = Math.round(r.height * this.dpr);
     this.cam.setSize(r.width, r.height);
     this.post?.resize(r.width, r.height, this.dpr);
+    this.minimapAt = -99;
   }
 
   clear() { this.three.setClearColor(0x0d100c); this.three.clear(); }
@@ -239,10 +252,11 @@ export class Renderer {
     shared.wear.value = this.wearTex; this.wearAt = 0;
 
     this.fogData = new Uint8Array(W * 4 * H * 4 * 4);
+    this.fogField = new Float32Array(W * H);
     this.fogTex = new THREE.DataTexture(this.fogData, W * 4, H * 4, THREE.RGBAFormat);
     this.fogTex.magFilter = THREE.LinearFilter; this.fogTex.minFilter = THREE.LinearFilter; this.fogTex.needsUpdate = true;
     shared.fogMap.value = this.fogTex; shared.mapSize.value.set(W, H);
-    this.fogTick = -99;
+    this.fogTick = -99; this.fogHash = -1; this.minimapAt = -99; this.minimapFogHash = -1;
 
     const caps = { tree: 0, bush: 0, rock: 0 };
     for (const n of w.nodes) if (n.kind === 'tree') caps.tree++; else if (n.kind === 'bush') caps.bush++; else if (n.kind === 'rock') caps.rock++;
@@ -250,7 +264,8 @@ export class Renderer {
     this.bushFull = this.inst(makeBushGeo(true), MAT.prop, caps.bush + 2); this.bushEmpty = this.inst(makeBushGeo(false), MAT.prop, caps.bush + 2);
     this.rockMeshes = makeRockGeos().map((g) => this.inst(g, MAT.prop, caps.rock + 4));
     this.carcass = this.inst(makeCarcassGeo(), MAT.prop, 60);
-    for (const m of [...this.treeMeshes, this.bushFull, this.bushEmpty, ...this.rockMeshes, this.carcass]) { m.castShadow = true; m.receiveShadow = true; this.root.add(m); }
+    for (const m of this.treeMeshes) { m.castShadow = true; m.receiveShadow = true; this.root.add(m); }
+    for (const m of [this.bushFull, this.bushEmpty, ...this.rockMeshes, this.carcass]) { m.castShadow = false; m.receiveShadow = true; this.root.add(m); }
 
     // soft contact shadows ground every tree, bush and rock
     this.blobs = this.inst(blobGeo, blobMat, w.nodes.length + 8); this.blobs.renderOrder = 2; this.root.add(this.blobs);
@@ -402,13 +417,13 @@ export class Renderer {
     for (const f of this.floaters) f.age += dt; this.floaters = this.floaters.filter((f) => f.age < f.life);
     this.grass.update(cam.x, cam.y, w, this.heightAt, L);
 
-    // ---- render
-    if (this.quality !== 'low') {
+    // ---- render: only run offscreen MSAA EffectComposer on desktop 'high' quality
+    if (this.quality === 'high') {
       const sp = this.sun.position.clone().project(cam.three); const sunUv: [number, number] = [sp.x * 0.5 + 0.5, sp.y * 0.5 + 0.5];
       if (!this.post) this.post = new Post(this.three, this.scene, cam.three, cam.vw, cam.vh, this.dpr);
       const warm: [number, number, number] = [1 + 0.05 * (1 - N) + 0.1 * dusk - 0.1 * N, 1 + 0.01 * (1 - N) - 0.02 * N, 1 - 0.04 * (1 - N) - 0.08 * dusk + 0.14 * N];
       const t = L * 0.5; warm[0] -= t * 0.08; warm[2] += t * 0.1;
-      this.post.setLook({ bloom: this.quality === 'high', tilt: this.quality === 'high' ? 0.85 : 0.6, tint: warm, vig: 0.5, sat: 1.1 - 0.12 * L, time, sun: sunUv, shaft: this.quality === 'high' && sp.z < 1 ? (0.3 + 1.1 * dusk) * (1 - N) * (1 - 0.7 * L) : 0, sunCol: [this.sun.color.r, this.sun.color.g, this.sun.color.b] });
+      this.post.setLook({ bloom: true, tilt: 0.85, tint: warm, vig: 0.5, sat: 1.1 - 0.12 * L, time, sun: sunUv, shaft: sp.z < 1 ? (0.3 + 1.1 * dusk) * (1 - N) * (1 - 0.7 * L) : 0, sunCol: [this.sun.color.r, this.sun.color.g, this.sun.color.b] });
       this.post.bloom.strength = 0.34 + 0.35 * N; this.post.render(dt);
     } else this.three.render(this.scene, cam.three);
     this.drawOverlay(w, ov, time);
@@ -451,9 +466,10 @@ export class Renderer {
   }
 
   private updateWear(w: World, time: number) {
-    if (!this.wearTex || time - this.wearAt < 0.4) return;
+    if (this.quality === 'low' || !this.wearTex || time - this.wearAt < (this.quality === 'medium' ? 1.2 : 0.4)) return;
     this.wearAt = time;
     const d = this.wearData, S = 4;
+    let changed = false;
     for (const u of w.units) {
       if (u.owner !== 0 || u.kind === 'deer' || u.kind === 'wolf') continue;
       if (Math.hypot(u.x - u.ox, u.y - u.oy) < 0.004) continue; // only moving feet wear the grass
@@ -461,19 +477,26 @@ export class Renderer {
       for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
         const x = cx + dx, y = cy + dy; if (x < 0 || y < 0 || x >= this.wearW || y >= this.wearH) continue;
         const i = y * this.wearW + x, add = dx === 0 && dy === 0 ? 9 : 3;
-        d[i] = Math.min(255, d[i] + add);
+        if (d[i] < 255) { d[i] = Math.min(255, d[i] + add); changed = true; }
       }
     }
-    this.wearTex.needsUpdate = true;
+    if (changed) this.wearTex.needsUpdate = true;
   }
 
   private updateFog(w: World) {
     if (!w._vis || !w._exp) return;
-    if (w.tick - this.fogTick < 4 && w.tick >= this.fogTick) return;
+    const step = this.quality === 'high' ? 4 : 8;
+    if (w.tick - this.fogTick < step && w.tick >= this.fogTick) return;
     this.fogTick = w.tick;
-    const W = w.W, H = w.H, S = 4, data = this.fogData;
-    const field = new Float32Array(W * H);
-    for (let i = 0; i < field.length; i++) field[i] = w._vis[i] === 2 ? 0 : w._exp[i] ? 0.5 : 1;
+    const W = w.W, H = w.H, len = W * H;
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < len; i++) h = Math.imul(h ^ ((w._vis[i] << 1) | w._exp[i]), 16777619) >>> 0;
+    if (h === this.fogHash) return;
+    this.fogHash = h;
+    const S = 4, data = this.fogData;
+    if (this.fogField.length !== len) this.fogField = new Float32Array(len);
+    const field = this.fogField;
+    for (let i = 0; i < len; i++) field[i] = w._vis[i] === 2 ? 0 : w._exp[i] ? 0.5 : 1;
     const at = (x: number, y: number) => field[Math.max(0, Math.min(H - 1, y)) * W + Math.max(0, Math.min(W - 1, x))];
     for (let py = 0; py < H * S; py++) {
       const fy = (py + 0.5) / S - 0.5, y0 = Math.floor(fy), v = fy - y0;
@@ -581,6 +604,7 @@ export class Renderer {
 
   private syncUnits(w: World, ov: Overlay, time: number, dt: number) {
     const seen = new Set<number>(), selSet = new Set(ov.selUnits);
+    const cam = this.cam, spanX = (cam.vw / Math.max(12, cam.zoom)) * 0.72 + 5, spanY = (cam.vh / Math.max(12, cam.zoom)) * 0.85 + 6;
     for (const u of w.units) {
       seen.add(u.id);
       let r = this.rigs.get(u.id);
@@ -590,9 +614,13 @@ export class Renderer {
       if (!show) continue;
       const x = u.ox + (u.x - u.ox) * ov.alpha, y = u.oy + (u.y - u.oy) * ov.alpha;
       r.root.position.set(x, this.heightAt(x, y), y);
-      const moving = animateRig(r, u, { time, dt, w, alpha: ov.alpha, selected: selSet.has(u.id) });
-      if (moving && u.owner !== 2 && Math.random() < dt * 5 && this.quality !== 'low') this.particles.spawn(x, this.heightAt(x, y) + 0.05, y, (Math.random() - 0.5) * 0.4, 0.3, (Math.random() - 0.5) * 0.4, 0.55, 0.12, 0.32, 0xa89a78, -0.1, 1.2, 0.28);
-      r.sel.visible = selSet.has(u.id); r.sel.scale.setScalar(1.15 + Math.sin(time * 5) * 0.04); r.buff.visible = u.buff > 0;
+      const isSelected = selSet.has(u.id);
+      r.sel.visible = isSelected; if (isSelected) r.sel.scale.setScalar(1.15 + Math.sin(time * 5) * 0.04);
+      r.buff.visible = u.buff > 0;
+      const inView = Math.abs(x - cam.x) <= spanX && Math.abs(y - cam.y) <= spanY;
+      if (!inView && r.visual && ((w.tick + u.id) & 7) !== 0) continue;
+      const moving = animateRig(r, u, { time, dt: inView ? dt : dt * 4, w, alpha: ov.alpha, selected: isSelected });
+      if (inView && moving && u.owner !== 2 && Math.random() < dt * 5 && this.quality !== 'low') this.particles.spawn(x, this.heightAt(x, y) + 0.05, y, (Math.random() - 0.5) * 0.4, 0.3, (Math.random() - 0.5) * 0.4, 0.55, 0.12, 0.32, 0xa89a78, -0.1, 1.2, 0.28);
     }
     for (const [id, r] of this.rigs) if (!seen.has(id)) { this.rigs.delete(id); this.dying.push({ rig: r, t: 0 }); r.sel.visible = false; r.buff.visible = false; r.visual?.motion.die(); }
     for (const d of [...this.dying]) {
@@ -838,7 +866,10 @@ export class Renderer {
 
   // ------------------------------------------------------------------ minimap
   drawMinimap(w: World, c: HTMLCanvasElement) {
-    const g = c.getContext('2d', { willReadFrequently: true })!;
+    const now = performance.now() / 1000;
+    if (now - this.minimapAt < (this.isMobile() ? 0.14 : 0.08)) return;
+    this.minimapAt = now;
+    const g = c.getContext('2d')!;
     const sx = c.width / w.W, sy = c.height / w.H;
     if (this.terrainCanvas) g.drawImage(this.terrainCanvas, 0, 0, c.width, c.height);
     for (const n of w.nodes) {
@@ -855,17 +886,28 @@ export class Renderer {
       g.fillStyle = u.owner === 0 ? '#bff' : u.owner === 1 ? '#f66' : '#cb8'; g.fillRect(u.x * sx - 1, u.y * sy - 1, 3, 3);
     }
     if (w._vis && w._exp) {
-      const img = g.getImageData(0, 0, c.width, c.height);
-      for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
-        const i = Math.floor(y / sy) * w.W + Math.floor(x / sx), v = w._vis[i], e = w._exp[i];
-        if (v === 2) continue;
-        const k = e ? 0.55 : 1, o = (y * c.width + x) * 4;
-        img.data[o] *= 1 - k; img.data[o + 1] *= 1 - k; img.data[o + 2] *= 1 - k;
+      if (!this.minimapFogCanvas || this.minimapFogCanvas.width !== w.W || this.minimapFogCanvas.height !== w.H) {
+        this.minimapFogCanvas = document.createElement('canvas');
+        this.minimapFogCanvas.width = w.W;
+        this.minimapFogCanvas.height = w.H;
+        this.minimapFogHash = -1;
       }
-      g.putImageData(img, 0, 0);
+      if (this.minimapFogHash !== this.fogHash) {
+        this.minimapFogHash = this.fogHash;
+        const fg = this.minimapFogCanvas.getContext('2d')!;
+        const img = fg.createImageData(w.W, w.H);
+        const d = img.data, len = w.W * w.H;
+        for (let i = 0; i < len; i++) {
+          const v = w._vis[i], e = w._exp[i], o = i * 4;
+          d[o] = 0; d[o + 1] = 0; d[o + 2] = 0;
+          d[o + 3] = v === 2 ? 0 : e ? 140 : 255;
+        }
+        fg.putImageData(img, 0, 0);
+      }
+      g.drawImage(this.minimapFogCanvas, 0, 0, c.width, c.height);
     }
     if (w.alert && w.time - w.alert.t < 15) {
-      const k = (performance.now() / 600) % 1;
+      const k = (now / 0.6) % 1;
       g.strokeStyle = `rgba(255,70,50,${1 - k})`; g.lineWidth = 2; g.beginPath(); g.arc(w.alert.x * sx, w.alert.y * sy, 3 + k * 12, 0, 6.283); g.stroke();
       g.fillStyle = '#ff4a3a'; g.beginPath(); g.arc(w.alert.x * sx, w.alert.y * sy, 2.5, 0, 6.283); g.fill();
     }

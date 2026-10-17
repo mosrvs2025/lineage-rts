@@ -242,19 +242,21 @@ export class Game {
     this.input.update(dt);
     for (const p of this.pings) p.age += dt;
     this.pings = this.pings.filter((p) => p.age < 0.7);
-    if (w && this.showcase) {
+    const clanStageOpen = this.showcase && !!document.getElementById('clan-stage-canvas');
+    if (w && this.showcase && !clanStageOpen) {
       w._vis?.fill(2); w._exp?.fill(1);
       const t = now / 1000, h = w.buildings.find((b) => b.owner === 0 && b.kind === 'hearth');
       this.cam.zoom = Math.max(this.cam.minZoom(), 36); this.cam.yaw = Math.sin(t * 0.07) * 0.75;
       if (h) this.cam.centerOn(h.x + 5 + Math.cos(t * 0.05) * 3, h.y + 1 + Math.sin(t * 0.04) * 2);
       if (w.time > 600) this.startShowcase();
     }
-    if (w) {
+    if (w && !clanStageOpen) {
       if (!this.paused && w.status === 'playing') {
         this.acc += dt * this.speed;
+        const maxSteps = window.innerWidth < 900 || navigator.maxTouchPoints > 0 ? 5 : 12;
         let n = 0;
-        while (this.acc >= DT && n < 12) { step(w); this.acc -= DT; n++; }
-        if (n === 12) this.acc = 0;
+        while (this.acc >= DT && n < maxSteps) { step(w); this.acc -= DT; n++; }
+        if (n === maxSteps) this.acc = 0;
       }
       // ---- presentation events -> effects + spatial audio; ambience; adaptive music
       const evs = w._ev ?? []; w._ev = [];
@@ -271,7 +273,7 @@ export class Game {
       this.renderer.drawMinimap(w, this.minimap);
       this.hud.tick(now);
       if (w.status !== 'playing' && !this.endShown) { this.endShown = true; this.hud.showEnd(); }
-    } else {
+    } else if (!w) {
       this.renderer.clear();
     }
     this.hud.frame3D(now / 1000);

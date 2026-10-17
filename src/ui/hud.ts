@@ -110,7 +110,7 @@ export class Hud {
   private pickedBanner = '#27b7c6'; private pickedLeader = SPECIES.human.leader;
   readonly preview3d = new Preview3D();
   readonly bub: Bubbles;
-  private placeN = 0;
+  private placeN = 0; private lastLaneH = -1;
   private prevRes: Record<string, number> = {}; private flash: Record<string, number> = {};
 
   constructor(private g: Game) {
@@ -663,7 +663,8 @@ export class Hud {
     this.bub.update(selection.length > 0 || this.g.selB !== null, selection.length ? selection.join(',') : `b:${this.g.selB}`, selection.length > 0);
     if (++this.placeN % 25 === 0) this.bub.place();
     { const a = w.alert, recent = !!a && !this.g.showcase && w.time - a.t < 15; const ab = $('alertbtn'); ab.classList.toggle('hidden', !recent); if (recent) ab.innerHTML = `${icon('warn')}<span>Under attack</span><kbd>F</kbd>`; }
-    $('app').style.setProperty('--lane', `${$('toasts').offsetHeight}px`);
+    const laneH = $('toasts').offsetHeight;
+    if (laneH !== this.lastLaneH) { this.lastLaneH = laneH; $('app').style.setProperty('--lane', `${laneH}px`); }
     this.renderPanel(); this.renderJobs(w); this.renderPlaceBar(); this.processLog(w);
     if (canSucceed(w) && !this.springToast) { this.springToast = true; this.toast('Spring has come. Open the objectives to advance the generation.', 'good'); sfx.good(); }
     if (!canSucceed(w)) this.springToast = false;

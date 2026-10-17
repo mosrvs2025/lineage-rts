@@ -152,7 +152,35 @@ export function animateRig(r: Rig, u: Unit, c: AnimCtx): boolean {
   }
 
   // ------------------------------------------------------------ people
-  const B = r.b, t = time + r.seed, o = u.order;
+  const o = u.order;
+  const armed = ARMED.includes(u.kind);
+  const showTools = { axe: false, pick: false, hammer: false };
+  const node = o.t === 'gather' ? w._n?.get(o.node) : undefined;
+  const working = !!node && !moving && Math.hypot(u.x - (node.x + 0.5), u.y - (node.y + 0.5)) < 1.9 && u.carry.n < def.carry;
+  const building = o.t === 'build' && !moving;
+
+  if (working && (node!.res === 'wood' || node!.res === 'stone')) {
+    showTools[node!.res === 'wood' ? 'axe' : 'pick'] = true;
+  } else if (building) {
+    showTools.hammer = true;
+  }
+
+  r.axe!.visible = showTools.axe; r.pick!.visible = showTools.pick; r.hammer!.visible = showTools.hammer;
+  if (u.kind === 'gatherer') { r.spear!.visible = false; }
+  r.spear!.visible = armed && !showTools.axe && !showTools.pick && !showTools.hammer;
+  const carry = u.carry.n > 0 && u.carry.res;
+  r.pack!.visible = !!carry; if (carry) r.pack!.material = MAT.pack[u.carry.res!];
+  const torch = u.owner === 0 && hasDisc(w, 'portable') && (u.kind === 'hunter' || u.kind === 'guard' || u.kind === 'leader');
+  r.torch!.visible = torch; if (torch) r.flame!.scale.set(1, 0.8 + 0.3 * Math.sin(time * 13 + u.id), 1);
+
+  if (r.visual) {
+    r.visual.motion.update(dt, u, moving, node?.res);
+    // Slot axes differ from the placeholder hands. Keep spear/tall staff upright at rest.
+    if (r.spear) { r.spear.rotation.z = -Math.PI / 2; if (r.visual.nativeWeapon) r.spear.visible = false; }
+    return moving;
+  }
+
+  const B = r.b, t = time + r.seed;
   // neutral pose
   for (const n of Object.keys(B)) if (n !== 'root') rot(B[n]);
   B.hips.position.y = 0.46;
@@ -171,27 +199,20 @@ export function animateRig(r: Rig, u: Unit, c: AnimCtx): boolean {
   B.head.rotation.y = Math.sin(t * 0.45) * 0.4 * (1 - w8) * (Math.sin(t * 0.13) > 0.2 ? 1 : 0.25); B.head.rotation.x = Math.sin(t * 0.7) * 0.05;
   B.hips.rotation.z = Math.sin(t * 0.5) * 0.025 * (1 - w8);
   B.shL.rotation.z = 0.06; B.shR.rotation.z = -0.06; B.elL.rotation.x = -0.12; B.elR.rotation.x = -0.12;
-  const armed = ARMED.includes(u.kind);
   if (armed) { B.handR.rotation.x = Math.PI; B.shR.rotation.x = -0.12; B.elR.rotation.x = -0.55; }
   if (u.kind === 'hunter') { B.shL.rotation.x = -0.2; B.elL.rotation.x = -0.4; }
 
-  const showTools = { axe: false, pick: false, hammer: false };
   let busy = false;
   const phase = 1 - Math.max(0, Math.min(1, u.cd / def.cd)); // 0 right after a strike -> 1 ready
   const fighting = def.dmg > 0 && u.owner !== undefined && (o.t === 'attack' || (o.t === 'amove' && u.tgt >= 0)) && !moving;
-  const node = o.t === 'gather' ? w._n?.get(o.node) : undefined;
-  const working = !!node && !moving && Math.hypot(u.x - (node.x + 0.5), u.y - (node.y + 0.5)) < 1.9 && u.carry.n < def.carry;
-  const building = o.t === 'build' && !moving;
 
   if (fighting && (u.kind === 'guard' || u.kind === 'leader' || u.kind === 'champion')) {
-    // spear: draw back then thrust
     const windup = phase > 0.55 ? ease((phase - 0.55) / 0.45) : 0, thrust = phase < 0.22 ? 1 - phase / 0.22 : 0;
     B.handR.rotation.x = Math.PI * (1 - Math.min(1, r.atk)); r.atk += (1 - r.atk) * Math.min(1, dt * 14);
     B.shR.rotation.x = -0.35 - 1.1 * thrust + 0.5 * windup; B.elR.rotation.x = -0.4 + 0.3 * thrust - 0.5 * windup; B.shL.rotation.x = -0.7 * (0.4 + thrust); B.elL.rotation.x = -0.6;
     B.spine.rotation.x = 0.1 + 0.18 * thrust - 0.12 * windup; B.spine.rotation.y = -0.3 * windup + 0.4 * thrust; B.hips.rotation.y = 0.15 * windup - 0.15 * thrust;
     B.hipL.rotation.x = -0.35; B.hipR.rotation.x = 0.35; B.kneeL.rotation.x = 0.25; B.kneeR.rotation.x = 0.15; busy = true;
   } else if (fighting && u.kind === 'stalker') {
-    // javelin: lean back and hurl overarm
     const windup = phase > 0.4 ? ease((phase - 0.4) / 0.6) : 0, thr = phase < 0.2 ? 1 - phase / 0.2 : 0;
     B.handR.rotation.x = Math.PI * 0.5; B.shR.rotation.x = -2.4 * windup - 0.9 * thr; B.elR.rotation.x = -0.6 * windup; B.shL.rotation.x = -1.1; B.elL.rotation.x = -0.2;
     B.spine.rotation.x = -0.18 * windup + 0.3 * thr; B.spine.rotation.y = 0.4 * windup - 0.3 * thr; B.hipL.rotation.x = -0.45; B.hipR.rotation.x = 0.35; B.kneeL.rotation.x = 0.25; busy = true;
@@ -212,20 +233,20 @@ export function animateRig(r: Rig, u: Unit, c: AnimCtx): boolean {
   else if (working) {
     const res = node!.res, carcass = node!.kind === 'carcass';
     if (res === 'wood' || res === 'stone') {
-      const sp = res === 'wood' ? 0.95 : 0.75, s = (t * sp) % 1, tool = res === 'wood' ? 'axe' : 'pick';
-      showTools[tool] = true; B.handR.rotation.x = 0;
+      const sp = res === 'wood' ? 0.95 : 0.75, s = (t * sp) % 1;
+      B.handR.rotation.x = 0;
       const raise = s < 0.55 ? ease(s / 0.55) : s < 0.68 ? 1 : 1 - ease((s - 0.68) / 0.32), hit = s >= 0.55 && s < 0.68 ? (s - 0.55) / 0.13 : 0;
       const arm = -0.35 - 2.15 * raise + 2.3 * ease(hit) * (raise > 0.95 ? 1 : 0);
       B.shR.rotation.x = arm; B.elR.rotation.x = -0.35 - 0.7 * raise * (1 - hit); B.shL.rotation.x = arm * 0.85; B.elL.rotation.x = -0.35 - 0.6 * raise * (1 - hit);
       B.shL.rotation.z = 0.25; B.shR.rotation.z = -0.25; B.spine.rotation.x = 0.1 - 0.22 * raise + 0.65 * ease(hit); B.hipL.rotation.x = -0.25; B.hipR.rotation.x = 0.18; B.kneeL.rotation.x = 0.25; B.kneeR.rotation.x = 0.1;
     } else {
-      const sq = carcass ? 0.55 : 0.8; // squat to pick berries / butcher
+      const sq = carcass ? 0.55 : 0.8;
       B.hips.position.y = 0.46 - 0.17 * sq; B.hipL.rotation.x = -1.15 * sq; B.hipR.rotation.x = -1.05 * sq; B.kneeL.rotation.x = 1.5 * sq; B.kneeR.rotation.x = 1.45 * sq;
       B.spine.rotation.x = 0.55 * sq; B.head.rotation.x = -0.3; B.shR.rotation.x = -1.0 + Math.sin(t * 6) * 0.3; B.elR.rotation.x = -0.6; B.shL.rotation.x = -0.9 + Math.sin(t * 6 + 2) * 0.25; B.elL.rotation.x = -0.6;
     }
     busy = true;
   } else if (building) {
-    showTools.hammer = true; const s = (t * 1.5) % 1, k = Math.max(0, Math.sin(s * Math.PI * 2));
+    const s = (t * 1.5) % 1, k = Math.max(0, Math.sin(s * Math.PI * 2));
     B.handR.rotation.x = 0; B.shR.rotation.x = -1.0 - 1.0 * k; B.elR.rotation.x = -0.9; B.shL.rotation.x = -0.5; B.elL.rotation.x = -0.7; B.spine.rotation.x = 0.28 + 0.12 * k;
     B.hipL.rotation.x = -0.5; B.hipR.rotation.x = -0.3; B.kneeL.rotation.x = 0.6; B.kneeR.rotation.x = 0.5; B.hips.position.y = 0.4; busy = true;
   } else if (o.t === 'research' && !moving) { B.head.rotation.x = -0.25; B.shR.rotation.x = -1.2; B.elR.rotation.x = -1.3; B.spine.rotation.x = 0.05; busy = true; }
@@ -234,18 +255,5 @@ export function animateRig(r: Rig, u: Unit, c: AnimCtx): boolean {
   if (!busy || moving) swing(run ? 1.0 : 0.72, run ? 0.28 : 0.06);
   if (moving && armed && !fighting) { B.handR.rotation.x = Math.PI; B.shR.rotation.x = -0.3; B.elR.rotation.x = -0.5; }
   if (moving && u.carry.n > 0) { B.shL.rotation.x = -0.5; B.elL.rotation.x = -0.9; B.shR.rotation.x = -0.35; B.elR.rotation.x = -0.9; B.spine.rotation.x += 0.1; }
-
-  r.axe!.visible = showTools.axe; r.pick!.visible = showTools.pick; r.hammer!.visible = showTools.hammer;
-  if (u.kind === 'gatherer') { r.spear!.visible = false; }
-  r.spear!.visible = armed && !showTools.axe && !showTools.pick && !showTools.hammer;
-  const carry = u.carry.n > 0 && u.carry.res;
-  r.pack!.visible = !!carry; if (carry) r.pack!.material = MAT.pack[u.carry.res!];
-  const torch = u.owner === 0 && hasDisc(w, 'portable') && (u.kind === 'hunter' || u.kind === 'guard' || u.kind === 'leader');
-  r.torch!.visible = torch; if (torch) r.flame!.scale.set(1, 0.8 + 0.3 * Math.sin(time * 13 + u.id), 1);
-  if (r.visual) {
-    r.visual.motion.update(dt, u, moving, node?.res);
-    // Slot axes differ from the placeholder hands. Keep spear/tall staff upright at rest.
-    if (r.spear) { r.spear.rotation.z = -Math.PI / 2; if (r.visual.nativeWeapon) r.spear.visible = false; }
-  }
   return moving;
 }
