@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
-import { enhance, merge, MAT } from './models';
+import { enhance, merge, MAT, type Part } from './models';
 import { blenderGeo } from './blenderMeshes';
 import { CharacterMotion } from './character-motion';
 import type { Unit, World } from '../sim/types';
@@ -62,19 +62,19 @@ function getRegaliaGeo(slot: string, genTier: number, teamHex: string): THREE.Bu
     const side = slot === 'pauldronL' ? 1 : -1;
     const plateCol = genTier >= 3 ? '#f0c254' : '#e6dac0';
     const trimCol = genTier >= 3 ? '#fff1b8' : teamHex;
-    const parts = [
+    const parts: Part[] = [
       // Main curved shoulder dome
-      { g: sph(0.18, 9), c: plateCol, p: [side * 0.06, 0.04, 0] as [number, number, number], s: [1.15, 0.68, 1.1] as [number, number, number] },
+      { g: sph(0.18, 9), c: plateCol, p: [side * 0.06, 0.04, 0], s: [1.15, 0.68, 1.1] },
       // War-paint rim band
-      { g: cyl(0.19, 0.21, 0.045, 10), c: teamHex, p: [side * 0.06, -0.01, 0] as [number, number, number], r: [0, 0, -side * 0.22] as [number, number, number] },
+      { g: cyl(0.19, 0.21, 0.045, 10), c: teamHex, p: [side * 0.06, -0.01, 0], r: [0, 0, -side * 0.22] },
       // Outward mammoth-ivory / gold spike
-      { g: cone(0.042, genTier >= 3 ? 0.26 : 0.19, 7), c: trimCol, p: [side * 0.17, 0.14, 0] as [number, number, number], r: [0, 0, -side * 0.65] as [number, number, number] },
+      { g: cone(0.042, genTier >= 3 ? 0.26 : 0.19, 7), c: trimCol, p: [side * 0.17, 0.14, 0], r: [0, 0, -side * 0.65] },
     ];
     if (genTier >= 3) {
       // Second upper sun-crest ridge + secondary spike for Gen III
       parts.push(
-        { g: box(0.22, 0.05, 0.24), c: '#d99b2e', p: [side * 0.05, 0.09, 0] as [number, number, number], r: [0, 0, -side * 0.18] as [number, number, number] },
-        { g: cone(0.034, 0.21, 6), c: '#fff3c4', p: [side * 0.09, 0.18, -0.07] as [number, number, number], r: [-0.25, 0, -side * 0.42] as [number, number, number] },
+        { g: box(0.22, 0.05, 0.24), c: '#d99b2e', p: [side * 0.05, 0.09, 0], r: [0, 0, -side * 0.18] },
+        { g: cone(0.034, 0.21, 6), c: '#fff3c4', p: [side * 0.09, 0.18, -0.07], r: [-0.25, 0, -side * 0.42] },
       );
     }
     geo = merge(parts);
@@ -91,54 +91,54 @@ function getRegaliaGeo(slot: string, genTier: number, teamHex: string): THREE.Bu
     ]);
   } else if (slot === 'chestGen3') {
     // Era III: Radiant Sun-Bronze Chest Medallion + Twin Ancestral Clan Back-Banners
-    const parts = [
+    const parts: Part[] = [
       // Gilded gorget collar
-      { g: cyl(0.26, 0.31, 0.08, 12), c: '#f0c254', p: [0, 0.2, 0.14] as [number, number, number], r: [0.32, 0, 0] as [number, number, number], s: [1.15, 1, 0.68] as [number, number, number] },
+      { g: cyl(0.26, 0.31, 0.08, 12), c: '#f0c254', p: [0, 0.2, 0.14], r: [0.32, 0, 0], s: [1.15, 1, 0.68] },
       // Sun-disc chest medallion
-      { g: cyl(0.12, 0.12, 0.04, 12), c: '#ffd86b', p: [0, 0.12, 0.32] as [number, number, number], r: [Math.PI / 2, 0, 0] as [number, number, number] },
-      { g: sph(0.065, 8), c: teamHex, p: [0, 0.12, 0.34] as [number, number, number], s: [1, 1, 0.55] as [number, number, number] },
+      { g: cyl(0.12, 0.12, 0.04, 12), c: '#ffd86b', p: [0, 0.12, 0.32], r: [Math.PI / 2, 0, 0] },
+      { g: sph(0.065, 8), c: teamHex, p: [0, 0.12, 0.34], s: [1, 1, 0.55] },
       // Left & Right Back-Banner Poles rising behind shoulders
-      { g: cyl(0.022, 0.026, 1.15, 7), c: '#5c3d22', p: [-0.22, 0.58, -0.26] as [number, number, number], r: [-0.1, 0, 0.14] as [number, number, number] },
-      { g: cyl(0.022, 0.026, 1.15, 7), c: '#5c3d22', p: [0.22, 0.58, -0.26] as [number, number, number], r: [-0.1, 0, -0.14] as [number, number, number] },
+      { g: cyl(0.022, 0.026, 1.15, 7), c: '#5c3d22', p: [-0.22, 0.58, -0.26], r: [-0.1, 0, 0.14] },
+      { g: cyl(0.022, 0.026, 1.15, 7), c: '#5c3d22', p: [0.22, 0.58, -0.26], r: [-0.1, 0, -0.14] },
       // Golden top crossbars
-      { g: box(0.24, 0.032, 0.032), c: '#f0c254', p: [-0.29, 1.06, -0.31] as [number, number, number], r: [0, 0, 0.14] as [number, number, number] },
-      { g: box(0.24, 0.032, 0.032), c: '#f0c254', p: [0.29, 1.06, -0.31] as [number, number, number], r: [0, 0, -0.14] as [number, number, number] },
+      { g: box(0.24, 0.032, 0.032), c: '#f0c254', p: [-0.29, 1.06, -0.31], r: [0, 0, 0.14] },
+      { g: box(0.24, 0.032, 0.032), c: '#f0c254', p: [0.29, 1.06, -0.31], r: [0, 0, -0.14] },
       // Clan War-Paint Pennant Flags + Gold Trim
-      { g: box(0.19, 0.48, 0.018), c: teamHex, p: [-0.27, 0.80, -0.31] as [number, number, number], r: [-0.1, 0, 0.14] as [number, number, number] },
-      { g: box(0.19, 0.48, 0.018), c: teamHex, p: [0.27, 0.80, -0.31] as [number, number, number], r: [-0.1, 0, -0.14] as [number, number, number] },
-      { g: box(0.21, 0.06, 0.022), c: '#ffd86b', p: [-0.27, 0.82, -0.31] as [number, number, number], r: [-0.1, 0, 0.14] as [number, number, number] },
-      { g: box(0.21, 0.06, 0.022), c: '#ffd86b', p: [0.27, 0.82, -0.31] as [number, number, number], r: [-0.1, 0, -0.14] as [number, number, number] },
+      { g: box(0.19, 0.48, 0.018), c: teamHex, p: [-0.27, 0.80, -0.31], r: [-0.1, 0, 0.14] },
+      { g: box(0.19, 0.48, 0.018), c: teamHex, p: [0.27, 0.80, -0.31], r: [-0.1, 0, -0.14] },
+      { g: box(0.21, 0.06, 0.022), c: '#ffd86b', p: [-0.27, 0.82, -0.31], r: [-0.1, 0, 0.14] },
+      { g: box(0.21, 0.06, 0.022), c: '#ffd86b', p: [0.27, 0.82, -0.31], r: [-0.1, 0, -0.14] },
       // Sun-disc finials atop the banner poles
-      { g: sph(0.055, 8), c: '#ffe07d', p: [-0.30, 1.15, -0.32] as [number, number, number] },
-      { g: sph(0.055, 8), c: '#ffe07d', p: [0.30, 1.15, -0.32] as [number, number, number] },
+      { g: sph(0.055, 8), c: '#ffe07d', p: [-0.30, 1.15, -0.32] },
+      { g: sph(0.055, 8), c: '#ffe07d', p: [0.30, 1.15, -0.32] },
     ];
     geo = merge(parts);
   } else if (slot === 'crownLeader') {
     const crownCol = genTier >= 3 ? '#ffd86b' : genTier === 2 ? '#f0e4c8' : '#dfd3b8';
-    const parts = [
-      { g: blenderGeo('crown_leader'), c: crownCol, p: [0, 0.72, 0.02] as [number, number, number], s: [2.15, 2.25, 2.15] as [number, number, number] },
-      { g: cyl(0.37, 0.38, 0.075, 14), c: teamHex, p: [0, 0.56, 0.02] as [number, number, number] },
-      { g: sph(0.075, 8), c: genTier >= 3 ? '#ffd86b' : '#e8dec4', p: [0, 0.59, 0.38] as [number, number, number] },
+    const parts: Part[] = [
+      { g: blenderGeo('crown_leader'), c: crownCol, p: [0, 0.72, 0.02], s: [2.15, 2.25, 2.15] },
+      { g: cyl(0.37, 0.38, 0.075, 14), c: teamHex, p: [0, 0.56, 0.02] },
+      { g: sph(0.075, 8), c: genTier >= 3 ? '#ffd86b' : '#e8dec4', p: [0, 0.59, 0.38] },
     ];
     if (genTier >= 3) {
       // Central golden sun-spire for Gen III Leader
       parts.push(
-        { g: cone(0.055, 0.32, 6), c: '#ffe388', p: [0, 0.88, 0.24] as [number, number, number], r: [0.18, 0, 0] as [number, number, number] },
+        { g: cone(0.055, 0.32, 6), c: '#ffe388', p: [0, 0.88, 0.24], r: [0.18, 0, 0] },
       );
     }
     geo = merge(parts);
   } else {
     // Head crest for Gen II / Gen III non-leader units
     const crestCol = genTier >= 3 ? '#ffd86b' : '#e8dec4';
-    const parts = [
-      { g: cyl(0.36, 0.37, 0.065, 14), c: teamHex, p: [0, 0.55, 0.02] as [number, number, number] },
-      { g: cone(0.042, genTier >= 3 ? 0.28 : 0.20, 6), c: crestCol, p: [-0.28, 0.68, 0.14] as [number, number, number], r: [0.25, 0, 0.48] as [number, number, number] },
-      { g: cone(0.042, genTier >= 3 ? 0.28 : 0.20, 6), c: crestCol, p: [0.28, 0.68, 0.14] as [number, number, number], r: [0.25, 0, -0.48] as [number, number, number] },
+    const parts: Part[] = [
+      { g: cyl(0.36, 0.37, 0.065, 14), c: teamHex, p: [0, 0.55, 0.02] },
+      { g: cone(0.042, genTier >= 3 ? 0.28 : 0.20, 6), c: crestCol, p: [-0.28, 0.68, 0.14], r: [0.25, 0, 0.48] },
+      { g: cone(0.042, genTier >= 3 ? 0.28 : 0.20, 6), c: crestCol, p: [0.28, 0.68, 0.14], r: [0.25, 0, -0.48] },
     ];
     if (genTier >= 3) {
       parts.push(
-        { g: box(0.08, 0.24, 0.42), c: teamHex, p: [0, 0.82, -0.02] as [number, number, number] },
-        { g: box(0.09, 0.06, 0.44), c: '#ffd86b', p: [0, 0.72, -0.02] as [number, number, number] },
+        { g: box(0.08, 0.24, 0.42), c: teamHex, p: [0, 0.82, -0.02] },
+        { g: box(0.09, 0.06, 0.44), c: '#ffd86b', p: [0, 0.72, -0.02] },
       );
     }
     geo = merge(parts);
