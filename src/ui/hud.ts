@@ -366,11 +366,105 @@ export class Hud {
       </div>`, 'titlescreen');
   }
 
-  openClan() {
-    const sp = this.pickedSpecies, mp = this.pickedMap, rv = SPECIES[sp].rival;
+  private clanStageMeta() {
+    const sp = this.pickedSpecies, rv = SPECIES[sp].rival;
     const uniqKind: UnitKind = sp === 'human' ? 'slinger' : sp === 'neanderthal' ? 'brute' : 'stalker';
     const roster: UnitKind[] = ['leader', uniqKind, 'gatherer', 'hunter', 'guard', 'elder', 'champion'];
     const uDef = UNITS[this.previewUnit];
+    const genMult = this.previewGen >= 3 ? 1.3 : this.previewGen === 2 ? 1.15 : 1;
+    const hp = Math.round(uDef.hp * genMult);
+    const dmg = Math.round(uDef.dmg * genMult);
+    const boostBadge = this.previewGen > 1 ? ` <em class="gen-boost">+${Math.round((genMult - 1) * 100)}%</em>` : '';
+    const genInfo = this.previewGen === 1
+      ? { era: 'Era I · Stone & Hide (The First Winter)', desc: 'Primal hide attire, flint & timber weapons, and foundational hearth fire.' }
+      : this.previewGen === 2
+      ? { era: 'Era II · Bone, Ochre & Portable Fire (+15% Might)', desc: 'Mammoth-tusk bone pauldrons, predator-fang gorget, portable fire torch & clay vessels.' }
+      : { era: 'Era III · Sun-Bronze & High-Kiln Mastery (+30% Might)', desc: 'Gilded sun-bronze armor, twin ancestral clan war-banners, sun-disc medallion & temple braziers.' };
+    return { sp, rv, uniqKind, roster, uDef, hp, dmg, boostBadge, genInfo };
+  }
+
+  /** Smoothly update Clan & Character Showcase UI in-place without destroying the 3D WebGL canvas or flashing the modal. */
+  private syncClanDOM(): boolean {
+    const modal = $('modal');
+    if (modal.classList.contains('hidden') || !document.getElementById('clan-stage-canvas')) return false;
+    const { sp, rv, roster, uDef, hp, dmg, boostBadge, genInfo } = this.clanStageMeta();
+
+    const sub = modal.querySelector<HTMLElement>('.clan > .sub');
+    if (sub) sub.textContent = `Your rival will be the ${SPECIES[rv].plural}. Sculpted 3D characters, custom clan war-paint, and ancestral regalia.`;
+
+    // Update clan cards active state & Chosen badge in-place
+    for (const s of SPECIES_ORDER) {
+      const btn = modal.querySelector<HTMLElement>(`.clancard[data-act="species:${s}"]`);
+      if (!btn) continue;
+      const on = s === sp;
+      btn.classList.toggle('on', on);
+      const badge = btn.querySelector('.chosen');
+      if (on && !badge) {
+        const span = document.createElement('span');
+        span.className = 'chosen';
+        span.innerHTML = `${icon('check')} Chosen`;
+        btn.appendChild(span);
+      } else if (!on && badge) {
+        badge.remove();
+      }
+    }
+
+    // Update stage header & Generation pills
+    const kicker = document.getElementById('stage-kicker');
+    if (kicker) kicker.textContent = `${SPECIES[sp].name} · Gen ${roman(this.previewGen)}`;
+    const title = document.getElementById('stage-unit-title');
+    if (title) title.innerHTML = `${uDef.name}${uDef.only ? ' <i class="uniq-pill">Clan Exclusive</i>' : ''}`;
+    for (const g of [1, 2, 3]) {
+      modal.querySelector<HTMLElement>(`.gpill[data-act="pgen:${g}"]`)?.classList.toggle('on', this.previewGen === g);
+    }
+
+    // Update pose pills
+    for (const p of ['idle', 'walk', 'attack', 'work'] as PreviewPose[]) {
+      modal.querySelector<HTMLElement>(`.ppill[data-act="ppose:${p}"]`)?.classList.toggle('on', this.previewPose === p);
+    }
+
+    // Update unit tabs (including Clan Exclusive unit when species changes)
+    const tabsEl = document.getElementById('stage-unit-tabs');
+    if (tabsEl) {
+      tabsEl.innerHTML = roster
+        .map((k) => `<button data-act="punit:${k}" class="utab ${this.previewUnit === k ? 'on' : ''} ${UNITS[k].only ? 'uniq' : ''}" title="${esc(UNITS[k].name)}">${icon(KIND_ICON[k])}<span>${UNITS[k].name.split(' ').pop()}</span></button>`)
+        .join('');
+    }
+
+    // Update Generation Era banner & Unit Stat readout
+    const genBanner = document.getElementById('stage-gen-banner');
+    if (genBanner) {
+      genBanner.className = `gen-banner g-${this.previewGen}`;
+      genBanner.innerHTML = `${icon(this.previewGen >= 3 ? 'kiln' : this.previewGen === 2 ? 'pottery' : 'fire')}<div><b>${esc(genInfo.era)}</b><small>${esc(genInfo.desc)}</small></div>`;
+    }
+    const unitInfo = document.getElementById('stage-unit-info');
+    if (unitInfo) {
+      unitInfo.innerHTML = `<div class="u-stats">
+        <span>${icon('heart')}<b>${hp}</b> HP${boostBadge}</span>
+        <span>${icon('attack')}<b>${dmg}</b> DMG${boostBadge}</span>
+        <span>${icon('move')}<b>${uDef.speed.toFixed(1)}</b> SPD</span>
+      </div>
+      <p>${esc(uDef.desc)}</p>`;
+    }
+
+    // Update Founder Leader input & War-paint swatches
+    const inp = document.getElementById('leader-name-input') as HTMLInputElement | null;
+    if (inp && document.activeElement !== inp) inp.value = this.pickedLeader;
+    for (const c of BANNER_COLORS) {
+      modal.querySelector<HTMLElement>(`.swatch[data-act="banner:${c.hex}"]`)?.classList.toggle('on', this.pickedBanner === c.hex);
+    }
+
+    // Update Map cards
+    for (const id of MAP_ORDER) {
+      modal.querySelector<HTMLElement>(`.mapcard[data-act="map:${id}"]`)?.classList.toggle('on', this.pickedMap === id);
+    }
+    return true;
+  }
+
+  openClan() {
+    if (this.syncClanDOM()) return;
+    const { sp, rv, roster, uDef, hp, dmg, boostBadge, genInfo } = this.clanStageMeta();
+    const mp = this.pickedMap;
 
     const card = (s: Species) => {
       const d = SPECIES[s], bars = CLAN_STATS[s];
@@ -396,8 +490,8 @@ export class Hud {
           <div class="stage-card">
             <div class="stage-hdr">
               <div>
-                <span class="stage-kicker">${SPECIES[sp].name} · Gen ${roman(this.previewGen)}</span>
-                <h3>${uDef.name}${uDef.only ? ' <i class="uniq-pill">Clan Exclusive</i>' : ''}</h3>
+                <span id="stage-kicker" class="stage-kicker">${SPECIES[sp].name} · Gen ${roman(this.previewGen)}</span>
+                <h3 id="stage-unit-title">${uDef.name}${uDef.only ? ' <i class="uniq-pill">Clan Exclusive</i>' : ''}</h3>
               </div>
               <div class="gen-pills" title="Preview Generation Regalia">
                 ${[1, 2, 3].map((g) => `<button data-act="pgen:${g}" class="gpill ${this.previewGen === g ? 'on' : ''}">Gen ${roman(g)}</button>`).join('')}
@@ -410,13 +504,17 @@ export class Hud {
                 ${(['idle', 'walk', 'attack', 'work'] as PreviewPose[]).map((p) => `<button data-act="ppose:${p}" class="ppill ${this.previewPose === p ? 'on' : ''}">${p}</button>`).join('')}
               </div>
             </div>
-            <div class="unit-tabs">
+            <div id="stage-gen-banner" class="gen-banner g-${this.previewGen}">
+              ${icon(this.previewGen >= 3 ? 'kiln' : this.previewGen === 2 ? 'pottery' : 'fire')}
+              <div><b>${esc(genInfo.era)}</b><small>${esc(genInfo.desc)}</small></div>
+            </div>
+            <div id="stage-unit-tabs" class="unit-tabs">
               ${roster.map((k) => `<button data-act="punit:${k}" class="utab ${this.previewUnit === k ? 'on' : ''} ${UNITS[k].only ? 'uniq' : ''}" title="${esc(UNITS[k].name)}">${icon(KIND_ICON[k])}<span>${UNITS[k].name.split(' ').pop()}</span></button>`).join('')}
             </div>
-            <div class="stage-unit-info">
+            <div id="stage-unit-info" class="stage-unit-info">
               <div class="u-stats">
-                <span>${icon('heart')}<b>${uDef.hp}</b> HP</span>
-                <span>${icon('attack')}<b>${uDef.dmg}</b> DMG</span>
+                <span>${icon('heart')}<b>${hp}</b> HP${boostBadge}</span>
+                <span>${icon('attack')}<b>${dmg}</b> DMG${boostBadge}</span>
                 <span>${icon('move')}<b>${uDef.speed.toFixed(1)}</b> SPD</span>
               </div>
               <p>${esc(uDef.desc)}</p>

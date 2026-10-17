@@ -533,6 +533,25 @@ export function personGeo(kind: UnitKind, species: Species, owner: 0 | 1, gen: n
     add('spine', sph(0.042, 0), '#e8bd63', [0, 0.76, 0.145]);                                       // chieftain medallion
   }
   if (kind === 'gatherer' && v === 3) add('spine', box(0.42 * bw, 0.1, 0.1), '#8a6a3c', [0, 0.58, -0.15]);
+  // Generation II+ & III+ evolutionary regalia on procedural rig
+  if (gen >= 2) {
+    const pCol = gen >= 3 ? '#f0c254' : '#e6dac0';
+    for (const sx of [-1, 1]) {
+      const side = sx < 0 ? 'shL' : 'shR';
+      add(side, sph(0.11 * bw, 1), pCol, [sx * 0.22, 0.78, 0], undefined, [1.18, 0.68, 1.1]);
+      add(side, cone(0.028, gen >= 3 ? 0.18 : 0.13, 6), gen >= 3 ? '#fff2b8' : team, [sx * 0.29, 0.85, 0], [0, 0, -sx * 0.65]);
+    }
+    add('spine', cyl(0.19 * bw, 0.22 * bw, 0.05, 10), pCol, [0, 0.79, 0.02]);
+  }
+  if (gen >= 3) {
+    add('spine', cyl(0.075, 0.075, 0.025, 10), '#ffd86b', [0, 0.72, 0.155], [Math.PI / 2, 0, 0]);
+    add('spine', sph(0.04, 0), team, [0, 0.72, 0.168]);
+    for (const sx of [-1, 1]) {
+      add('spine', cyl(0.015, 0.018, 0.68, 6), '#5c3d22', [sx * 0.14, 0.96, -0.16], [-0.1, 0, -sx * 0.14]);
+      add('spine', box(0.12, 0.28, 0.015), team, [sx * 0.17, 1.08, -0.19], [-0.1, 0, -sx * 0.14]);
+      add('spine', sph(0.035, 0), '#ffe07d', [sx * 0.19, 1.28, -0.20]);
+    }
+  }
   // hand-held weapons (authored along -y from the hand, so thrusting along the arm points the weapon forward)
   const hands: Record<string, Part[]> = {
     guard: [{ g: cyl(0.022, 0.022, 1.6, 6), c: '#8b6a40', p: [0, -0.45, 0.0] }, { g: cyl(0.03, 0.03, 0.08, 6), c: '#5a3d25', p: [0, -1.22, 0] }, { g: cone(0.055, 0.25, 6), c: '#d0d4dc', p: [0, -1.38, 0], r: [Math.PI, 0, 0] }],

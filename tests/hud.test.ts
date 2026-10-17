@@ -110,6 +110,29 @@ describe('mobile playtest fixes through the real HUD event handlers', () => {
     click('move');expect(game.mode).toBe('normal');
     game.sel=[];hud.tick(1400);expect(document.getElementById('bubble')!.classList.contains('hidden')).toBe(true);
   });
+  it('updates Gen I, Gen II, Gen III and unit tabs on the Clan Selection screen in-place without flashing or recreating the 3D canvas', () => {
+    const {hud,click}=setup();
+    hud.openClan();
+    const canvasBefore = document.getElementById('clan-stage-canvas');
+    expect(canvasBefore).not.toBeNull();
+    expect(document.getElementById('stage-gen-banner')!.textContent).toContain('Era I');
+
+    click('pgen:2');
+    expect(document.getElementById('clan-stage-canvas')).toBe(canvasBefore);
+    expect(document.getElementById('stage-kicker')!.textContent).toContain('Gen II');
+    expect(document.getElementById('stage-gen-banner')!.textContent).toContain('Era II');
+    expect(document.getElementById('stage-unit-info')!.textContent).toContain('+15%');
+
+    click('pgen:3');
+    expect(document.getElementById('clan-stage-canvas')).toBe(canvasBefore);
+    expect(document.getElementById('stage-kicker')!.textContent).toContain('Gen III');
+    expect(document.getElementById('stage-gen-banner')!.textContent).toContain('Era III');
+    expect(document.getElementById('stage-unit-info')!.textContent).toContain('+30%');
+
+    click('species:neanderthal');
+    expect(document.getElementById('clan-stage-canvas')).toBe(canvasBefore);
+    expect(document.querySelector('[data-act="punit:brute"]')).not.toBeNull();
+  });
 });
 
 describe('resource measurements', () => {

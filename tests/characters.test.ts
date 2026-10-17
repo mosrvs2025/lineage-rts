@@ -78,7 +78,23 @@ describe('authored warband assets and animation', () => {
     }
     expect(player.root.getObjectByName('Barbarian_Hat')!.visible).toBe(false);
     expect(rival.root.getObjectByName('Barbarian_Hat')!.visible).toBe(true);
-    player.motion.dispose(); rival.motion.dispose(); vi.unstubAllGlobals();
+    expect(player.root.getObjectByName('RegaliaPauldronL')).toBeUndefined();
+
+    // Verify Gen II and Gen III attach distinct 3D bone/sun-bronze pauldrons, chest regalia, and antler crowns
+    const ldrGen1 = instantiateWarband(source, {...unit('leader',{t:'idle'}), owner:0, gen:1}, w);
+    const ldrGen2 = instantiateWarband(source, {...unit('leader',{t:'idle'}), owner:0, gen:2}, w);
+    const ldrGen3 = instantiateWarband(source, {...unit('leader',{t:'idle'}), owner:0, gen:3}, w);
+    expect(ldrGen1.root.getObjectByName('RegaliaCrown')).toBeDefined();
+    expect(ldrGen1.root.getObjectByName('RegaliaPauldronL')).toBeUndefined();
+    expect(ldrGen2.root.getObjectByName('RegaliaPauldronL')).toBeDefined();
+    expect(ldrGen2.root.getObjectByName('RegaliaChest')).toBeDefined();
+    expect(ldrGen3.root.getObjectByName('RegaliaPauldronL')).toBeDefined();
+    expect((ldrGen3.root.getObjectByName('RegaliaChest') as any).geometry.getAttribute('position').count)
+      .toBeGreaterThan((ldrGen2.root.getObjectByName('RegaliaChest') as any).geometry.getAttribute('position').count);
+
+    player.motion.dispose(); rival.motion.dispose();
+    ldrGen1.motion.dispose(); ldrGen2.motion.dispose(); ldrGen3.motion.dispose();
+    vi.unstubAllGlobals();
   });
   it('maps actual jobs and combat roles to distinct authored clips', () => {
     expect(characterClip(unit('scout', {t:'idle'}), true)).toBe('Running_A');
