@@ -142,6 +142,25 @@ describe('mobile playtest fixes through the real HUD event handlers', () => {
     expect(deniStats).not.toBe(humanStats);
     expect(deniStats).not.toBe(neanStats);
     expect(deniStats).toContain('+1');
+
+    // Verify Live Loadout & Gameplay Impact Strip and Active Clan Dossier update dynamically
+    expect(document.getElementById('clan-impact-pills')!.textContent).toContain('+15% Weapon DMG & Reach');
+    expect(document.getElementById('clan-impact-pills')!.textContent).toContain('Unique: Stalker');
+    expect(document.getElementById('active-clan-dossier')!.textContent).toContain('Solari Clan');
+    expect(document.getElementById('sum-clan-label')!.textContent).toContain('Denisovans');
+
+    // Verify mobile deck tab switching (Units & Era -> Land -> Hero & Paint)
+    click('clantab:map');
+    expect(document.querySelector('.modal.clan')!.getAttribute('data-tab')).toBe('map');
+    click('pmap:tundra');
+    expect(document.getElementById('sum-map-label')!.textContent).toContain('Glacial Steppe');
+    expect(document.getElementById('clan-impact-pills')!.textContent).toContain('Early Winter');
+
+    click('clantab:custom');
+    expect(document.querySelector('.modal.clan')!.getAttribute('data-tab')).toBe('custom');
+    click('ppaint:azure');
+    expect(document.getElementById('sum-clan-label')!.textContent).toContain('Lapis');
+    expect(document.getElementById('clan-stage-canvas')).toBe(canvasBefore);
   });
 
   it('supports Interactive Tutorial, Story Campaign browser, Online Chat Lobby, Building Repair, Specialist Abilities, and Stockpile Barter', () => {

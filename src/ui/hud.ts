@@ -113,6 +113,7 @@ export class Hud {
   private pickedSuccessor = 0; private pickedSpecies: Species = 'human'; private pickedMap = 'valley';
   private previewUnit: UnitKind = 'leader'; private previewPose: PreviewPose = 'idle'; private previewGen = 1;
   private pickedBanner = '#27b7c6'; private pickedLeader = SPECIES.human.leader;
+  private clanTab: 'units' | 'map' | 'custom' = 'units';
   private pickedChapter = 'ch1_embers'; private pickedDiff: CampaignDifficulty = 'standard';
   private mpModePick: MpMode = 'versus'; private mpMapPick = 'valley';
   private lastDrawerHtml = '';
@@ -411,7 +412,8 @@ export class Hud {
         }
         this.openClan(); return;
       }
-      case 'punit': this.previewUnit = arg as UnitKind; this.openClan(); return;
+      case 'clantab': this.clanTab = arg as 'units' | 'map' | 'custom'; this.openClan(); return;
+      case 'punit': this.previewUnit = arg as UnitKind; this.clanTab = 'units'; this.openClan(); return;
       case 'ppose': this.previewPose = arg as PreviewPose; this.openClan(); return;
       case 'pgen': this.previewGen = Number(arg); this.openClan(); return;
       case 'banner': this.pickedBanner = arg; this.openClan(); return;
@@ -476,7 +478,7 @@ export class Hud {
 
   openStart() {
     const g = this.g;
-    const slot = (s: SaveSlot, label: string) => { const i = g.slotInfo(s); return i.ok ? `<button data-act="continue:${s}" class="tbtn">${icon('load')}<span>${label}<small>${esc(i.text)}</small></span></button>` : ''; };
+    const slot = (s: SaveSlot, label: string) => { const i = g.slotInfo(s); return i.ok ? `<button data-act="continue:${s}" class="tbtn sub-btn">${icon('load')}<span>${label}<small>${esc(i.text)}</small></span></button>` : ''; };
     const prog = loadCampaignProgress();
     const doneChapters = Object.values(prog).filter(p => p.completed).length;
     this.openModal(`
@@ -486,10 +488,12 @@ export class Hud {
           <button data-act="campaign" class="tbtn primary">${icon('campaign')}<span>Story Campaign<small>Chronicles of the Three Fires (${doneChapters}/${CAMPAIGN_CHAPTERS.length})</small></span></button>
           <button data-act="play" class="tbtn">${icon('play')}<span>Custom Skirmish<small>Choose Clan, 3D Hero &amp; Land</small></span></button>
           <button data-act="multiplayer" class="tbtn">${icon('globe')}<span>Online &amp; Chat Rooms<small>1v1 Versus · 2P Co-op · Live Lobby</small></span></button>
-          <button data-act="tut-start" class="tbtn">${icon('bulb')}<span>Interactive Tutorial<small>Guided Path of the First Fire</small></span></button>
-          ${slot('auto', 'Continue')}${slot('manual', 'Load Game')}
-          <button data-act="settings" class="tbtn">${icon('sparkle')}<span>Settings</span></button>
-          <button data-act="help" class="tbtn">${icon('help')}<span>How to Play</span></button>
+          <div class="tmenu-grid">
+            <button data-act="tut-start" class="tbtn sub-btn">${icon('bulb')}<span>Tutorial<small>Guided Coach</small></span></button>
+            <button data-act="settings" class="tbtn sub-btn">${icon('sparkle')}<span>Settings<small>Graphics &amp; Sound</small></span></button>
+            <button data-act="help" class="tbtn sub-btn">${icon('help')}<span>Field Manual<small>Controls &amp; Lore</small></span></button>
+            ${slot('auto', 'Continue')}${slot('manual', 'Load Game')}
+          </div>
         </div>
         <p class="tag">Ancestors discover. Descendants find new uses.</p>
       </div>`, 'titlescreen');
@@ -497,6 +501,7 @@ export class Hud {
 
   private clanStageMeta() {
     const sp = this.pickedSpecies, rv = SPECIES[sp].rival;
+    const m = MAPS[this.pickedMap] ?? MAPS.valley;
     const uniqKind: UnitKind = sp === 'human' ? 'slinger' : sp === 'neanderthal' ? 'brute' : 'stalker';
     const roster: UnitKind[] = ['leader', uniqKind, 'gatherer', 'hunter', 'guard', 'elder', 'champion'];
     const uDef = UNITS[this.previewUnit];
@@ -511,17 +516,78 @@ export class Hud {
       : this.previewGen === 2
       ? { era: 'Era II · Bone, Ochre & Portable Fire (+15% Might)', desc: `${SPECIES[sp].archetype} — Mammoth-tusk bone pauldrons, predator-fang gorget, portable fire torch & clay vessels.` }
       : { era: 'Era III · Sun-Bronze & High-Kiln Mastery (+30% Might)', desc: `${SPECIES[sp].archetype} — Gilded sun-bronze armor, twin ancestral clan war-banners, sun-disc medallion & temple braziers.` };
-    return { sp, rv, uniqKind, roster, uDef, st, hpBadge, dmgBadge, spdBadge, visBadge, genInfo };
+
+    const impactPills = sp === 'human'
+      ? [
+          { cls: 'pos', ic: 'move', txt: '+10% Move Speed' },
+          { cls: 'pos', ic: 'attack', txt: '+15% Ranged/Chief DMG' },
+          { cls: 'pos', ic: 'food', txt: '+10% All Gathering' },
+          { cls: 'uniq', ic: 'slinger', txt: 'Unique: Slinger' },
+        ]
+      : sp === 'neanderthal'
+      ? [
+          { cls: 'pos', ic: 'heart', txt: '+20% Warrior HP & DMG' },
+          { cls: 'pos', ic: 'snow', txt: '-35% Winter Cold Dmg' },
+          { cls: 'neg', ic: 'move', txt: '-8% Move Speed' },
+          { cls: 'uniq', ic: 'brute', txt: 'Unique: Brute' },
+        ]
+      : [
+          { cls: 'pos', ic: 'attack', txt: '+15% Weapon DMG & Reach' },
+          { cls: 'pos', ic: 'stone', txt: '+20% Stone & Wood' },
+          { cls: 'pos', ic: 'scout', txt: '+1 Sight · -20% Cold' },
+          { cls: 'uniq', ic: 'stalker', txt: 'Unique: Stalker' },
+        ];
+
+    const mapImpact = `${m.name} (${m.difficulty}) · Start ${m.start.food}F/${m.start.wood}W/${m.start.stone}S · Winter ${fmtTime(m.winter.start)}`;
+    return { sp, rv, m, uniqKind, roster, uDef, st, hpBadge, dmgBadge, spdBadge, visBadge, genInfo, impactPills, mapImpact };
+  }
+
+  private renderActiveClanDossier(sp: Species): string {
+    const d = SPECIES[sp], bars = CLAN_STATS[sp], rv = SPECIES[d.rival];
+    return `
+      <div class="dossier-top">
+        <div>
+          <b>${esc(d.plural)} — ${esc(d.tag)}</b>
+          <small>Rival Matchup: vs ${esc(rv.plural)} (${esc(rv.tag)})</small>
+        </div>
+        <div class="dossier-bars">
+          ${bars.map((b) => `<div class="dbar"><span>${b.label}</span><div class="dtrack"><i style="width:${b.v}%;background:${d.band}"></i></div><b>${b.v}</b></div>`).join('')}
+        </div>
+      </div>
+      <ul class="dossier-perks">${d.perks.map((p) => `<li>${icon('check')}<span>${esc(p)}</span></li>`).join('')}</ul>`;
   }
 
   /** Smoothly update Clan & Character Showcase UI in-place without destroying the 3D WebGL canvas or flashing the modal. */
   private syncClanDOM(): boolean {
     const modal = $('modal');
     if (modal.classList.contains('hidden') || !document.getElementById('clan-stage-canvas')) return false;
-    const { sp, rv, roster, uDef, st, hpBadge, dmgBadge, spdBadge, visBadge, genInfo } = this.clanStageMeta();
+    const { sp, rv, m, roster, uDef, st, hpBadge, dmgBadge, spdBadge, visBadge, genInfo, impactPills, mapImpact } = this.clanStageMeta();
 
     const sub = modal.querySelector<HTMLElement>('.clan > .sub');
     if (sub) sub.textContent = `Your rival will be the ${SPECIES[rv].plural}. Sculpted 3D characters, asymmetric clan stats, and ancestral regalia.`;
+
+    // Update top live Loadout & Game Impact strip
+    const sumClan = document.getElementById('sum-clan-label');
+    if (sumClan) sumClan.innerHTML = `<i class="sw-dot" style="background:${esc(this.pickedBanner)}"></i><b>${esc(SPECIES[sp].plural)}</b> <small>Lead: ${esc(this.pickedLeader)}</small>`;
+    const sumMap = document.getElementById('sum-map-label');
+    if (sumMap) sumMap.innerHTML = `${icon('map')}<b>${esc(m.name)}</b> <small>${esc(m.difficulty)}</small>`;
+    const sumImpact = document.getElementById('clan-impact-pills');
+    if (sumImpact) {
+      sumImpact.innerHTML = impactPills.map((p) => `<span class="imp-pill ${p.cls}">${icon(p.ic)}${esc(p.txt)}</span>`).join('') +
+        `<span class="imp-pill map">${icon('snow')}${esc(mapImpact)}</span>`;
+    }
+
+    // Update mobile deck switcher tabs
+    for (const t of ['units', 'map', 'custom'] as const) {
+      const tb = modal.querySelector<HTMLElement>(`.dtab[data-act="clantab:${t}"]`);
+      if (tb) {
+        tb.classList.toggle('on', this.clanTab === t);
+        if (t === 'map') tb.innerHTML = `${icon('map')}<span>Land: ${esc(m.name)}</span>`;
+        if (t === 'custom') tb.innerHTML = `<i class="sw-dot" style="background:${esc(this.pickedBanner)}"></i><span>Hero: ${esc(this.pickedLeader)}</span>`;
+      }
+    }
+    const clanRoot = modal.querySelector<HTMLElement>('.clan');
+    if (clanRoot) clanRoot.dataset.tab = this.clanTab;
 
     // Update clan cards active state & Chosen badge in-place
     for (const s of SPECIES_ORDER) {
@@ -539,6 +605,10 @@ export class Hud {
         badge.remove();
       }
     }
+
+    // Update active clan dossier
+    const dossier = document.getElementById('active-clan-dossier');
+    if (dossier) dossier.innerHTML = this.renderActiveClanDossier(sp);
 
     // Update stage header & Generation pills
     const kicker = document.getElementById('stage-kicker');
@@ -595,30 +665,78 @@ export class Hud {
 
   openClan() {
     if (this.syncClanDOM()) return;
-    const { sp, rv, roster, uDef, st, hpBadge, dmgBadge, spdBadge, visBadge, genInfo } = this.clanStageMeta();
+    const { sp, rv, m, roster, uDef, st, hpBadge, dmgBadge, spdBadge, visBadge, genInfo, impactPills, mapImpact } = this.clanStageMeta();
     const mp = this.pickedMap;
 
     const card = (s: Species) => {
       const d = SPECIES[s], bars = CLAN_STATS[s];
       return `
-      <button data-act="species:${s}" class="clancard ${sp === s ? 'on' : ''}">
+      <button data-act="species:${s}" class="clancard ${sp === s ? 'on' : ''}" style="--band:${d.band}">
         ${portrait(s)}
-        <h3>${d.plural}</h3>
-        <p class="ctag">${d.tag}</p>
+        <div class="cc-meta">
+          <h3>${d.plural}</h3>
+          <p class="ctag">${d.tag}</p>
+        </div>
         <div class="stat-bars">${bars.map((b) => `<div class="sbar"><span>${b.label}</span><div class="strack"><i style="width:${b.v}%;background:${d.band}"></i></div></div>`).join('')}</div>
         <ul>${d.perks.map((p) => `<li>${icon('check')}${p}</li>`).join('')}</ul>
         ${sp === s ? `<span class="chosen">${icon('check')} Chosen</span>` : ''}
       </button>`;
     };
-    const mcard = (id: string) => { const m = MAPS[id]; return `
-      <button data-act="map:${id}" class="mapcard b-${m.biome} ${mp === id ? 'on' : ''}">
-        <span class="mthumb">${mapThumb(id)}</span><b>${m.name}</b><span class="mdiff d-${m.difficulty.toLowerCase()}">${m.difficulty}</span><small>${m.desc}</small><ul class="mfeat">${m.features.map((f) => `<li>${f}</li>`).join('')}</ul>
+    const mcard = (id: string) => { const md = MAPS[id]; return `
+      <button data-act="map:${id}" class="mapcard b-${md.biome} ${mp === id ? 'on' : ''}">
+        <span class="mthumb">${mapThumb(id)}</span>
+        <div class="mc-body">
+          <div class="mc-head"><b>${md.name}</b><span class="mdiff d-${md.difficulty.toLowerCase()}">${md.difficulty}</span></div>
+          <small>${md.desc}</small>
+          <div class="mc-stats"><span>${icon('food')}${md.start.food}</span><span>${icon('wood')}${md.start.wood}</span><span>${icon('stone')}${md.start.stone}</span><span>${icon('snow')}${fmtTime(md.winter.start)}</span></div>
+          <ul class="mfeat">${md.features.map((f) => `<li>${f}</li>`).join('')}</ul>
+        </div>
       </button>`; };
     this.openModal(`
-      <div class="clan">
-        <h2>Choose Your Lineage &amp; Hero</h2><p class="sub">Your rival will be the ${SPECIES[rv].plural}. Sculpted 3D characters, asymmetric clan stats, and ancestral regalia.</p>
+      <div class="clan" data-tab="${this.clanTab}">
+        <div class="clan-header-bar">
+          <div class="ch-title">
+            <h2>Choose Your Lineage &amp; Hero</h2>
+            <p class="sub">Your rival will be the ${SPECIES[rv].plural}. Sculpted 3D characters, asymmetric clan stats, and ancestral regalia.</p>
+          </div>
+          <div class="ch-summary">
+            <button type="button" data-act="clantab:custom" id="sum-clan-label" class="sum-chip"><i class="sw-dot" style="background:${esc(this.pickedBanner)}"></i><b>${esc(SPECIES[sp].plural)}</b> <small>Lead: ${esc(this.pickedLeader)}</small></button>
+            <button type="button" data-act="clantab:map" id="sum-map-label" class="sum-chip">${icon('map')}<b>${esc(m.name)}</b> <small>${esc(m.difficulty)}</small></button>
+          </div>
+        </div>
+
+        <div id="clan-impact-pills" class="clan-impact-strip" aria-label="Active gameplay modifiers">
+          ${impactPills.map((p) => `<span class="imp-pill ${p.cls}">${icon(p.ic)}${esc(p.txt)}</span>`).join('')}
+          <span class="imp-pill map">${icon('snow')}${esc(mapImpact)}</span>
+        </div>
+
         <div class="clan-top-grid">
-          <div class="clancards three">${SPECIES_ORDER.map(card).join('')}</div>
+          <div class="clan-left-col">
+            <div class="clancards three">${SPECIES_ORDER.map(card).join('')}</div>
+            <div id="active-clan-dossier" class="clan-dossier">${this.renderActiveClanDossier(sp)}</div>
+            <div class="deck-pane pane-map">
+              <h2 class="h2b">Choose Your Land</h2>
+              <div class="mapcards">${MAP_ORDER.map(mcard).join('')}</div>
+            </div>
+            <div class="deck-pane pane-custom">
+              <div class="custom-bar">
+                <div class="cfield">
+                  <label for="leader-name-input">${icon('leader')}Founder</label>
+                  <div class="leader-input-row">
+                    <input id="leader-name-input" type="text" maxlength="18" value="${esc(this.pickedLeader)}" placeholder="Leader name"/>
+                    <button data-act="randname" class="mini" title="Randomize chieftain name">${icon('sparkle')}</button>
+                  </div>
+                </div>
+                <div class="cfield">
+                  <label>War-Paint</label>
+                  <div class="swatches">
+                    ${BANNER_COLORS.map((c) => `<button data-act="banner:${c.hex}" class="swatch ${this.pickedBanner === c.hex ? 'on' : ''}" style="--sw:${c.hex}" title="${c.name}" aria-label="${c.name}"></button>`).join('')}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="stage-card">
             <div class="stage-hdr">
               <div>
@@ -636,42 +754,38 @@ export class Hud {
                 ${(['idle', 'walk', 'attack', 'work'] as PreviewPose[]).map((p) => `<button data-act="ppose:${p}" class="ppill ${this.previewPose === p ? 'on' : ''}">${p}</button>`).join('')}
               </div>
             </div>
-            <div id="stage-gen-banner" class="gen-banner g-${this.previewGen}">
-              ${icon(this.previewGen >= 3 ? 'kiln' : this.previewGen === 2 ? 'pottery' : 'fire')}
-              <div><b>${esc(genInfo.era)}</b><small>${esc(genInfo.desc)}</small></div>
+
+            <div class="clan-deck-tabs" role="tablist" aria-label="Customize sections">
+              <button type="button" data-act="clantab:units" class="dtab ${this.clanTab === 'units' ? 'on' : ''}">${icon('swords')}<span>Units &amp; Era</span></button>
+              <button type="button" data-act="clantab:map" class="dtab ${this.clanTab === 'map' ? 'on' : ''}">${icon('map')}<span>Land: ${esc(m.name)}</span></button>
+              <button type="button" data-act="clantab:custom" class="dtab ${this.clanTab === 'custom' ? 'on' : ''}"><i class="sw-dot" style="background:${esc(this.pickedBanner)}"></i><span>Hero: ${esc(this.pickedLeader)}</span></button>
             </div>
-            <div id="stage-unit-tabs" class="unit-tabs">
-              ${roster.map((k) => `<button data-act="punit:${k}" class="utab ${this.previewUnit === k ? 'on' : ''} ${UNITS[k].only ? 'uniq' : ''}" title="${esc(UNITS[k].name)}">${icon(KIND_ICON[k])}<span>${UNITS[k].name.split(' ').pop()}</span></button>`) .join('')}
-            </div>
-            <div id="stage-unit-info" class="stage-unit-info">
-              <div class="u-stats">
-                <span>${icon('heart')}<b>${st.hp}</b> HP${hpBadge}</span>
-                <span>${icon('attack')}<b>${st.dmg}</b> DMG${dmgBadge}</span>
-                <span>${icon('move')}<b>${st.speed.toFixed(1)}</b> SPD${spdBadge}</span>
-                <span>${icon('scout')}<b>${st.vision}</b> VIS${visBadge}</span>
+
+            <div class="deck-pane pane-units">
+              <div id="stage-unit-tabs" class="unit-tabs">
+                ${roster.map((k) => `<button data-act="punit:${k}" class="utab ${this.previewUnit === k ? 'on' : ''} ${UNITS[k].only ? 'uniq' : ''}" title="${esc(UNITS[k].name)}">${icon(KIND_ICON[k])}<span>${UNITS[k].name.split(' ').pop()}</span></button>`).join('')}
               </div>
-              <p>${esc(uDef.desc)}</p>
-            </div>
-            <div class="custom-bar">
-              <div class="cfield">
-                <label for="leader-name-input">${icon('leader')}Founder</label>
-                <div class="leader-input-row">
-                  <input id="leader-name-input" type="text" maxlength="18" value="${esc(this.pickedLeader)}" placeholder="Leader name"/>
-                  <button data-act="randname" class="mini" title="Randomize chieftain name">${icon('sparkle')}</button>
+              <div id="stage-unit-info" class="stage-unit-info">
+                <div class="u-stats">
+                  <span>${icon('heart')}<b>${st.hp}</b> HP${hpBadge}</span>
+                  <span>${icon('attack')}<b>${st.dmg}</b> DMG${dmgBadge}</span>
+                  <span>${icon('move')}<b>${st.speed.toFixed(1)}</b> SPD${spdBadge}</span>
+                  <span>${icon('scout')}<b>${st.vision}</b> VIS${visBadge}</span>
                 </div>
+                <p>${esc(uDef.desc)}</p>
               </div>
-              <div class="cfield">
-                <label>War-Paint</label>
-                <div class="swatches">
-                  ${BANNER_COLORS.map((c) => `<button data-act="banner:${c.hex}" class="swatch ${this.pickedBanner === c.hex ? 'on' : ''}" style="--sw:${c.hex}" title="${c.name}" aria-label="${c.name}"></button>`).join('')}
-                </div>
+              <div id="stage-gen-banner" class="gen-banner g-${this.previewGen}">
+                ${icon(this.previewGen >= 3 ? 'kiln' : this.previewGen === 2 ? 'pottery' : 'fire')}
+                <div><b>${esc(genInfo.era)}</b><small>${esc(genInfo.desc)}</small></div>
               </div>
             </div>
           </div>
         </div>
-        <h2 class="h2b">Choose Your Land</h2>
-        <div class="mapcards">${MAP_ORDER.map(mcard).join('')}</div>
-        <div class="row"><button data-act="title" class="btn">${icon('door')}Back</button><button data-act="start" class="btn primary big">${icon('play')}Begin</button></div>
+
+        <div class="row clan-footer">
+          <button data-act="title" class="btn">${icon('door')}Back</button>
+          <button data-act="start" class="btn primary big">${icon('play')}Begin</button>
+        </div>
       </div>`, 'titlescreen clanscreen');
   }
 
