@@ -143,6 +143,68 @@ describe('mobile playtest fixes through the real HUD event handlers', () => {
     expect(deniStats).not.toBe(neanStats);
     expect(deniStats).toContain('+1');
   });
+
+  it('supports Interactive Tutorial, Story Campaign browser, Online Chat Lobby, Building Repair, Specialist Abilities, and Stockpile Barter', () => {
+    const { hud, game, w, click } = setup();
+
+    // 1. Interactive Tutorial Coach
+    hud.tutorial.start(true);
+    const banner = document.getElementById('tut-banner');
+    expect(banner).not.toBeNull();
+    expect(banner!.classList.contains('hidden')).toBe(false);
+    expect(banner!.textContent).toContain('Guided Tutorial');
+    const gatherer = w.units.find((u) => u.owner === 0 && u.kind === 'gatherer')!;
+    game.sel = [gatherer.id];
+    const foodBefore = w.res.food;
+    hud.tutorial.update();
+    // Selecting a gatherer completes Step 1 and awards bonus food
+    expect(w.res.food).toBeGreaterThan(foodBefore);
+    hud.tutorial.stop(true);
+    expect(banner!.classList.contains('hidden')).toBe(true);
+
+    // 2. Story Campaign Modal & Chapter switching
+    hud.openCampaign();
+    expect(document.getElementById('modal')!.textContent).toContain('The Ancestral Saga');
+    click('camp-ch:ch3_neander_pass');
+    expect(document.getElementById('modal')!.textContent).toContain('Hold the High Pass');
+    click('camp-diff:ancestral');
+    expect(document.querySelector('[data-act="camp-diff:ancestral"]')!.classList.contains('primary')).toBe(true);
+
+    // 3. Online Multiplayer & Chat Rooms
+    hud.openMultiplayer();
+    expect(document.getElementById('modal')!.textContent).toContain('Online Lobby');
+    click('mp-create');
+    expect(document.getElementById('modal')!.textContent).toContain('ROOM CODE');
+    click('mp-leave');
+
+    // 4. Specialist Abilities: Elder Blessing, Scout Signal Flare, and Stockpile Barter
+    const elder = w.units.find((u) => u.owner === 0 && u.kind === 'elder')!;
+    elder.hp = 30;
+    const knBefore = w.res.knowledge;
+    game.sel = [elder.id];
+    hud.tick(1600);
+    click('bless');
+    expect(w.res.knowledge).toBe(knBefore + 12);
+    expect(elder.hp).toBeGreaterThan(30);
+
+    const scout = w.units.find((u) => u.owner === 0 && u.kind === 'scout')!;
+    game.sel = [scout.id];
+    hud.tick(1800);
+    click('flare');
+    expect(scout.ability).toBe(30);
+
+    // 5. Building Repair & Stockpile Barter
+    const hearth = w.buildings.find((b) => b.owner === 0 && b.kind === 'hearth')!;
+    hearth.hp = hearth.maxHp - 50;
+    game.sel = [];
+    game.selB = hearth.id;
+    hud.tick(2000);
+    click('repair');
+    expect(w.units.some((u) => u.owner === 0 && u.kind === 'gatherer' && u.order.t === 'build' && u.order.b === hearth.id)).toBe(true);
+
+    // 6. Ancestral Megalith (3rd landmark) exists on world
+    expect(w.landmarks.some((l) => l.id === 'shrine')).toBe(true);
+  });
 });
 
 describe('resource measurements', () => {
@@ -157,3 +219,4 @@ describe('resource measurements', () => {
     const loaded={...w,time:20};history.sample(loaded);expect(history.rates(loaded,'food').net).toBeNull();
   });
 });
+

@@ -1,4 +1,5 @@
 import { DISCOVERIES } from '../data/discoveries';
+import { campaignSecond } from '../data/campaign';
 import { activitiesTick, cluesTick } from './discovery';
 import { aiSecond } from './ai';
 import { economySecond, trainingTick } from './econ';
@@ -121,6 +122,7 @@ export function step(w: World) {
     regrow(w);
     updateObjectives(w);
     cluesTick(w);
+    if (w.campaignId) campaignSecond(w);
     if (w.tick % (TICKS_PER_SEC * 20) === 0) wildlifeRespawn(w);
   }
   if (w.tick % 20 === 0) seasons(w);

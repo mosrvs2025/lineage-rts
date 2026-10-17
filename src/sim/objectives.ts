@@ -1,4 +1,5 @@
 import { DISC_ORDER } from '../data/discoveries';
+import { getCampaignChapter } from '../data/campaign';
 import { hasDisc } from './rules';
 import type { World } from './types';
 import { compass, fmtTime } from './util';
@@ -10,6 +11,12 @@ const has = (w: World, kind: string) => w.buildings.some((b) => b.owner === 0 &&
 
 export function objectiveList(w: World): Objective[] {
   const d = w.done;
+  if (w.campaignId) {
+    const ch = getCampaignChapter(w.campaignId);
+    if (ch) {
+      return ch.objectives.map((o) => ({ id: o.id, gen: w.gen, text: o.text, done: !!(d[o.id] || o.check(w)) }));
+    }
+  }
   if (w.gen === 1) {
     return [
       { id: 'food', gen: 1, text: 'Gather 150 food', done: d.food },

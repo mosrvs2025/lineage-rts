@@ -302,6 +302,16 @@ export class Renderer {
         const parts = [{ g: new THREE.DodecahedronGeometry(1.1, 0), c: '#7a7b86', p: [0, 0.9, -0.5] as [number, number, number], s: [1.6, 1.1, 1] as [number, number, number] }, { g: new THREE.DodecahedronGeometry(0.8, 0), c: '#6a6b76', p: [-1.2, 0.5, 0.2] as [number, number, number] }, { g: new THREE.DodecahedronGeometry(0.8, 0), c: '#85868f', p: [1.2, 0.5, 0.1] as [number, number, number] }, { g: new THREE.CircleGeometry(0.62, 12), c: '#120c08', p: [0, 0.55, 0.52] as [number, number, number] }];
         const m = new THREE.Mesh(merge(parts), MAT.prop); m.castShadow = true; g.add(m);
         const f = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.55, 6), MAT.flame); f.position.set(0, 0.45, 0.6); g.add(f);
+      } else if (l.id === 'shrine') {
+        const ring = new THREE.Mesh(new THREE.RingGeometry(2.1, 2.35, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x7fd0ff, transparent: true, opacity: 0.5, depthWrite: false }));
+        ring.position.y = 0.1; g.add(ring);
+        const stones: Part[] = [0, 1, 2, 3, 4].map((i) => {
+          const a = (i / 5) * Math.PI * 2;
+          return { g: new THREE.BoxGeometry(0.38, 1.55 + (i % 2) * 0.3, 0.26), c: '#7c828f', p: [Math.cos(a) * 1.35, 0.78, Math.sin(a) * 1.35] as [number, number, number] };
+        });
+        stones.push({ g: new THREE.CylinderGeometry(0.35, 0.45, 0.4, 8), c: '#5c6270', p: [0, 0.2, 0] });
+        const m = new THREE.Mesh(merge(stones), MAT.prop); g.add(m);
+        const f = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.65, 6), MAT.flameCore); f.position.set(0, 0.65, 0); g.add(f);
       } else {
         const ring = new THREE.Mesh(new THREE.RingGeometry(4.2, 4.5, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffe99a, transparent: true, opacity: 0.55, depthWrite: false }));
         ring.position.y = 0.12; g.add(ring);

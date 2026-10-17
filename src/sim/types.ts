@@ -142,6 +142,9 @@ export interface World {
   specialists?: Partial<Record<DiscoveryId, number>>;
   endless?: boolean;
   bannerColor?: string;
+  campaignId?: string;
+  campaignDiff?: string;
+  mpMode?: 'versus' | 'coop';
   techs: Record<string, boolean>;
   activities: Activity[];
   explored: string;

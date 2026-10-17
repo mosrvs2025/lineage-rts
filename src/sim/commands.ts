@@ -71,7 +71,9 @@ export function cmdContext(w: World, ids: number[], x: number, y: number, hit: H
   if (hit?.type === 'unit' && hit.unit.owner !== 0) { cmdAttack(w, ids, hit.unit.id); return 'attack'; }
   if (hit?.type === 'building' && hit.building.owner === 1) { cmdAttack(w, ids, hit.building.id); return 'attack'; }
   if (hit?.type === 'node') { cmdGather(w, ids, hit.node.id); return 'gather'; }
-  if (hit?.type === 'building' && hit.building.owner === 0 && !hit.building.done) { cmdBuildSite(w, ids, hit.building.id); return 'build'; }
+  if (hit?.type === 'building' && hit.building.owner === 0 && (!hit.building.done || hit.building.hp < hit.building.maxHp)) {
+    cmdBuildSite(w, ids, hit.building.id); return 'build';
+  }
   cmdMove(w, ids, x, y); return 'move';
 }
 
@@ -83,6 +85,103 @@ export function cmdRally(w: World, leaderId: number): Check {
   for (const u of w.units) if (u.owner === 0 && dist(u.x, u.y, l.x, l.y) < 6.5) { u.buff = 8; u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.2); }
   log(w, `${l.name} rallies the clan!`, 'good');
   emit(w, { k: 'rally', x: l.x, y: l.y, owner: 0 });
+  return { ok: true, reason: '' };
+}
+
+/** Elder active ability: Ancestral Blessing heals nearby allies and grants +6 knowledge. */
+export function cmdBless(w: World, elderId: number): Check {
+  const e = unitById(w, elderId);
+  if (!e || e.kind !== 'elder') return { ok: false, reason: 'Select an Elder.' };
+  if (e.ability > 0) return { ok: false, reason: `Blessing ready in ${Math.ceil(e.ability)}s.` };
+  e.ability = 35;
+  w.res.knowledge += 6;
+  for (const u of w.units) if (u.owner === 0 && dist(u.x, u.y, e.x, e.y) < 6.5) {
+    u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.3);
+    emit(w, { k: 'heal', x: u.x, y: u.y, owner: 0 });
+  }
+  log(w, `${e.name} invokes an Ancestral Blessing! (+30% heal & +6 knowledge)`, 'good');
+  return { ok: true, reason: '' };
+}
+
+/** Scout / Stalker active ability: Eagle Flare reveals fog-of-war in a wide 15-tile radius and grants haste. */
+export function cmdScoutFlare(w: World, scoutId: number): Check {
+  const s = unitById(w, scoutId);
+  if (!s || (s.kind !== 'scout' && s.kind !== 'stalker')) return { ok: false, reason: 'Select a Scout or Stalker.' };
+  if (s.ability > 0) return { ok: false, reason: `Eagle Flare ready in ${Math.ceil(s.ability)}s.` };
+  s.ability = 30;
+  s.buff = Math.max(s.buff, 6);
+  const R = 15, cx = Math.floor(s.x), cy = Math.floor(s.y);
+  if (w._exp && w._vis) {
+    for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+      if (dx * dx + dy * dy > R * R) continue;
+      const tx = cx + dx, ty = cy + dy;
+      if (tx >= 0 && ty >= 0 && tx < w.W && ty < w.H) {
+        w._exp[ty * w.W + tx] = 1;
+        w._vis[ty * w.W + tx] = 2;
+      }
+    }
+  }
+  emit(w, { k: 'discover', x: s.x, y: s.y, owner: 0 });
+  log(w, `${s.name} sends up an Eagle Torch Flare — surrounding territory revealed!`, 'good');
+  return { ok: true, reason: '' };
+}
+
+/** Champion / Brute active ability: Earthshaker Warcry damages nearby enemies and grants battle fury. */
+export function cmdWarcry(w: World, unitId: number): Check {
+  const u = unitById(w, unitId);
+  if (!u || (u.kind !== 'champion' && u.kind !== 'brute')) return { ok: false, reason: 'Select a Champion or Brute.' };
+  if (u.ability > 0) return { ok: false, reason: `Warcry ready in ${Math.ceil(u.ability)}s.` };
+  u.ability = 28;
+  u.buff = Math.max(u.buff, 7);
+  let hits = 0;
+  for (const o of w.units) {
+    if (o.owner === 0 || o.hp <= 0 || o.kind === 'deer') continue;
+    if (dist(o.x, o.y, u.x, u.y) <= 3.6) {
+      o.hp -= 18;
+      o.lastHit = u.id;
+      hits++;
+    }
+  }
+  emit(w, { k: 'rally', x: u.x, y: u.y, owner: 0 });
+  log(w, `${u.name} unleashes an Earthshaker Warcry${hits ? ` (${hits} enemies struck)` : ''}!`, 'good');
+  return { ok: true, reason: '' };
+}
+
+/** Call the nearest free gatherer to repair a damaged building. */
+export function cmdRepair(w: World, bId: number): Check {
+  const b = buildingById(w, bId);
+  if (!b || b.owner !== 0) return { ok: false, reason: 'Invalid building.' };
+  if (b.hp >= b.maxHp) return { ok: false, reason: 'Building is already at full health.' };
+  const c = bCenter(b);
+  const cand = w.units
+    .filter((u) => u.owner === 0 && u.kind === 'gatherer')
+    .sort((a, z) => dist(a.x, a.y, c.x, c.y) - dist(z.x, z.y, c.x, c.y));
+  if (!cand.length) return { ok: false, reason: 'No gatherers available to repair.' };
+  setOrder(cand[0], { t: 'build', b: b.id });
+  log(w, `${cand[0].name} is heading to repair the ${BUILDINGS[b.kind].name}.`, 'info');
+  return { ok: true, reason: '' };
+}
+
+/** Barter surplus resources at a Stockpile. */
+export function cmdBarter(w: World, mode: 'wood2food' | 'food2wood' | 'stone2know'): Check {
+  if (!w.buildings.some((b) => b.owner === 0 && b.kind === 'stockpile' && b.done)) {
+    return { ok: false, reason: 'Requires a completed Stockpile.' };
+  }
+  if (mode === 'wood2food') {
+    if (w.res.wood < 45) return { ok: false, reason: 'Needs 45 wood to barter for 35 food.' };
+    w.res.wood -= 45; w.res.food += 35;
+    log(w, 'Traded 45 wood for 35 food at the Stockpile.', 'good');
+    return { ok: true, reason: '' };
+  }
+  if (mode === 'food2wood') {
+    if (w.res.food < 45) return { ok: false, reason: 'Needs 45 food to barter for 35 wood.' };
+    w.res.food -= 45; w.res.wood += 35;
+    log(w, 'Traded 45 food for 35 wood at the Stockpile.', 'good');
+    return { ok: true, reason: '' };
+  }
+  if (w.res.stone < 35) return { ok: false, reason: 'Needs 35 stone to barter for 25 knowledge.' };
+  w.res.stone -= 35; w.res.knowledge += 25;
+  log(w, 'Carved 35 stone into tally tablets (+25 knowledge).', 'good');
   return { ok: true, reason: '' };
 }
 

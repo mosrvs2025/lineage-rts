@@ -147,6 +147,12 @@ export function cluesTick(w: World) {
     if (w.units.some((u) => u.owner === 0 && dist(u.x, u.y, l.x + 0.5, l.y + 0.5) < 3.5)) {
       l.visited = true;
       if (l.id === 'cave') { w.res.knowledge += 15; log(w, 'Your scout reaches the Ember Cave: pitch seeps from the wall and burns steadily. (+15 knowledge)', 'good'); }
+      else if (l.id === 'shrine') {
+        w.res.knowledge += 20; w.res.food += 25; w.res.wood += 20;
+        for (const u of w.units) if (u.owner === 0) { u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.2); u.buff = Math.max(u.buff, 8); }
+        emit(w, { k: 'discover', x: l.x + 0.5, y: l.y + 0.5, owner: 0 });
+        log(w, 'Your clan claims the Ancestral Megalith! (+20 knowledge, +25 food, +20 wood & ancestral blessing)', 'good');
+      }
       else log(w, `Your clan has reached the ${l.name}.`, 'good');
     }
   }

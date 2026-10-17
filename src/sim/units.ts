@@ -254,12 +254,12 @@ function doGather(w: World, u: Unit) {
   }
 }
 
-// ---------------------------------------------------------------- building
+// ---------------------------------------------------------------- building & repair
 function doBuild(w: World, u: Unit, o: { t: 'build'; b: number }) {
   const b = buildingById(w, o.b);
-  if (!b || b.done) {
-    // look for another unfinished site nearby, else go back to work
-    const next = w.buildings.find((s) => s.owner === u.owner && !s.done && dist(bCenter(s).x, bCenter(s).y, u.x, u.y) < 10);
+  if (!b || (b.done && b.hp >= b.maxHp)) {
+    // look for another unfinished or damaged site nearby, else go back to work
+    const next = w.buildings.find((s) => s.owner === u.owner && (!s.done || s.hp < s.maxHp) && dist(bCenter(s).x, bCenter(s).y, u.x, u.y) < 10);
     if (next) setOrder(u, { t: 'build', b: next.id }); else { setOrder(u, { t: 'idle' }); autoWork(w, u); }
     return;
   }
@@ -268,13 +268,22 @@ function doBuild(w: World, u: Unit, o: { t: 'build'; b: number }) {
   if (r === 'stuck') { setOrder(u, { t: 'idle' }); return; }
   if (r === 'arrived') {
     const def = BUILDINGS[b.kind];
-    b.progress = Math.min(1, b.progress + DT / def.time);
-    if ((w.tick + u.id) % 9 === 0) emit(w, { k: 'hammer', x: u.x, y: u.y, owner: b.owner });
-    b.hp = Math.min(b.maxHp, b.maxHp * (0.1 + 0.9 * b.progress));
-    if (b.progress >= 1) {
-      b.done = true; b.hp = b.maxHp;
-      if (b.owner === 0) log(w, `${def.name} completed.`, 'good');
-      emit(w, { k: 'built', x: c.x, y: c.y, owner: b.owner, kind: b.kind });
+    if (!b.done) {
+      b.progress = Math.min(1, b.progress + DT / def.time);
+      if ((w.tick + u.id) % 9 === 0) emit(w, { k: 'hammer', x: u.x, y: u.y, owner: b.owner });
+      b.hp = Math.min(b.maxHp, b.maxHp * (0.1 + 0.9 * b.progress));
+      if (b.progress >= 1) {
+        b.done = true; b.hp = b.maxHp;
+        if (b.owner === 0) log(w, `${def.name} completed.`, 'good');
+        emit(w, { k: 'built', x: c.x, y: c.y, owner: b.owner, kind: b.kind });
+      }
+    } else {
+      // Repairing a damaged finished structure
+      b.hp = Math.min(b.maxHp, b.hp + 18 * DT);
+      if ((w.tick + u.id) % 10 === 0) emit(w, { k: 'hammer', x: u.x, y: u.y, owner: b.owner });
+      if (b.hp >= b.maxHp && b.owner === 0) {
+        log(w, `${def.name} fully repaired.`, 'good');
+      }
     }
   }
 }

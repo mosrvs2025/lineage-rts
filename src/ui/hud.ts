@@ -6,7 +6,7 @@ import { MAPS, MAP_ORDER } from '../data/maps';
 import { mapThumb } from './mapthumb';
 import { TECHS, techsFor } from '../data/techs';
 import {
-  cmdCancelSite, cmdGift, cmdHold, cmdInvestigate, cmdJob, cmdRally, cmdRetreat, cmdStop, cmdTeach, cmdTrain, jobCounts, trainCheck,
+  cmdBarter, cmdBless, cmdCancelSite, cmdGift, cmdHold, cmdInvestigate, cmdJob, cmdRally, cmdRepair, cmdRetreat, cmdScoutFlare, cmdStop, cmdTeach, cmdTrain, cmdWarcry, jobCounts, trainCheck,
 } from '../sim/commands';
 import { costMultiplier, discCost, discTime, investigateCheck, teachCheck } from '../sim/discovery';
 import { objectiveList } from '../sim/objectives';
@@ -25,6 +25,11 @@ import { ResourceHistory } from './resource-summary';
 import { Bubbles } from './bubbles';
 import { Preview3D } from '../render/preview3d';
 import type { PreviewPose } from '../render/preview3d';
+import { CAMPAIGN_CHAPTERS, getCampaignChapter, loadCampaignProgress } from '../data/campaign';
+import type { CampaignDifficulty } from '../data/campaign';
+import { TutorialController } from './tutorial';
+import { mp } from '../net/multiplayer';
+import type { ChatChannel, MpMode } from '../net/multiplayer';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -87,7 +92,7 @@ const buildingTitle = (b: { kind: BuildingKind; tier: number }) => (b.tier > 0 ?
 
 function cbtn(o: BtnOpts): string {
   const tip = o.tip ? ` data-tip="${esc(JSON.stringify({ t: o.tip.t, d: o.tip.d, k: o.tip.k ?? o.key, c: o.tip.cost ?? o.cost }))}"` : '';
-  return `<button class="cb ${['move', 'work', 'amove', 'build', 'stop', 'retreat', 'rally'].includes(o.act) ? 'quick' : ''} ${o.on ? 'on' : ''} ${o.why ? 'dis' : ''} ${o.cls ?? ''}" data-act="${o.act}" ${o.why ? `data-why="${esc(o.why)}"` : ''}${tip}>
+  return `<button class="cb ${['move', 'work', 'amove', 'build', 'stop', 'retreat', 'rally', 'bless', 'flare', 'warcry'].includes(o.act) ? 'quick' : ''} ${o.on ? 'on' : ''} ${o.why ? 'dis' : ''} ${o.cls ?? ''}" data-act="${o.act}" ${o.why ? `data-why="${esc(o.why)}"` : ''}${tip}>
     ${icon(o.ic)}<span class="cl">${o.label}</span>${o.key ? `<kbd>${o.key}</kbd>` : ''}${o.cost ? `<span class="cr">${chips(o.cost, o.w)}</span>` : ''}${o.badge ? `<i class="badge">${o.badge}</i>` : ''}${o.cd && o.cd > 0 ? `<i class="cdw" style="--cd:${Math.min(1, o.cd).toFixed(3)}"></i>` : ''}</button>`;
 }
 
@@ -108,12 +113,29 @@ export class Hud {
   private pickedSuccessor = 0; private pickedSpecies: Species = 'human'; private pickedMap = 'valley';
   private previewUnit: UnitKind = 'leader'; private previewPose: PreviewPose = 'idle'; private previewGen = 1;
   private pickedBanner = '#27b7c6'; private pickedLeader = SPECIES.human.leader;
+  private pickedChapter = 'ch1_embers'; private pickedDiff: CampaignDifficulty = 'standard';
+  private mpModePick: MpMode = 'versus'; private mpMapPick = 'valley';
+  private lastDrawerHtml = '';
   readonly preview3d = new Preview3D();
   readonly bub: Bubbles;
+  readonly tutorial: TutorialController;
   private placeN = 0; private lastLaneH = -1;
   private prevRes: Record<string, number> = {}; private flash: Record<string, number> = {};
 
   constructor(private g: Game) {
+    this.tutorial = new TutorialController(g);
+    mp.bindCallbacks({
+      onUpdate: () => {
+        if (!$('modal').classList.contains('hidden') && document.getElementById('mp-lobby-root')) this.syncMpModal();
+        if (mp.chatOpen) this.renderChatDrawer(true);
+        this.lastDock = '';
+      },
+      onMatchStart: (room, peerSp) => {
+        this.closeModal();
+        if (typeof this.g.startMultiplayer === 'function') this.g.startMultiplayer(room, peerSp);
+      },
+      onToast: (t, k) => this.toast(t, k),
+    });
     const app = $('app');
     app.addEventListener('pointerdown', () => initAudio(), { capture: true });
     app.addEventListener('click', (e) => {
@@ -122,6 +144,17 @@ export class Hud {
       if (t.dataset.why) { sfx.error(); this.toast(t.dataset.why, 'bad'); return; }
       sfx.click(); this.hideTip();
       this.act(t.dataset.act!);
+    });
+    app.addEventListener('keydown', (e) => {
+      const t = e.target as HTMLInputElement;
+      if (e.key === 'Enter' && (t?.id === 'mp-chat-input' || t?.id === 'drawer-chat-input')) {
+        e.preventDefault();
+        this.sendChatFromInput(t.id);
+      }
+      if (e.key === 'Enter' && t?.id === 'mp-room-code') {
+        e.preventDefault();
+        this.act('mp-join');
+      }
     });
     if (window.matchMedia('(hover: hover)').matches) {
       app.addEventListener('mouseover', (e) => {
@@ -135,6 +168,7 @@ export class Hud {
       const t = e.target as HTMLInputElement;
       if (t.dataset.set === 'music' || t.dataset.set === 'sfx') { setSetting(t.dataset.set, Number(t.value) / 100); (t.nextElementSibling as HTMLElement).textContent = t.value; if (t.dataset.set === 'sfx') sfx.click(); }
       if (t.id === 'leader-name-input') { this.pickedLeader = t.value.trim() || SPECIES[this.pickedSpecies].leader; }
+      if (t.id === 'mp-name-input') { mp.saveProfile(t.value); }
     });
     $<HTMLInputElement>('importfile').addEventListener('change', async (e) => {
       const f = (e.target as HTMLInputElement).files?.[0]; if (!f) return;
@@ -255,6 +289,11 @@ export class Hud {
       case 'stop': if (w) cmdStop(w, g.sel); break;
       case 'retreat': if (w) cmdRetreat(w, g.sel); break;
       case 'rally': if (w && g.sel.length) { const l = g.sel.map((i) => w._u?.get(i)).find((u) => u?.kind === 'leader'); if (l) { const r = cmdRally(w, l.id); if (!r.ok) this.toast(r.reason, 'bad'); } } break;
+      case 'bless': if (w && g.sel.length) { const el = g.sel.map((i) => w._u?.get(i)).find((u) => u?.kind === 'elder'); if (el) { const r = cmdBless(w, el.id); if (!r.ok) this.toast(r.reason, 'bad'); else sfx.good(); } } break;
+      case 'flare': if (w && g.sel.length) { const sc = g.sel.map((i) => w._u?.get(i)).find((u) => u?.kind === 'scout' || u?.kind === 'stalker'); if (sc) { const r = cmdScoutFlare(w, sc.id); if (!r.ok) this.toast(r.reason, 'bad'); else sfx.good(); } } break;
+      case 'warcry': if (w && g.sel.length) { const ch = g.sel.map((i) => w._u?.get(i)).find((u) => u?.kind === 'champion' || u?.kind === 'brute'); if (ch) { const r = cmdWarcry(w, ch.id); if (!r.ok) this.toast(r.reason, 'bad'); else sfx.good(); } } break;
+      case 'repair': if (w && g.selB !== null) { const r = cmdRepair(w, g.selB); if (!r.ok) this.toast(r.reason, 'bad'); else sfx.click(); } break;
+      case 'barter': if (w) { const r = cmdBarter(w, arg as 'wood2food' | 'food2wood' | 'stone2know'); if (!r.ok) { sfx.error(); this.toast(r.reason, 'bad'); } else sfx.good(); } break;
       case 'dragsel': g.selectMode = !g.selectMode; this.toast(g.selectMode ? 'Drag-select ON: drag on the map to box-select.' : 'Drag-select OFF: drag pans the map.'); break;
       case 'home': { const h = w?.buildings.find((b) => b.owner === 0 && b.kind === 'hearth'); if (h) { const c = bCenter(h); g.cam.centerOn(c.x, c.y); } break; }
       case 'idle': {
@@ -283,6 +322,81 @@ export class Hud {
       case 'inv': { if (!w) break; const r = cmdInvestigate(w, arg as DiscoveryId); if (!r.ok) this.toast(r.reason, 'bad'); else this.toast('A gatherer begins investigating.', 'good'); break; }
       case 'teach': { if (!w) break; const r = cmdTeach(w, arg as DiscoveryId); if (!r.ok) this.toast(r.reason, 'bad'); else this.toast('An apprentice begins to learn.', 'good'); break; }
       case 'job': { if (!w) break; const r = cmdJob(w, arg as Res); if (!r.ok) this.toast(r.reason, 'bad'); break; }
+      // ---- tutorial
+      case 'tut-start':
+        this.closeModal();
+        if (typeof g.startTutorial === 'function') g.startTutorial();
+        else this.tutorial.start(true);
+        return;
+      case 'tut-guide':
+        this.closeModal();
+        this.tutorial.start(true);
+        return;
+      case 'tut-show': this.tutorial.showMeCurrent(); return;
+      case 'tut-skip': this.tutorial.nextStep(); return;
+      case 'tut-close': this.tutorial.stop(true); return;
+      // ---- campaign
+      case 'campaign': this.openCampaign(); return;
+      case 'camp-ch': this.pickedChapter = arg; this.openCampaign(); return;
+      case 'camp-diff': this.pickedDiff = arg as CampaignDifficulty; this.openCampaign(); return;
+      case 'camp-launch': {
+        this.closeModal();
+        if (typeof g.startCampaign === 'function') g.startCampaign(this.pickedChapter, this.pickedDiff);
+        return;
+      }
+      case 'camp-next': {
+        const curIdx = CAMPAIGN_CHAPTERS.findIndex((c) => c.id === w?.campaignId);
+        const nextCh = CAMPAIGN_CHAPTERS[curIdx + 1] ?? CAMPAIGN_CHAPTERS[0];
+        this.pickedChapter = nextCh.id;
+        this.closeModal();
+        if (typeof g.startCampaign === 'function') g.startCampaign(nextCh.id, (w?.campaignDiff as CampaignDifficulty) ?? this.pickedDiff);
+        return;
+      }
+      // ---- multiplayer & chat rooms
+      case 'multiplayer': this.openMultiplayer(); return;
+      case 'mp-chan': mp.channel = arg as ChatChannel; mp.unread = 0; this.openMultiplayer(); return;
+      case 'mp-sp': mp.saveProfile(undefined, arg as Species); this.openMultiplayer(); return;
+      case 'mp-mode': this.mpModePick = arg as MpMode; this.openMultiplayer(); return;
+      case 'mp-map': this.mpMapPick = arg; this.openMultiplayer(); return;
+      case 'mp-send': this.sendChatFromInput('mp-chat-input'); return;
+      case 'drawer-send': this.sendChatFromInput('drawer-chat-input'); return;
+      case 'mp-quick': mp.sendChat(arg, mp.activeRoom ? 'room' : mp.channel); if (mp.chatOpen) this.renderChatDrawer(true); return;
+      case 'mp-create': mp.createRoom(this.mpModePick, this.mpMapPick); this.openMultiplayer(); return;
+      case 'mp-join': {
+        const inp = document.getElementById('mp-room-code') as HTMLInputElement | null;
+        const code = arg || inp?.value || '';
+        if (!mp.joinRoom(code)) this.toast('Enter a 4–6 character Room Code.', 'bad');
+        else this.openMultiplayer();
+        return;
+      }
+      case 'mp-copy': {
+        if (mp.activeRoom) {
+          const url = `${window.location.origin}${window.location.pathname}?room=${mp.activeRoom.code}`;
+          try { navigator.clipboard?.writeText(url); } catch { /* ignore */ }
+          this.toast(`Copied Room Link (${mp.activeRoom.code}) to clipboard!`, 'good');
+        }
+        return;
+      }
+      case 'mp-leave': mp.leaveRoom(); this.openMultiplayer(); return;
+      case 'mp-launch': mp.launchRoomMatch(); return;
+      case 'mp-act': {
+        if (!w) return;
+        const [, subAct, subRes] = a.split(':');
+        const res = mp.sendGameAction(w, subAct as 'tribute' | 'reinforce' | 'strike', subRes as Res | undefined);
+        if (!res.ok) { sfx.error(); this.toast(res.reason, 'bad'); } else { sfx.good(); this.renderChatDrawer(true); }
+        break;
+      }
+      case 'chatdrawer':
+        mp.chatOpen = !mp.chatOpen;
+        if (mp.chatOpen) mp.unread = 0;
+        this.lastDock = '';
+        this.renderChatDrawer(true);
+        return;
+      case 'chatdrawer-close':
+        mp.chatOpen = false;
+        this.lastDock = '';
+        this.renderChatDrawer(true);
+        return;
       // ---- menus
       case 'settings': this.openSettings(); return;
       case 'quality': setSetting('quality', arg as Quality); this.openSettings(); return;
@@ -343,6 +457,16 @@ export class Hud {
     this.refresh(true);
   }
 
+  private sendChatFromInput(inputId: string) {
+    const inp = document.getElementById(inputId) as HTMLInputElement | null;
+    if (!inp || !inp.value.trim()) return;
+    const ch: ChatChannel = inputId === 'drawer-chat-input' && mp.activeRoom ? 'room' : mp.channel;
+    mp.sendChat(inp.value, ch);
+    inp.value = '';
+    if (inputId === 'mp-chat-input') this.syncMpModal();
+    else this.renderChatDrawer(true);
+  }
+
   // ------------------------------------------------------------ modals & screens
   private openModal(html: string, kind = '') {
     const m = $('modal'); m.className = kind; m.innerHTML = html;
@@ -353,11 +477,16 @@ export class Hud {
   openStart() {
     const g = this.g;
     const slot = (s: SaveSlot, label: string) => { const i = g.slotInfo(s); return i.ok ? `<button data-act="continue:${s}" class="tbtn">${icon('load')}<span>${label}<small>${esc(i.text)}</small></span></button>` : ''; };
+    const prog = loadCampaignProgress();
+    const doneChapters = Object.values(prog).filter(p => p.completed).length;
     this.openModal(`
       <div class="title">
         <div class="logo"><div class="mark">${icon('fire')}</div><h1>LINEAGE</h1><div class="rule"></div><p class="sub">AN EVOLUTION RTS</p></div>
         <div class="tmenu">
-          <button data-act="play" class="tbtn primary">${icon('play')}<span>New Campaign<small>The First Winter</small></span></button>
+          <button data-act="campaign" class="tbtn primary">${icon('campaign')}<span>Story Campaign<small>Chronicles of the Three Fires (${doneChapters}/${CAMPAIGN_CHAPTERS.length})</small></span></button>
+          <button data-act="play" class="tbtn">${icon('play')}<span>Custom Skirmish<small>Choose Clan, 3D Hero &amp; Land</small></span></button>
+          <button data-act="multiplayer" class="tbtn">${icon('globe')}<span>Online &amp; Chat Rooms<small>1v1 Versus · 2P Co-op · Live Lobby</small></span></button>
+          <button data-act="tut-start" class="tbtn">${icon('bulb')}<span>Interactive Tutorial<small>Guided Path of the First Fire</small></span></button>
           ${slot('auto', 'Continue')}${slot('manual', 'Load Game')}
           <button data-act="settings" class="tbtn">${icon('sparkle')}<span>Settings</span></button>
           <button data-act="help" class="tbtn">${icon('help')}<span>How to Play</span></button>
@@ -546,6 +675,260 @@ export class Hud {
       </div>`, 'titlescreen clanscreen');
   }
 
+  openCampaign() {
+    this.preview3d.unmountStage();
+    const prog = loadCampaignProgress();
+    const ch = getCampaignChapter(this.pickedChapter) ?? CAMPAIGN_CHAPTERS[0];
+    this.pickedChapter = ch.id;
+    const totalStars = Object.values(prog).reduce((a, b) => a + b.stars, 0);
+    const maxStars = CAMPAIGN_CHAPTERS.length * 3;
+    const sp = SPECIES[ch.species];
+    const m = MAPS[ch.mapId];
+    const spIcon = (s: Species) => (s === 'human' ? 'slinger' : s === 'neanderthal' ? 'brute' : 'stalker');
+    const starsHtml = (n: number) => `<span class="camp-stars" aria-label="${n} of 3 stars">${[1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}">★</i>`).join('')}</span>`;
+    const card = (c: typeof ch) => {
+      const done = prog[c.id];
+      const on = c.id === ch.id;
+      return `<button data-act="camp-ch:${c.id}" class="camp-card ${on ? 'on' : ''} ${done ? 'done' : ''}" style="--accent:${c.bannerColor}">
+        <div class="camp-act">Act ${roman(c.act)} · Ch. ${c.chapterNum}</div>
+        <div class="camp-head"><b>${esc(c.title)}</b>${starsHtml(done?.stars ?? 0)}</div>
+        <small>${esc(c.subtitle)}</small>
+        <div class="camp-tags">
+          <span class="pill">${icon(spIcon(c.species))}${SPECIES[c.species].name}</span>
+          <span class="pill">${esc(c.actName)}</span>
+          ${done ? `<span class="pill ok">${icon('check')}${fmtTime(done.bestTime)}</span>` : ''}
+        </div>
+      </button>`;
+    };
+    const diffBtn = (d: CampaignDifficulty, label: string, sub: string) =>
+      `<button data-act="camp-diff:${d}" class="btn ${this.pickedDiff === d ? 'primary' : ''}"><b>${label}</b><small>${sub}</small></button>`;
+    this.openModal(`
+      <div class="dialog camp-modal">
+        <div class="camp-top">
+          <div>
+            <div class="kicker">STORY CAMPAIGN · CHRONICLES OF THE THREE FIRES</div>
+            <h2>${icon('campaign')}The Ancestral Saga</h2>
+          </div>
+          <div class="camp-score">${icon('trophy')}<b>${totalStars} / ${maxStars} ★</b><small>Campaign Mastery</small></div>
+        </div>
+        <div class="camp-layout">
+          <div class="camp-list">${CAMPAIGN_CHAPTERS.map(card).join('')}</div>
+          <div class="camp-detail" style="--accent:${ch.bannerColor}">
+            <div class="camp-kicker">Act ${roman(ch.act)}: ${esc(ch.actName)} · Chapter ${ch.chapterNum}</div>
+            <h3>${esc(ch.title)}</h3>
+            <p class="camp-lore">“${esc(ch.subtitle)}”</p>
+            <p class="camp-brief">${esc(ch.lore)}</p>
+            <div class="camp-meta">
+              <div><small>PROTAGONIST</small><b>${icon('leader')}${esc(ch.leaderName)} (${sp.name})</b></div>
+              <div><small>TERRITORY</small><b>${icon('map')}${esc(m.name)}</b></div>
+              <div><small>RIVAL CLAN</small><b>${icon('swords')}${esc(SPECIES[ch.rivalSpecies].plural)}</b></div>
+            </div>
+            <div class="camp-objs">
+              <h4>${icon('trophy')}Chapter Objectives</h4>
+              <ul>${ch.objectives.map((o) => `<li>${icon('check')}<span>${esc(o.text)}</span></li>`).join('')}</ul>
+            </div>
+            <div class="camp-diffs">
+              <label>Difficulty</label>
+              <div class="diff-row">
+                ${diffBtn('story', 'Story', '+35% start stores · Forgiving rivals')}
+                ${diffBtn('standard', 'Standard', 'Balanced RTS challenge')}
+                ${diffBtn('ancestral', 'Ancestral', 'Fierce rival warbands')}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <button data-act="title" class="btn">${icon('door')}Back</button>
+          <button data-act="tut-guide" class="btn">${icon('bulb')}Play Tutorial First</button>
+          <button data-act="camp-launch" class="btn primary big">${icon('play')}Launch Chapter ${ch.chapterNum}</button>
+        </div>
+      </div>`, 'titlescreen camp-screen');
+  }
+
+  openMultiplayer() {
+    this.preview3d.unmountStage();
+    const ch = mp.channel;
+    const msgs = mp.messages.filter((m) => m.channel === ch);
+    const peers = Array.from(mp.peers.values());
+    const rooms = Array.from(mp.rooms.values());
+    const curRoom = mp.activeRoom;
+    const spIcon = (s: Species) => (s === 'human' ? 'slinger' : s === 'neanderthal' ? 'brute' : 'stalker');
+    const statusCls = mp.cloudConnected ? 'live' : 'local';
+    const statusTxt = mp.cloudConnected
+      ? `Cloud Relay Live (${peers.length + 1} clans online)`
+      : `Valley Relay Ready (${peers.length + 1} clans in valley)`;
+    const tab = (id: ChatChannel, label: string, sub: string) =>
+      `<button data-act="mp-chan:${id}" class="mp-tab ${ch === id ? 'on' : ''}"><b>#${label}</b><small>${sub}</small></button>`;
+    const msgHtml = msgs.map((m) => `
+      <div class="cmsg ${m.system ? 'sys' : ''}">
+        <span class="cbadge" style="--sw:${esc(m.banner)}">${icon(spIcon(m.species))}</span>
+        <div class="cbody">
+          <div class="chead"><b style="color:${esc(m.banner)}">${esc(m.senderName)}</b><small>${SPECIES[m.species].name} · ${new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small></div>
+          <p>${esc(m.text)}</p>
+        </div>
+      </div>`).join('');
+
+    this.openModal(`
+      <div id="mp-lobby-root" class="dialog mp-modal">
+        <div class="mp-header">
+          <div>
+            <div class="kicker">GLOBAL HEARTH NETWORK · MULTIPLAYER &amp; CHAT ROOMS</div>
+            <h2>${icon('globe')}Online Lobby &amp; Council Chambers</h2>
+          </div>
+          <div class="mp-status ${statusCls}"><i></i><span>${esc(statusTxt)}</span></div>
+        </div>
+        <div class="mp-profile-bar">
+          <label>${icon('leader')}Your Callsign</label>
+          <input id="mp-name-input" type="text" maxlength="18" value="${esc(mp.myName)}" placeholder="Chieftain name"/>
+          <div class="mp-sp-picks">
+            ${(['human', 'neanderthal', 'denisovan'] as Species[]).map((s) => `<button data-act="mp-sp:${s}" class="pill ${mp.mySpecies === s ? 'on' : ''}">${icon(spIcon(s))}${SPECIES[s].name}</button>`).join('')}
+          </div>
+        </div>
+        <div class="mp-grid">
+          <div class="mp-chat-col">
+            <div class="mp-tabs">
+              ${tab('global', 'global-hearth', 'General chat')}
+              ${tab('matchmaking', 'war-council', 'Find 1v1 / Co-op')}
+              ${tab('strategy', 'elder-lore', 'Tips & builds')}
+              ${curRoom ? tab('room', `room-${curRoom.code}`, curRoom.hostName) : ''}
+            </div>
+            <div id="mp-chat-log" class="mp-chat-log">${msgHtml}</div>
+            <div class="mp-chat-input">
+              <input id="mp-chat-input" type="text" maxlength="220" placeholder="Message #${ch}… (Press Enter to send)"/>
+              <button data-act="mp-send" class="btn primary">${icon('send')}Send</button>
+            </div>
+          </div>
+          <div class="mp-side-col">
+            <div class="mp-box">
+              <h4>${icon('swords')}Matchmaking &amp; Custom Rooms</h4>
+              ${curRoom ? `
+                <div class="mp-active-room">
+                  <div class="rm-head">
+                    <div><small>ROOM CODE</small><b class="rm-code">${esc(curRoom.code)}</b></div>
+                    <span class="pill on">${curRoom.mode === 'coop' ? '2P Co-op' : '1v1 Versus'}</span>
+                  </div>
+                  <p class="fine">Map: <b>${esc(MAPS[curRoom.mapId]?.name ?? curRoom.mapId)}</b> · Host: <b>${esc(curRoom.hostName)}</b> (${curRoom.players} in room)</p>
+                  <p class="fine">In <b>${curRoom.mode === 'coop' ? 'Co-op' : 'Versus'}</b>, players share live room chat, send Resource Caravans, summon Allied Reinforcements, or launch Live Warband Strikes across connected sessions.</p>
+                  <div class="row">
+                    <button data-act="mp-copy" class="btn">${icon('export')}Invite Link</button>
+                    <button data-act="mp-leave" class="btn">${icon('close')}Leave</button>
+                  </div>
+                  <button data-act="mp-launch" class="btn primary big">${icon('play')}Launch Online Match</button>
+                </div>
+              ` : `
+                <div class="mp-create-row">
+                  <button data-act="mp-mode:${this.mpModePick === 'coop' ? 'versus' : 'coop'}" class="btn">${icon(this.mpModePick === 'coop' ? 'gift' : 'swords')}Mode: ${this.mpModePick === 'coop' ? '2P Co-op' : '1v1 Versus'}</button>
+                  <button data-act="mp-create" class="btn primary">${icon('plus')}Create Room</button>
+                </div>
+                <div class="mp-join-row">
+                  <input id="mp-room-code" type="text" maxlength="6" placeholder="CODE (e.g. FROST1)"/>
+                  <button data-act="mp-join" class="btn">${icon('play')}Join Code</button>
+                </div>
+                <div class="mp-room-list">
+                  <small>OPEN LOBBIES (${rooms.length})</small>
+                  ${rooms.map((r) => `
+                    <div class="rm-item">
+                      <div>
+                        <b>${esc(r.hostName)} <span class="rm-tag">${esc(r.code)}</span></b>
+                        <small>${r.mode === 'coop' ? 'Co-op' : '1v1 Versus'} · ${esc(MAPS[r.mapId]?.name ?? 'River Valley')} · ${r.players}/2</small>
+                      </div>
+                      <button data-act="mp-join:${r.code}" class="btn mini">Join</button>
+                    </div>`).join('')}
+                </div>
+              `}
+            </div>
+            <div class="mp-box mp-peers">
+              <h4>${icon('pop')}Clans Online (${peers.length + 1})</h4>
+              <div class="peer-list">
+                <div class="peer-row"><i style="background:${esc(mp.myBanner)}"></i><b>${esc(mp.myName)} (You)</b><small>${SPECIES[mp.mySpecies].name} · Online</small></div>
+                ${peers.map((p) => `<div class="peer-row"><i style="background:${esc(p.banner)}"></i><b>${esc(p.name)}</b><small>${SPECIES[p.species].name} · Gen ${roman(p.gen)} · ${p.pingMs}ms${p.roomCode ? ` [${esc(p.roomCode)}]` : ''}</small></div>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <button data-act="${this.g.world && !this.g.showcase ? 'resume' : 'title'}" class="btn">${icon('door')}${this.g.world && !this.g.showcase ? 'Back to Match' : 'Title Screen'}</button>
+          ${this.g.world && !this.g.showcase ? `<button data-act="chatdrawer" class="btn primary">${icon('chat')}Open In-Game Comms Drawer</button>` : ''}
+        </div>
+      </div>`, 'titlescreen mp-screen');
+
+    const logEl = document.getElementById('mp-chat-log');
+    if (logEl) logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  private syncMpModal() {
+    const m = $('modal');
+    if (m.classList.contains('mp-screen') && !m.classList.contains('hidden')) {
+      const activeInput = document.activeElement as HTMLInputElement | null;
+      const draft = (document.getElementById('mp-chat-input') as HTMLInputElement | null)?.value ?? '';
+      const nickDraft = (document.getElementById('mp-name-input') as HTMLInputElement | null)?.value;
+      const focusedId = activeInput?.id;
+      this.openMultiplayer();
+      if (nickDraft !== undefined) {
+        const ni = document.getElementById('mp-name-input') as HTMLInputElement | null;
+        if (ni) ni.value = nickDraft;
+      }
+      if (draft) {
+        const ci = document.getElementById('mp-chat-input') as HTMLInputElement | null;
+        if (ci) ci.value = draft;
+      }
+      if (focusedId) document.getElementById(focusedId)?.focus();
+    }
+  }
+
+  renderChatDrawer(force = false) {
+    let el = document.getElementById('chat-drawer');
+    if (!mp.chatOpen || !this.g.world || this.g.showcase) {
+      if (el) el.classList.add('hidden');
+      return;
+    }
+    if (!el) {
+      el = document.createElement('aside');
+      el.id = 'chat-drawer';
+      el.addEventListener('pointerdown', (e) => e.stopPropagation());
+      $('hud').appendChild(el);
+    }
+    el.classList.remove('hidden');
+    const activeInput = document.activeElement as HTMLInputElement | null;
+    if (!force && activeInput?.id === 'drawer-chat-input') return;
+    const ch = mp.channel;
+    const msgs = mp.messages.filter((m) => m.channel === ch).slice(-25);
+    const room = mp.activeRoom;
+    const html = `
+      <div class="cd-head">
+        <div><b>${icon('chat')}Clan Comms</b><small>${room ? `Room ${esc(room.code)} (${room.mode.toUpperCase()})` : `#${ch}`}</small></div>
+        <div class="cd-head-btns">
+          <button data-act="multiplayer" class="mini" title="Open Full Lobby">${icon('globe')}</button>
+          <button data-act="chatdrawer-close" class="mini" title="Close">${icon('close')}</button>
+        </div>
+      </div>
+      <div class="cd-tabs">
+        <button data-act="mp-chan:global" class="${ch === 'global' ? 'on' : ''}">#global</button>
+        <button data-act="mp-chan:matchmaking" class="${ch === 'matchmaking' ? 'on' : ''}">#council</button>
+        <button data-act="mp-chan:strategy" class="${ch === 'strategy' ? 'on' : ''}">#lore</button>
+        ${room ? `<button data-act="mp-chan:room" class="${ch === 'room' ? 'on' : ''}">#${esc(room.code)}</button>` : ''}
+      </div>
+      <div class="cd-ops">
+        <button data-act="mp-act:tribute:food" class="btn mini" title="Send 30 Food caravan to allied clan">${icon('food')}Send Food</button>
+        <button data-act="mp-act:tribute:wood" class="btn mini" title="Send 30 Wood caravan to allied clan">${icon('wood')}Send Wood</button>
+        <button data-act="mp-act:reinforce" class="btn mini" title="Dispatch allied warband (35 Food, 20 Wood)">${icon('shield')}Reinforce</button>
+        <button data-act="mp-act:strike" class="btn mini" title="Launch rival raiding party (40 Food, 15 Stone)">${icon('swords')}Warband Strike</button>
+      </div>
+      <div id="cd-log" class="cd-log">
+        ${msgs.map((m) => `<div class="cd-msg ${m.system ? 'sys' : ''}"><b style="color:${esc(m.banner)}">${esc(m.senderName)}:</b> <span>${esc(m.text)}</span></div>`).join('')}
+      </div>
+      <div class="cd-input">
+        <input id="drawer-chat-input" type="text" maxlength="180" placeholder="Send message…"/>
+        <button data-act="drawer-send" class="btn primary mini">${icon('send')}</button>
+      </div>`;
+    if (force || html !== this.lastDrawerHtml) {
+      el.innerHTML = html;
+      this.lastDrawerHtml = html;
+      const logEl = document.getElementById('cd-log');
+      if (logEl) logEl.scrollTop = logEl.scrollHeight;
+    }
+  }
+
   openMenu() {
     const g = this.g;
     const info = (s: SaveSlot) => { const i = g.slotInfo(s); return `<small>${esc(i.text)}</small>`; };
@@ -557,8 +940,11 @@ export class Hud {
           <button data-act="save" class="btn">${icon('save')}<span>Save game${info('manual')}</span></button>
           <button data-act="continue:manual" class="btn">${icon('load')}<span>Load game</span></button>
           <button data-act="continue:auto" class="btn">${icon('clock')}<span>Load autosave${info('auto')}</span></button>
+          <button data-act="tut-guide" class="btn">${icon('bulb')}<span>Interactive Tutorial</span></button>
+          <button data-act="multiplayer" class="btn">${icon('globe')}<span>Online &amp; Chat Rooms</span></button>
+          <button data-act="campaign" class="btn">${icon('campaign')}<span>Story Campaign</span></button>
           <button data-act="settings" class="btn">${icon('sparkle')}<span>Settings</span></button>
-          <button data-act="help" class="btn">${icon('help')}<span>How to play</span></button>
+          <button data-act="help" class="btn">${icon('help')}<span>Field Manual</span></button>
           <button data-act="export" class="btn">${icon('export')}<span>Export save</span></button>
           <button data-act="import" class="btn">${icon('import')}<span>Import save</span></button>
           <button data-act="restartask" class="btn">${icon('restart')}<span>Restart</span></button>
@@ -588,20 +974,23 @@ export class Hud {
   openHelp() {
     this.openModal(`
       <div class="dialog help">
-        <h2>${icon('help')}How to play</h2>
+        <h2>${icon('help')}Field Manual &amp; Controls</h2>
         <div class="hgrid">
-          <section><h4>${icon('trophy')}Goal</h4><p>Gather, build, discover <b>smoke preservation</b>, survive the winter, then advance the generation and raise an <b>outpost at the Far Meadow</b> with smoked provisions.</p></section>
-          <section><h4>${icon('dragsel')}Touch</h4><ul><li><b>Tap</b> to select; <b>double-tap</b> selects all of a type.</li><li>With units selected, <b>tap the map</b> to move, a tree/berry to gather, an enemy to attack.</li><li><b>Drag</b> pans, <b>pinch</b> zooms. <b>Select</b> button enables box-select.</li><li><b>Build</b>: choose, drag the ghost, tap <b>Place</b>.</li></ul></section>
-          <section><h4>${icon('move')}Mouse &amp; keys</h4><ul><li><b>Left-click</b> select, <b>drag</b> box-select, <b>right-click</b> order (or Move/Attack + click).</li><li><b>Wheel</b> zoom · <b>WASD</b>/arrows/edges pan · <b>Space</b> pause.</li><li><b>B</b> build · <b>D</b> discoveries · <b>M A H S R</b> orders · <b>.</b> idle worker · Ctrl+1–9 groups.</li></ul></section>
-          <section><h4>${icon('provisions')}Good to know</h4><ul><li>Dotted rings are your <b>supply range</b>; beyond it units burn provisions or take exposure damage.</li><li><b>Teach</b> discoveries at a Teaching circle or they fade at succession (or if the sole specialist dies!).</li><li>Winter spoils loose food and chills units away from warmth.</li><li>A <b>gift</b> of food buys peace with the rival.</li></ul></section>
+          <section><h4>${icon('trophy')}Goal &amp; Modes</h4><p>Play the 6-chapter <b>Story Campaign</b>, jump into a <b>Skirmish</b>, or connect via <b>Online &amp; Chat</b>. Gather, build, discover <b>smoke preservation</b>, survive the winter, and pass the fire across generations.</p></section>
+          <section><h4>${icon('dragsel')}Touch &amp; Mobile</h4><ul><li><b>Tap</b> to select; <b>double-tap</b> selects all of a type.</li><li>With units selected, <b>tap the map</b> to move, a tree/berry to gather, a damaged building to <b>repair</b>, or an enemy to attack.</li><li><b>Drag</b> pans, <b>pinch</b> zooms. <b>Select</b> button enables box-select.</li></ul></section>
+          <section><h4>${icon('move')}Mouse &amp; Hotkeys</h4><ul><li><b>Left-click</b> select, <b>drag</b> box-select, <b>right-click</b> smart order (move/gather/repair/attack).</li><li><b>Wheel</b> zoom · <b>WASD</b>/arrows pan · <b>Space</b> pause.</li><li><b>B</b> build · <b>D</b> discoveries · <b>M A H S R</b> orders · <b>.</b> idle worker · Ctrl+1–9 groups.</li></ul></section>
+          <section><h4>${icon('sparkle')}Specialist Abilities &amp; Mechanics</h4><ul><li><b>Chieftain Rally</b>, <b>Elder Blessing</b> (heal + knowledge), <b>Scout Signal Flare</b> (wide reveal), and <b>Champion/Brute Warcry</b>.</li><li><b>Stockpile Barter</b> trades surplus Wood, Food, or Stone.</li><li>Visit all 3 Landmarks: <b>Ember Cave</b>, <b>Sun-Baked Clay</b>, and the <b>Ancestral Megalith</b>.</li></ul></section>
         </div>
-        <div class="row"><button data-act="${this.g.world && !this.g.showcase ? 'resume' : 'title'}" class="btn primary big">${icon('check')}Got it</button></div>
+        <div class="row">
+          <button data-act="tut-guide" class="btn">${icon('bulb')}Start Interactive Tutorial</button>
+          <button data-act="${this.g.world && !this.g.showcase ? 'resume' : 'title'}" class="btn primary big">${icon('check')}Got it</button>
+        </div>
       </div>`);
   }
   showHelpOnce() {
     let seen = false;
     try { seen = localStorage.getItem('lineage-rts:help') === '1'; localStorage.setItem('lineage-rts:help', '1'); } catch { /* ignore */ }
-    if (!seen) this.openHelp();
+    if (!seen) this.tutorial.start(true);
   }
 
   openSuccession() {
@@ -628,7 +1017,10 @@ export class Hud {
     const w = this.g.world; if (!w) return;
     const won = w.status === 'won';
     won ? sfx.win() : sfx.lose();
-    const contBtn = won && !w.endless ? `<button data-act="endless" class="btn primary big">${icon('fire')}Continue into Gen ${roman(Math.max(3, w.gen + 1))}</button>` : '';
+    const curCh = w.campaignId ? getCampaignChapter(w.campaignId) : undefined;
+    const nextCh = curCh ? CAMPAIGN_CHAPTERS.find((c) => c.chapterNum === curCh.chapterNum + 1) : undefined;
+    const campNextBtn = won && nextCh ? `<button data-act="camp-next" class="btn primary big">${icon('play')}Next: Ch. ${nextCh.chapterNum} ${esc(nextCh.title)}</button>` : '';
+    const contBtn = won && !w.endless && !campNextBtn ? `<button data-act="endless" class="btn primary big">${icon('fire')}Continue into Gen ${roman(Math.max(3, w.gen + 1))}</button>` : '';
     this.openModal(`
       <div class="dialog end ${won ? 'won' : 'lost'}">
         <div class="medal">${icon(won ? 'trophy' : 'skull')}</div>
@@ -636,13 +1028,13 @@ export class Hud {
         <p>${esc(w.endMsg)}</p>
         <div class="stats"><div><b>${fmtTime(w.time)}</b><small>Time</small></div><div><b>${roman(w.gen)}</b><small>Generation</small></div><div><b>${w.stats.lost}</b><small>Clan lost</small></div><div><b>${w.stats.kills}</b><small>Rivals defeated</small></div></div>
         <p class="lineage">${w.lineage.map((l) => esc(l.name)).join(' → ')}</p>
-        <div class="row">${contBtn}<button data-act="restart" class="btn ${contBtn ? '' : 'primary big'}">${icon('restart')}Play again</button><button data-act="title" class="btn">${icon('door')}Title screen</button></div>
+        <div class="row">${campNextBtn}${contBtn}<button data-act="restart" class="btn ${campNextBtn || contBtn ? '' : 'primary big'}">${icon('restart')}Play again</button>${w.campaignId ? `<button data-act="campaign" class="btn">${icon('campaign')}Campaign</button>` : ''}<button data-act="title" class="btn">${icon('door')}Title screen</button></div>
       </div>`);
   }
 
   // ------------------------------------------------------------ periodic refresh
   refresh(force = false) {
-    if (force) { this.lastTick = 0; this.lastCmds = ''; this.lastChips = ''; this.lastObj = ''; this.lastPanel = ''; this.lastSel = ''; this.lastDock = ''; this.lastClock = ''; }
+    if (force) { this.lastTick = 0; this.lastCmds = ''; this.lastChips = ''; this.lastObj = ''; this.lastPanel = ''; this.lastSel = ''; this.lastDock = ''; this.lastClock = ''; this.lastDrawerHtml = ''; }
   }
 
   private renderTop() {
@@ -665,7 +1057,7 @@ export class Hud {
     { const a = w.alert, recent = !!a && !this.g.showcase && w.time - a.t < 15; const ab = $('alertbtn'); ab.classList.toggle('hidden', !recent); if (recent) ab.innerHTML = `${icon('warn')}<span>Under attack</span><kbd>F</kbd>`; }
     const laneH = $('toasts').offsetHeight;
     if (laneH !== this.lastLaneH) { this.lastLaneH = laneH; $('app').style.setProperty('--lane', `${laneH}px`); }
-    this.renderPanel(); this.renderJobs(w); this.renderPlaceBar(); this.processLog(w);
+    this.renderPanel(); this.renderJobs(w); this.renderPlaceBar(); this.renderChatDrawer(); this.tutorial.update(); this.processLog(w);
     if (canSucceed(w) && !this.springToast) { this.springToast = true; this.toast('Spring has come. Open the objectives to advance the generation.', 'good'); sfx.good(); }
     if (!canSucceed(w)) this.springToast = false;
   }
@@ -758,8 +1150,9 @@ export class Hud {
   private renderObjectives(w: World) {
     const list = objectiveList(w), cur = list.findIndex((o) => !o.done), open = !!this.objOpen, succ = canSucceed(w), hint = this.hint(w);
     const done = list.filter((o) => o.done).length;
-    const title = w.gen === 1 ? 'The First Winter' : w.gen === 2 && !w.endless ? 'The Far Meadow' : `Dawn of Civilization (Gen ${roman(w.gen)})`;
-    const html = `<div class="oh" data-act="objtoggle">${icon('trophy')}<div><b>${title}</b><small>${done}/${list.length} objectives</small></div>${icon(open ? 'chevd' : 'chevr', 'chev')}</div>` +
+    const ch = w.campaignId ? getCampaignChapter(w.campaignId) : undefined;
+    const title = ch ? `Ch. ${ch.chapterNum}: ${ch.title}` : w.gen === 1 ? 'The First Winter' : w.gen === 2 && !w.endless ? 'The Far Meadow' : `Dawn of Civilization (Gen ${roman(w.gen)})`;
+    const html = `<div class="oh" data-act="objtoggle">${icon('trophy')}<div><b>${esc(title)}</b><small>${done}/${list.length} objectives</small></div>${icon(open ? 'chevd' : 'chevr', 'chev')}</div>` +
       (open ? `<ul>${list.map((o, i) => `<li class="${o.done ? 'done' : i === cur ? 'cur' : ''}"><span class="ob">${o.done ? icon('check') : ''}</span>${esc(o.text)}</li>`).join('')}</ul>` : `<div class="one">${cur >= 0 ? esc(list[cur].text) : 'Objectives complete'}</div>`) +
       (hint && open ? `<p class="hint">${icon('bulb')}<span>${esc(hint)}</span></p>` : '') +
       (succ ? `<button data-act="succession" class="btn primary pulse">${icon('fire')}Advance generation</button>` : '');
@@ -784,7 +1177,8 @@ export class Hud {
       dk('army', 'army', 'Army', 'Select every scout and fighter.') +
       dk('dragsel', 'dragsel', 'Select', 'Toggle drag-to-box-select (for touch screens).', { on: g.selectMode }) +
       dk('home', 'home', 'Home', 'Jump the camera to your clan hearth.') +
-      dk('gift', 'gift', w.time < w.truceUntil ? fmtTime(w.truceUntil - w.time) : 'Gift', 'Give the rival clan 40 food for three minutes of peace and an open pass.');
+      dk('gift', 'gift', w.time < w.truceUntil ? fmtTime(w.truceUntil - w.time) : 'Gift', 'Give the rival clan 40 food for three minutes of peace and an open pass.') +
+      dk('chatdrawer', 'chat', 'Chat', 'Open clan chat rooms, online multiplayer tribute, and warband strikes.', { on: mp.chatOpen, badge: mp.unread > 0 ? String(mp.unread) : undefined });
     if (html !== this.lastDock) { $('dock').innerHTML = html; this.lastDock = html; }
   }
 
@@ -800,7 +1194,7 @@ export class Hud {
         const uSp: Species = u.species ?? (u.owner === 1 ? w.rivalSpecies : w.species);
         const effSt = u.owner !== 2 ? speciesUnitStats(uSp, u.kind, u.gen) : { dmg: d.dmg, speed: d.speed, vision: d.vision };
         const spPrefix = u.owner !== 2 ? `${SPECIES[uSp].name} · ` : '';
-        const doing = o.t === 'gather' ? `Gathering ${nodeById(w, o.node)?.res ?? ''}` : o.t === 'idle' ? 'Idle' : o.t === 'research' ? 'Researching' : o.t === 'build' ? 'Building' : o.t === 'attack' ? 'Fighting' : o.t === 'move' ? 'Moving' : o.t === 'amove' ? 'Attack-moving' : o.t === 'hold' ? 'Holding' : o.t === 'patrol' ? 'Patrolling' : o.t;
+        const doing = o.t === 'gather' ? `Gathering ${nodeById(w, o.node)?.res ?? ''}` : o.t === 'idle' ? 'Idle' : o.t === 'research' ? 'Researching' : o.t === 'build' ? 'Building / Repairing' : o.t === 'attack' ? 'Fighting' : o.t === 'move' ? 'Moving' : o.t === 'amove' ? 'Attack-moving' : o.t === 'hold' ? 'Holding' : o.t === 'patrol' ? 'Patrolling' : o.t;
         const pct = Math.max(0, u.hp / u.maxHp) * 100;
         const specs = w.specialists
           ? (Object.entries(w.specialists) as [DiscoveryId, number][])
@@ -843,7 +1237,7 @@ export class Hud {
     if (ids.length) {
       const us = ids.map((i) => w._u!.get(i)!).filter(Boolean);
       h += cbtn({ act: 'move', ic: 'move', label: 'Move', key: 'M', on: g.mode === 'move' && !this.workMode, tip: { t: 'Move', d: 'Then tap the destination. You can also right-click or just tap.' } });
-      if (us.some(u => u.kind === 'gatherer')) h += cbtn({ act: 'work', ic: 'jobs', label: 'Work', on: g.mode === 'move' && this.workMode, tip: { t: 'Work', d: 'Then tap a resource or an unfinished building.' } });
+      if (us.some(u => u.kind === 'gatherer')) h += cbtn({ act: 'work', ic: 'jobs', label: 'Work', on: g.mode === 'move' && this.workMode, tip: { t: 'Work / Repair', d: 'Then tap a resource, an unfinished site, or a damaged building to repair.' } });
       if (us.some((u) => UNITS[u.kind].dmg > 3 || u.kind === 'hunter')) h += cbtn({ act: 'amove', ic: 'attack', label: 'Attack', key: 'A', on: g.mode === 'amove', tip: { t: 'Attack-move', d: 'Advance and engage anything on the way.' } });
       if (us.some((u) => UNITS[u.kind].dmg > 3)) h += cbtn({ act: 'patrol', ic: 'patrol', label: 'Patrol', key: 'P', on: g.mode === 'patrol', tip: { t: 'Patrol', d: 'Then tap a point: they walk back and forth between here and there, fighting anything they meet.' } });
       h += cbtn({ act: 'queue', ic: 'queue', label: 'Queue', key: '⇧', on: g.queueMode, tip: { t: 'Queue orders (Shift)', d: 'While on, each order is added after the current one instead of replacing it. With a mouse, just hold Shift.' } });
@@ -852,10 +1246,19 @@ export class Hud {
       h += cbtn({ act: 'retreat', ic: 'retreat', label: 'Retreat', key: 'R', tip: { t: 'Retreat', d: 'Fall back to the clan hearth.' } });
       const l = us.find((u) => u.kind === 'leader');
       if (l) h += cbtn({ act: 'rally', ic: 'rally', label: 'Rally', cls: 'gold', why: l.ability > 0 ? `Rally ready in ${Math.ceil(l.ability)}s.` : undefined, badge: l.ability > 0 ? `${Math.ceil(l.ability)}` : undefined, cd: l.ability > 0 ? l.ability / 45 : 0, tip: { t: 'Rally', d: 'Heal nearby allies by 20% and boost their speed and damage for 8 seconds. 45s cooldown.' } });
+      const elder = us.find((u) => u.kind === 'elder');
+      if (elder) h += cbtn({ act: 'bless', ic: 'knowledge', label: 'Bless', cls: 'gold', why: elder.ability > 0 ? `Blessing ready in ${Math.ceil(elder.ability)}s.` : undefined, badge: elder.ability > 0 ? `${Math.ceil(elder.ability)}` : undefined, cd: elder.ability > 0 ? elder.ability / 35 : 0, tip: { t: 'Ancestral Blessing', d: 'Heal nearby clan members by 28% HP, warm them from cold, and inspire +12 Knowledge. 35s cooldown.' } });
+      const scout = us.find((u) => u.kind === 'scout' || u.kind === 'stalker');
+      if (scout) h += cbtn({ act: 'flare', ic: 'flare', label: 'Flare', cls: 'gold', why: scout.ability > 0 ? `Flare ready in ${Math.ceil(scout.ability)}s.` : undefined, badge: scout.ability > 0 ? `${Math.ceil(scout.ability)}` : undefined, cd: scout.ability > 0 ? scout.ability / 30 : 0, tip: { t: 'Signal Flare', d: 'Send up an ember flare to reveal a wide 14-tile radius through the fog of war and hasten the scout. 30s cooldown.' } });
+      const champ = us.find((u) => u.kind === 'champion' || u.kind === 'brute');
+      if (champ) h += cbtn({ act: 'warcry', ic: 'swords', label: 'Warcry', cls: 'gold', why: champ.ability > 0 ? `Warcry ready in ${Math.ceil(champ.ability)}s.` : undefined, badge: champ.ability > 0 ? `${Math.ceil(champ.ability)}` : undefined, cd: champ.ability > 0 ? champ.ability / 40 : 0, tip: { t: 'Warcry', d: 'Unleash a battle roar that empowers nearby warriors with +20% speed/damage for 10s and heals 12% HP. 40s cooldown.' } });
       if (us.some((u) => u.kind === 'gatherer')) h += cbtn({ act: 'build', ic: 'build', label: 'Build', key: 'B', tip: { t: 'Build', d: 'Open the construction menu. Selected gatherers will build.' } });
     } else if (g.selB !== null && w._b?.get(g.selB)) {
       const b = w._b.get(g.selB)!, d = BUILDINGS[b.kind];
       if (b.done) {
+        if (b.hp < b.maxHp) {
+          h += cbtn({ act: 'repair', ic: 'repair', label: 'Repair', cls: 'gold', tip: { t: 'Repair Structure', d: `Send gatherers to repair ${d.name} (${Math.ceil(b.hp)}/${b.maxHp} HP).` } });
+        }
         for (const k of d.trains) {
           const ud = UNITS[k as UnitKind], c = trainCheck(w, b.id, k as UnitKind);
           if (ud.only && ud.only !== w.species) continue;
@@ -871,6 +1274,11 @@ export class Hud {
           if (hasTech(w, t.id)) continue;
           const c = researchCheck(w, b.id, t.id);
           h += cbtn({ act: `research:${t.id}`, ic: 'tech', label: t.name, cost: t.cost, w, why: c.ok ? undefined : c.reason, tip: { t: t.name, d: t.desc, cost: t.cost } });
+        }
+        if (b.kind === 'stockpile') {
+          h += cbtn({ act: 'barter:wood2food', ic: 'food', label: 'Trade Wood', cost: { wood: 30 }, w, why: w.res.wood < 30 ? 'Need 30 wood' : undefined, tip: { t: 'Barter Wood for Food', d: 'Trade 30 Wood for +20 Food.' } });
+          h += cbtn({ act: 'barter:food2wood', ic: 'wood', label: 'Trade Food', cost: { food: 30 }, w, why: w.res.food < 30 ? 'Need 30 food' : undefined, tip: { t: 'Barter Food for Wood', d: 'Trade 30 Food for +20 Wood.' } });
+          h += cbtn({ act: 'barter:stone2know', ic: 'knowledge', label: 'Trade Stone', cost: { stone: 20 }, w, why: w.res.stone < 20 ? 'Need 20 stone' : undefined, tip: { t: 'Carve Lore Tablets', d: 'Trade 20 Stone for +15 Knowledge.' } });
         }
         if (b.kind === 'circle') h += cbtn({ act: 'disc', ic: 'knowledge', label: 'Teach', tip: { t: 'Teach', d: 'Preserve discoveries for future generations.' } });
         if (['toolshelter', 'hearth'].includes(b.kind)) h += cbtn({ act: 'disc', ic: 'discover', label: 'Discover', tip: { t: 'Discoveries', d: 'Investigate discoveries that use this facility.' } });

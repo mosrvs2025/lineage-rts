@@ -178,6 +178,7 @@ export function createWorld(species: Species, seed = 1337, mapId = 'valley', riv
   rebuildBlocked(w);
   for (const u of w.units) { const p = nearestFree(w, u.x, u.y); u.x = u.ox = p.x; u.y = u.oy = p.y; if (u.role === 'garrison') u.home = { x: u.x, y: u.y }; }
   w.units.filter((u) => u.kind === 'wolf' || u.kind === 'mammoth').forEach((u) => (u.home = { x: u.x, y: u.y }));
+  w.landmarks.push({ id: 'shrine', name: 'Ancestral Megalith', x: Math.round(M.stage.x), y: Math.round(M.stage.y), visited: false });
   return w;
 }
 

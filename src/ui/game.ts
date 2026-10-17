@@ -19,6 +19,10 @@ import { Hud } from './hud';
 import { Input } from './input';
 import { music } from './music';
 import type { MoodName } from './music';
+import { getCampaignChapter } from '../data/campaign';
+import type { CampaignDifficulty } from '../data/campaign';
+import { mp } from '../net/multiplayer';
+import type { RoomListing } from '../net/multiplayer';
 
 export const SAVE_KEYS = { manual: 'lineage-rts:save:manual', auto: 'lineage-rts:save:auto' } as const;
 export type SaveSlot = keyof typeof SAVE_KEYS;
@@ -76,6 +80,40 @@ export class Game {
     this.hud.showHelpOnce();
   }
 
+  startCampaign(chapterId: string, diff: CampaignDifficulty = 'standard') {
+    const ch = getCampaignChapter(chapterId);
+    if (!ch) return;
+    this.species = ch.species;
+    this.mapId = ch.mapId;
+    this.customOpts = { leaderName: ch.leaderName, bannerColor: ch.bannerColor };
+    const w = createWorld(ch.species, ch.seed, ch.mapId, ch.rivalSpecies, this.customOpts);
+    w.campaignId = ch.id;
+    w.campaignDiff = diff;
+    ch.setup(w, diff);
+    updateFog(w);
+    for (const u of w.units) if (u.owner === 0 && u.kind === 'gatherer') autoWork(w, u);
+    this.setWorld(w);
+    if (ch.chapterNum === 1) this.hud.tutorial.start(true);
+    this.hud.toast(`Chapter ${ch.chapterNum}: ${ch.title}`, 'info');
+  }
+
+  startTutorial() {
+    this.startCampaign('ch1_embers', 'story');
+    this.hud.tutorial.start(true);
+  }
+
+  startMultiplayer(room: RoomListing, rivalSpecies: Species) {
+    this.species = mp.mySpecies;
+    this.mapId = room.mapId;
+    this.customOpts = { leaderName: mp.myName, bannerColor: mp.myBanner };
+    const w = createWorld(mp.mySpecies, room.seed, room.mapId, rivalSpecies, this.customOpts);
+    w.mpMode = room.mode;
+    updateFog(w);
+    for (const u of w.units) if (u.owner === 0 && u.kind === 'gatherer') autoWork(w, u);
+    this.setWorld(w);
+    this.hud.toast(`Online ${room.mode === 'coop' ? '2P Allied Co-op' : '1v1 Versus'} Match Started (Room ${room.code})!`, 'good');
+  }
+
   /** A living, slowly orbiting world behind the title menu. */
   startShowcase() {
     if (this.world && !this.showcase) this.autosave();
@@ -105,7 +143,13 @@ export class Game {
     this.hud.refresh(true);
   }
 
-  restart() { this.startNew(this.species, this.mapId, this.customOpts); }
+  restart() {
+    if (this.world?.campaignId) {
+      this.startCampaign(this.world.campaignId, (this.world.campaignDiff as CampaignDifficulty) ?? 'standard');
+      return;
+    }
+    this.startNew(this.species, this.mapId, this.customOpts);
+  }
 
   // ------------------------------------------------------------ persistence
   save(slot: SaveSlot): boolean {
@@ -257,6 +301,7 @@ export class Game {
         let n = 0;
         while (this.acc >= DT && n < maxSteps) { step(w); this.acc -= DT; n++; }
         if (n === maxSteps) this.acc = 0;
+        if (!this.showcase) mp.tickWorld(w, now);
       }
       // ---- presentation events -> effects + spatial audio; ambience; adaptive music
       const evs = w._ev ?? []; w._ev = [];

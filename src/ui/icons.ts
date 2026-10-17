@@ -87,6 +87,12 @@ const P: Record<string, string> = {
   door: '<path d="M6 4h12v24H6zM18 16h10M24 12l4 4-4 4"/>',
   fire: '<path d="M16 3c1 6 9 9 9 17a9 9 0 0 1-18 0c0-4 2-6 4-9 1 3 2 4 3 4 1-3 1-7 2-12z"/>',
   sparkle: '<path d="M16 4l2 8 8 2-8 2-2 8-2-8-8-2 8-2zM26 4l1 3 3 1-3 1-1 3-1-3-3-1 3-1z"/>',
+  chat: '<path d="M5 6h22a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H13l-6 5v-5H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/><path d="M10 12h12M10 16h8"/>',
+  globe: '<circle cx="16" cy="16" r="12"/><path d="M4 16h24M16 4c4 4 4 20 0 24M16 4c-4 4-4 20 0 24"/>',
+  campaign: '<path d="M6 5h14l6 4v18l-6-3H6z"/><path d="M20 5v19M10 11h6M10 16h6"/>',
+  repair: '<path d="M21 5a6 6 0 0 0-5 9L6 24l2 2 10-10a6 6 0 0 0 9-5l-4 3-3-3z"/>',
+  flare: '<circle cx="16" cy="16" r="4"/><path d="M16 3v6M16 23v6M3 16h6M23 16h6M7 7l4 4M21 21l4 4M25 7l-4 4M11 21l-4 4"/>',
+  send: '<path d="M4 15l24-10-10 24-4-10zM28 5L14 19"/>',
 };
 
 export function icon(name: string, cls = ''): string {
