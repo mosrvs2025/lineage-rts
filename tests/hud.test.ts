@@ -146,7 +146,7 @@ describe('mobile playtest fixes through the real HUD event handlers', () => {
     // Verify Live Loadout & Gameplay Impact Strip and Active Clan Dossier update dynamically
     expect(document.getElementById('clan-impact-pills')!.textContent).toContain('+15% Weapon DMG & Reach');
     expect(document.getElementById('clan-impact-pills')!.textContent).toContain('Unique: Stalker');
-    expect(document.getElementById('active-clan-dossier')!.textContent).toContain('Solari Clan');
+    expect(document.getElementById('active-clan-dossier')!.textContent).toContain('Jade-Peak Sharpshooters & Mystics');
     expect(document.getElementById('sum-clan-label')!.textContent).toContain('Denisovans');
 
     // Verify mobile deck tab switching (Units & Era -> Land -> Hero & Paint)
