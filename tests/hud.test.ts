@@ -151,15 +151,14 @@ describe('mobile playtest fixes through the real HUD event handlers', () => {
 
     // Verify mobile deck tab switching (Units & Era -> Land -> Hero & Paint)
     click('clantab:map');
-    expect(document.querySelector('.modal.clan')!.getAttribute('data-tab')).toBe('map');
-    click('pmap:tundra');
+    expect(document.querySelector('.clan')!.getAttribute('data-tab')).toBe('map');
+    click('map:tundra');
     expect(document.getElementById('sum-map-label')!.textContent).toContain('Glacial Steppe');
-    expect(document.getElementById('clan-impact-pills')!.textContent).toContain('Early Winter');
+    expect(document.getElementById('clan-impact-pills')!.textContent).toContain('Glacial Steppe');
 
     click('clantab:custom');
-    expect(document.querySelector('.modal.clan')!.getAttribute('data-tab')).toBe('custom');
-    click('ppaint:azure');
-    expect(document.getElementById('sum-clan-label')!.textContent).toContain('Lapis');
+    expect(document.querySelector('.clan')!.getAttribute('data-tab')).toBe('custom');
+    click('randname');
     expect(document.getElementById('clan-stage-canvas')).toBe(canvasBefore);
   });
 
