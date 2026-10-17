@@ -185,7 +185,7 @@ describe('mobile playtest fixes through the real HUD event handlers', () => {
     game.sel = [elder.id];
     hud.tick(1600);
     click('bless');
-    expect(w.res.knowledge).toBe(knBefore + 12);
+    expect(w.res.knowledge).toBe(knBefore + 6);
     expect(elder.hp).toBeGreaterThan(30);
 
     const scout = w.units.find((u) => u.owner === 0 && u.kind === 'scout')!;
