@@ -40,6 +40,7 @@ export interface Unit {
   id: number;
   kind: UnitKind;
   owner: Owner;
+  species?: Species;
   name: string;
   x: number; y: number;
   ox: number; oy: number; // previous position, for render interpolation

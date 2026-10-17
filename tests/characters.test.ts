@@ -92,8 +92,29 @@ describe('authored warband assets and animation', () => {
     expect((ldrGen3.root.getObjectByName('RegaliaChest') as any).geometry.getAttribute('position').count)
       .toBeGreaterThan((ldrGen2.root.getObjectByName('RegaliaChest') as any).geometry.getAttribute('position').count);
 
+    // Verify distinct racial 3D headpieces/regalia (Human sun-hawk circlet, Neanderthal mammoth skull & tusks, Denisovan jade-ibex horns)
+    const humGuard = instantiateWarband(source, {...unit('guard',{t:'idle'}), owner:0, species:'human', gen:1}, w);
+    const neaGuard = instantiateWarband(source, {...unit('guard',{t:'idle'}), owner:0, species:'neanderthal', gen:1}, w);
+    const denGuard = instantiateWarband(source, {...unit('guard',{t:'idle'}), owner:0, species:'denisovan', gen:1}, w);
+    expect(humGuard.root.getObjectByName('RegaliaSpeciesHead')).toBeDefined();
+    expect(neaGuard.root.getObjectByName('RegaliaSpeciesHead')).toBeDefined();
+    expect(denGuard.root.getObjectByName('RegaliaSpeciesHead')).toBeDefined();
+    const humVerts = (humGuard.root.getObjectByName('RegaliaSpeciesHead') as any).geometry.getAttribute('position').count;
+    const neaVerts = (neaGuard.root.getObjectByName('RegaliaSpeciesHead') as any).geometry.getAttribute('position').count;
+    const denVerts = (denGuard.root.getObjectByName('RegaliaSpeciesHead') as any).geometry.getAttribute('position').count;
+    expect(new Set([humVerts, neaVerts, denVerts]).size).toBe(3);
+
+    // Verify distinct role silhouettes (worker dorsal basket, hunter arrow quiver, guard crested war-helm)
+    const workerVis = instantiateWarband(source, {...unit('gatherer',{t:'idle'}), owner:0, species:'human', gen:1}, w);
+    const hunterVis = instantiateWarband(source, {...unit('hunter',{t:'idle'}), owner:0, species:'human', gen:1}, w);
+    expect(workerVis.root.getObjectByName('RegaliaRoleChest')).toBeDefined();
+    expect(hunterVis.root.getObjectByName('RegaliaRoleChest')).toBeDefined();
+    expect(humGuard.root.getObjectByName('RegaliaRoleHead')).toBeDefined();
+
     player.motion.dispose(); rival.motion.dispose();
     ldrGen1.motion.dispose(); ldrGen2.motion.dispose(); ldrGen3.motion.dispose();
+    humGuard.motion.dispose(); neaGuard.motion.dispose(); denGuard.motion.dispose();
+    workerVis.motion.dispose(); hunterVis.motion.dispose();
     vi.unstubAllGlobals();
   });
   it('maps actual jobs and combat roles to distinct authored clips', () => {

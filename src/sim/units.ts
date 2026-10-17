@@ -1,4 +1,5 @@
 import { BUILDINGS } from '../data/buildings';
+import { SPECIES, speciesUnitStats } from '../data/species';
 import { UNITS } from '../data/units';
 import { findPath, isBlocked, nearestFree, rebuildBlocked } from './grid';
 import type { Rect } from './grid';
@@ -34,6 +35,7 @@ function onWaterEdge(w: World, x: number, y: number): boolean {
 function speedOf(w: World, u: Unit) {
   let s = UNITS[u.kind].speed;
   if (u.owner === 0) {
+    if (FIGHTERS.includes(u.kind)) s *= SPECIES[w.species]?.speedMult ?? 1;
     if (u.kind === 'scout') s *= w.trait === 'recon' ? 1.2 : 1;
     if (hasDisc(w, 'boats') && onWaterEdge(w, u.x, u.y)) s *= 1.4;
   }
@@ -110,6 +112,13 @@ function leaderNear(w: World, u: Unit) {
 function damageOf(w: World, u: Unit, t: Target): number {
   const d = UNITS[u.kind];
   let dmg = d.dmg;
+  if (u.owner === 0) {
+    const st = speciesUnitStats(w.species, u.kind, u.gen ?? w.gen);
+    dmg = d.dmg * st.dmgSpeciesMult;
+  } else if (u.owner === 1) {
+    const sp = SPECIES[w.rivalSpecies];
+    if (sp.dmg && sp.dmg.kinds.includes(u.kind)) dmg *= sp.dmg.mult;
+  }
   if (leaderNear(w, u)) dmg *= 1.15;
   if (u.buff > 0) dmg *= 1.3;
   if (u.owner === 0 && FIGHTERS.includes(u.kind)) {
@@ -155,13 +164,14 @@ function strike(w: World, u: Unit, t: Target) {
 /** Pursue and hit a target. Returns false when the target is gone. */
 function fight(w: World, u: Unit, t: Target, hold = false): boolean {
   const d = UNITS[u.kind];
+  const reachRange = u.owner !== 2 ? speciesUnitStats(u.owner === 0 ? w.species : w.rivalSpecies, u.kind, u.gen ?? w.gen).range : d.range;
   const c = tCenter(t);
   const gap = dist(u.x, u.y, c.x, c.y) - tRadius(t);
-  if (gap <= d.range + 0.25) {
+  if (gap <= reachRange + 0.25) {
     u.path = null;
     if (u.cd <= 0 && d.dmg > 0) strike(w, u, t);
   } else if (!hold) {
-    const r = moveTo(w, u, c.x, c.y, d.range + tRadius(t) - 0.1, isBuilding(t) ? footprint(t) : undefined);
+    const r = moveTo(w, u, c.x, c.y, reachRange + tRadius(t) - 0.1, isBuilding(t) ? footprint(t) : undefined);
     if (r === 'stuck') return false;
   }
   return true;

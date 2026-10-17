@@ -11,15 +11,18 @@ import { MAT, blobGeo, blobMat, animalGeo, makeSkeleton, personGeo } from './mod
 export interface Rig {
   root: THREE.Group; kind: 'person' | 'deer' | 'wolf' | 'mammoth'; unitKind: string;
   visual?: Warband;
+  gen?: number;
   mesh: THREE.Mesh;                                  // body (SkinnedMesh for people)
   b: Record<string, THREE.Bone>;                     // bones by name (people)
   legA?: THREE.Mesh; legB?: THREE.Mesh;              // animal leg pairs
   pack?: THREE.Mesh; axe?: THREE.Mesh; pick?: THREE.Mesh; hammer?: THREE.Mesh; spear?: THREE.Mesh; bow?: THREE.Mesh; torch?: THREE.Group; flame?: THREE.Object3D;
-  sel: THREE.Mesh; buff: THREE.Mesh;
+  sel: THREE.Mesh; buff: THREE.Mesh; teamRing?: THREE.Mesh; heroRing?: THREE.Mesh;
   ang: number; phase: number; seed: number; born: number; atk: number; stride: number;
 }
 
 const ringGeo = new THREE.RingGeometry(0.4, 0.5, 28).rotateX(-Math.PI / 2);
+const teamRingGeo = new THREE.RingGeometry(0.30, 0.38, 24).rotateX(-Math.PI / 2);
+const heroRingGeo = new THREE.RingGeometry(0.48, 0.62, 32).rotateX(-Math.PI / 2);
 const chevGeo = new THREE.ConeGeometry(0.11, 0.22, 3).rotateX(Math.PI / 2);
 chevGeo.translate(0, 0, 0.54);
 const ease = (t: number) => t * t * (3 - 2 * t);
@@ -33,8 +36,25 @@ export function createRig(u: Unit, w: World, time: number): Rig {
   const chev = new THREE.Mesh(chevGeo, selMat); chev.renderOrder = 5; sel.add(chev);
   root.add(sel);
   const buff = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd54a, transparent: true, opacity: 0.8, depthWrite: false })); buff.position.y = 0.07; buff.scale.setScalar(1.6); buff.visible = false; root.add(buff);
+
+  // Warcraft-style always-on Team Footing Circle & Hero Glow Ring for instant battlefield identification
+  let teamRing: THREE.Mesh | undefined;
+  let heroRing: THREE.Mesh | undefined;
+  if (u.owner === 0 || u.owner === 1) {
+    const tCol = u.owner === 0 ? (w.bannerColor || '#27b7c6') : '#ff4632';
+    teamRing = new THREE.Mesh(teamRingGeo, new THREE.MeshBasicMaterial({ color: tCol, transparent: true, opacity: u.owner === 0 ? 0.58 : 0.68, depthWrite: false }));
+    teamRing.position.y = 0.048; teamRing.renderOrder = 4;
+    root.add(teamRing);
+    if (u.kind === 'leader' || u.kind === 'champion') {
+      const hCol = u.owner === 0 ? 0xffd86b : 0xff6e4a;
+      heroRing = new THREE.Mesh(heroRingGeo, new THREE.MeshBasicMaterial({ color: hCol, transparent: true, opacity: 0.52, depthWrite: false }));
+      heroRing.position.y = 0.052; heroRing.renderOrder = 4;
+      root.add(heroRing);
+    }
+  }
+
   const sh = new THREE.Mesh(blobGeo, blobMat); sh.scale.set(1.15, 1, 1.15); sh.position.y = 0.03; sh.renderOrder = 2; root.add(sh);
-  const base = { sel, buff, ang: 0, phase: Math.random() * 6, seed: Math.random() * 100, born: time, atk: 0, stride: 0 };
+  const base = { sel, buff, teamRing, heroRing, gen: u.gen, ang: 0, phase: Math.random() * 6, seed: Math.random() * 100, born: time, atk: 0, stride: 0 };
   if (u.kind === 'deer' || u.kind === 'wolf' || u.kind === 'mammoth') {
     const ag: AnimalGeo = animalGeo(u.kind, u.id % 2);
     const mesh = new THREE.Mesh(ag.body, MAT.unit); mesh.castShadow = true;
@@ -90,6 +110,10 @@ export function animateRig(r: Rig, u: Unit, c: AnimCtx): boolean {
   const base = r.kind === 'person' ? (u.owner === 0 ? 1 : 1) : 1; void base;
   r.root.scale.setScalar((r.kind === 'person' ? (r.root.userData.s ??= r.root.scale.x) : (r.root.userData.s ??= r.root.scale.x)) * Math.max(0.05, pop));
 
+  if (r.heroRing) {
+    r.heroRing.scale.setScalar(1.06 + Math.sin(time * 3.8 + r.seed) * 0.08);
+  }
+
   if (r.kind !== 'person') {
     const flee = u.order.t === 'flee' ? 1.5 : 1, sw = Math.sin(r.phase) * 0.7 * flee * w8;
     r.legA!.rotation.x = sw; r.legB!.rotation.x = -sw;
@@ -99,10 +123,20 @@ export function animateRig(r: Rig, u: Unit, c: AnimCtx): boolean {
     return moving;
   }
 
+  // If unit generation advanced via succession, rebuild visual so new Era regalia equips immediately
+  if (r.visual && r.gen !== u.gen) {
+    for (const item of [r.spear, r.axe, r.pick, r.hammer, r.bow, r.torch, r.pack]) item?.removeFromParent();
+    r.visual.motion.dispose();
+    r.root.remove(r.visual.root);
+    r.visual = undefined;
+    r.gen = u.gen;
+  }
+
   // Swap the whole native rig, not just its geometry: authored clips use different bones.
   if (!r.visual) {
     r.visual = createWarband(u, w);
     if (r.visual) {
+      r.gen = u.gen;
       r.root.add(r.visual.root); r.mesh.visible = false;
       const attach = (item: THREE.Object3D | undefined, hand: THREE.Object3D) => {
         if (!item) return;

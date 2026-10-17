@@ -1,4 +1,6 @@
 import { DISC_ORDER } from '../data/discoveries';
+import { speciesUnitStats } from '../data/species';
+import { FIGHTERS } from './rules';
 import type { DiscoveryId, LineageEntry, Successor, World } from './types';
 import { autoWork, setOrder } from './units';
 import { fmtTime, log } from './util';
@@ -61,7 +63,14 @@ export function advanceGeneration(w: World, pick: number): boolean {
       g.gen = nextGen; autoWork(w, g);
     }
   }
-  for (const u of w.units) if (u.owner === 0) { u.hp = u.maxHp; if (u.order.t === 'research') setOrder(u, { t: 'idle' }); }
+  for (const u of w.units) if (u.owner === 0) {
+    u.gen = nextGen;
+    let mhp = speciesUnitStats(w.species, u.kind, nextGen).hp;
+    if (w.techs?.leather && FIGHTERS.includes(u.kind)) mhp = Math.round(mhp * 1.2);
+    u.maxHp = mhp;
+    u.hp = u.maxHp;
+    if (u.order.t === 'research') setOrder(u, { t: 'idle' });
+  }
   if (cand.trait === 'teaching') w.res.knowledge += 30;
   const entry: LineageEntry = { name: cand.name, gen: nextGen, trait: cand.trait };
   w.lineage.push(entry);

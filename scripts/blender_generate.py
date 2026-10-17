@@ -222,6 +222,108 @@ def make_ancestral_totem(name: str) -> bpy.types.Object:
     return obj
 
 
+def make_human_sun_helm(name: str) -> bpy.types.Object:
+    """Sculpted Sun-Hawk Winged Circlet & Swept Eagle Plumes for Humans."""
+    mesh = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    # Brow circlet band
+    add_part(bm, "cone", (0.37, 0.38, 0.08), (0, 0.56, 0.02), rot=(math.pi / 2, 0, 0))
+    # Forehead sun-disc emblem
+    add_part(bm, "sphere", 0.085, (0, 0.62, 0.37), scale=(1.2, 1.2, 0.45))
+    # Swept-back Sun-Hawk side wings & tall feather plumes
+    for side in (-1, 1):
+        add_part(bm, "cone", (0.065, 0.012, 0.52), (side * 0.33, 0.78, -0.06), rot=(-1.15, 0, -side * 0.28), scale=(0.55, 1.2, 1.0))
+        add_part(bm, "cone", (0.052, 0.010, 0.42), (side * 0.36, 0.68, -0.14), rot=(-0.85, 0, -side * 0.38), scale=(0.5, 1.1, 1.0))
+        add_part(bm, "box", (0.04, 0.16, 0.24), (side * 0.35, 0.58, 0.08), rot=(0.25, side * 0.2, 0))
+    bmesh.ops.triangulate(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
+def make_neanderthal_skull_helm(name: str) -> bpy.types.Object:
+    """Sculpted Mammoth-Skull Visor & Giant Curved Ivory Tusks for Neanderthals."""
+    mesh = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    # Heavy mammoth-bone cranial dome & brow ridge
+    add_part(bm, "sphere", 0.39, (0, 0.66, 0.02), scale=(1.08, 0.72, 1.12))
+    add_part(bm, "box", (0.58, 0.11, 0.22), (0, 0.58, 0.29), rot=(0.18, 0, 0))
+    # Nasal bone bridge spike
+    add_part(bm, "cone", (0.055, 0.015, 0.22), (0, 0.52, 0.40), rot=(2.8, 0, 0))
+    # Twin giant curved mammoth tusks sweeping forward and upward from temples
+    for side in (-1, 1):
+        add_part(bm, "cone", (0.072, 0.038, 0.34), (side * 0.36, 0.56, 0.18), rot=(1.1, 0, -side * 0.55))
+        add_part(bm, "cone", (0.045, 0.010, 0.36), (side * 0.46, 0.72, 0.36), rot=(1.95, 0, -side * 0.25))
+    bmesh.ops.triangulate(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
+def make_denisovan_jade_crest(name: str) -> bpy.types.Object:
+    """Sculpted Jade-Peak Ibex Horns & Obsidian Crown-Crest for Denisovans."""
+    mesh = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    # Angular mountain-slate diadem
+    add_part(bm, "cone", (0.36, 0.38, 0.09), (0, 0.57, 0.02), rot=(math.pi / 2, 0, 0))
+    # Central tall faceted jade crystal spire on forehead
+    add_part(bm, "cone", (0.068, 0.008, 0.34), (0, 0.74, 0.35), rot=(1.35, 0, 0))
+    # Swept-back ringed mountain-ibex horns
+    for side in (-1, 1):
+        add_part(bm, "cone", (0.068, 0.036, 0.38), (side * 0.24, 0.76, 0.12), rot=(0.95, 0, -side * 0.42))
+        add_part(bm, "cone", (0.042, 0.010, 0.38), (side * 0.36, 0.96, -0.12), rot=(0.35, 0, -side * 0.22))
+        # Cheek guard plates
+        add_part(bm, "box", (0.04, 0.18, 0.14), (side * 0.34, 0.46, 0.18), rot=(0, side * 0.3, 0))
+    bmesh.ops.triangulate(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
+def make_worker_pack(name: str) -> bpy.types.Object:
+    """Sculpted dorsal gathering basket with timber logs for Gatherer workers."""
+    mesh = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    # Tapered woven basket body behind chest
+    add_part(bm, "cone", (0.20, 0.27, 0.48), (0, 0.24, -0.32), rot=(math.pi / 2 - 0.12, 0, 0), scale=(1.15, 0.85, 1.0))
+    # Rim & straps
+    add_part(bm, "box", (0.48, 0.06, 0.36), (0, 0.46, -0.34))
+    for side in (-1, 1):
+        add_part(bm, "box", (0.055, 0.46, 0.28), (side * 0.16, 0.28, -0.12), rot=(0.2, 0, 0))
+    # Protruding timber logs & stone chunks at top of basket
+    for lx in (-0.11, 0.0, 0.11):
+        add_part(bm, "cone", (0.055, 0.055, 0.28), (lx, 0.56, -0.33), rot=(math.pi / 2 + 0.15, 0, lx * 0.8))
+    bmesh.ops.triangulate(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
+def make_hunter_quiver(name: str) -> bpy.types.Object:
+    """Sculpted dorsal arrow quiver with fletched shafts for Hunters."""
+    mesh = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    add_part(bm, "cone", (0.095, 0.12, 0.58), (0.14, 0.30, -0.28), rot=(math.pi / 2 - 0.18, 0, -0.32))
+    for i in range(4):
+        ox = 0.08 + i * 0.045
+        add_part(bm, "cone", (0.018, 0.018, 0.36), (ox, 0.62, -0.30), rot=(math.pi / 2 - 0.18, 0, -0.32))
+        add_part(bm, "box", (0.055, 0.09, 0.015), (ox + 0.04, 0.74, -0.31), rot=(0, 0, -0.32))
+    bmesh.ops.triangulate(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
 def extract_mesh_data(obj: bpy.types.Object):
     """Extract flat non-indexed vertex positions [x,y,z,...] rounded to 3 decimals for compact TS output."""
     mesh = obj.data
@@ -411,21 +513,45 @@ def render_clan_portrait(species: str, cfg: dict, out_path: str):
     bm_team = bmesh.new()
     add_part(bm_team, "cone", (0.298, 0.292, 0.068), (0, 0.008, 0.465), scale=(1.0, 1.04, 1.0))
     add_part(bm_team, "box", (0.14, 0.04, 0.42), (0.15, -0.19, -0.34), rot=(0.18, 0.42, 0))
-    mesh_obj("TeamBand", bm_team, m_team)
 
-    # 6. Carved Antler/Ivory Crown & Tooth Necklace
+    # 6. Species-Specific Heroic Crown / Tusks / Horns & Necklace
     bm_bone = bmesh.new()
+    bm_gold = bmesh.new()
     for i in range(7):
         ang = (i - 3) * 0.22
         nx = math.sin(ang) * 0.24
         ny = -math.cos(ang) * 0.21
         add_part(bm_bone, "cone", (0.024, 0.006, 0.085), (nx, ny, -0.105 - abs(i - 3) * 0.008), rot=(math.pi - 0.35, 0, -ang))
-    for i in range(5):
-        ang = (i - 2) * 0.28
-        cx = math.sin(ang) * 0.285
-        cy = -math.cos(ang) * 0.285
-        h = 0.21 if i == 2 else (0.155 if i in (1, 3) else 0.105)
-        add_part(bm_bone, "cone", (0.026, 0.005, h), (cx, cy, 0.515 + h * 0.35), rot=(-0.12, ang * 0.35, 0))
+
+    if species == "human":
+        # Sun-Hawk Golden Winged Crown & Swept Plumes
+        for side in (-1, 1):
+            add_part(bm_gold, "cone", (0.048, 0.008, 0.34), (side * 0.29, 0.02, 0.56), rot=(-0.35, side * 0.45, 0), scale=(0.55, 1.15, 1.0))
+            add_part(bm_team, "cone", (0.042, 0.006, 0.30), (side * 0.32, 0.08, 0.52), rot=(-0.45, side * 0.58, 0), scale=(0.5, 1.1, 1.0))
+        for i in range(5):
+            ang = (i - 2) * 0.24
+            cx, cy = math.sin(ang) * 0.285, -math.cos(ang) * 0.285
+            h = 0.22 if i == 2 else (0.16 if i in (1, 3) else 0.11)
+            add_part(bm_gold, "cone", (0.026, 0.004, h), (cx, cy, 0.515 + h * 0.35), rot=(-0.12, ang * 0.35, 0))
+    elif species == "neanderthal":
+        # Mammoth-Skull Brow Plate & Twin Giant Curved Ivory Tusks
+        add_part(bm_bone, "box", (0.48, 0.12, 0.09), (0, -0.24, 0.49), rot=(0.15, 0, 0))
+        for side in (-1, 1):
+            add_part(bm_bone, "cone", (0.056, 0.028, 0.32), (side * 0.29, -0.14, 0.44), rot=(0.55, side * 0.65, 0))
+            add_part(bm_bone, "cone", (0.036, 0.008, 0.30), (side * 0.38, -0.26, 0.58), rot=(-0.25, side * 0.28, 0))
+            add_part(bm_bone, "cone", (0.045, 0.010, 0.24), (side * 0.38, -0.05, -0.05), rot=(0.3, side * 0.7, 0))
+    else:
+        # Denisovan Swept Ibex Horns & Jade Crystal Spire
+        m_jade = make_mat("jade", "#38d39c", rough=0.2, metal=0.2, emit=0.35)
+        bm_jade = bmesh.new()
+        add_part(bm_jade, "cone", (0.052, 0.006, 0.26), (0, -0.26, 0.56), rot=(-0.18, 0, 0))
+        for side in (-1, 1):
+            add_part(bm_bone, "cone", (0.052, 0.024, 0.34), (side * 0.20, -0.06, 0.58), rot=(-0.38, side * 0.48, 0))
+            add_part(bm_bone, "cone", (0.032, 0.008, 0.30), (side * 0.30, 0.12, 0.72), rot=(-0.65, side * 0.28, 0))
+            add_part(bm_jade, "cone", (0.034, 0.006, 0.22), (side * 0.32, 0.02, -0.04), rot=(-0.2, side * 0.55, 0))
+        mesh_obj("JadeSpire", bm_jade, m_jade)
+
+    mesh_obj("TeamBand", bm_team, m_team)
     mesh_obj("BoneRegalia", bm_bone, m_bone)
 
     if cfg.get("ochre"):
@@ -436,7 +562,6 @@ def render_clan_portrait(species: str, cfg: dict, out_path: str):
         add_part(bm_ochre, "sphere", 0.036, (0, -0.295, 0.468), scale=(0.8, 0.5, 1.2))
         mesh_obj("OchrePaint", bm_ochre, m_ochre)
 
-    bm_gold = bmesh.new()
     add_part(bm_gold, "sphere", 0.048, (0, -0.225, -0.095), scale=(1.2, 0.55, 1.2))
     add_part(bm_gold, "sphere", 0.032, (0, -0.298, 0.465), scale=(1.0, 0.5, 1.0))
     mesh_obj("GoldClasp", bm_gold, m_gold)
@@ -482,6 +607,11 @@ def main():
         "head_denisovan": make_sculpted_head("head_denisovan", brow=0.6, jaw=1.08, cranium_z=1.06),
         "crown_leader": make_chieftain_crown("crown_leader"),
         "totem_hearth": make_ancestral_totem("totem_hearth"),
+        "helm_human": make_human_sun_helm("helm_human"),
+        "skull_neanderthal": make_neanderthal_skull_helm("skull_neanderthal"),
+        "crest_denisovan": make_denisovan_jade_crest("crest_denisovan"),
+        "pack_worker": make_worker_pack("pack_worker"),
+        "quiver_hunter": make_hunter_quiver("quiver_hunter"),
     }
 
     # Export .glb asset bundle
@@ -517,18 +647,18 @@ def main():
     # Render Cycles 3D clan portraits
     portraits = {
         "human": {
-            "skin": "#e0b288", "hair": "#3a2516", "tunic": "#a44a32", "fur": "#6a482c",
-            "team": "#27b7c6", "bg": "#264058", "brow_val": 0.15, "jaw_val": 0.94,
+            "skin": "#e6b68a", "hair": "#3a2516", "tunic": "#1f5a78", "fur": "#7a5230",
+            "team": "#27b7c6", "bg": "#1e3a52", "brow_val": 0.12, "jaw_val": 0.92,
             "beard": False, "ochre": False, "yaw": -0.22,
         },
         "neanderthal": {
-            "skin": "#d49e7c", "hair": "#4a2c18", "tunic": "#7a4228", "fur": "#3e2d20",
-            "team": "#e89a3c", "bg": "#523c26", "brow_val": 0.95, "jaw_val": 1.12,
+            "skin": "#d9a282", "hair": "#7a361a", "tunic": "#6e3820", "fur": "#d8d4cc",
+            "team": "#e89a3c", "bg": "#48321e", "brow_val": 1.05, "jaw_val": 1.16,
             "beard": True, "ochre": False, "yaw": 0.20,
         },
         "denisovan": {
-            "skin": "#b5835c", "hair": "#1a1412", "tunic": "#5c4a6e", "fur": "#48382c",
-            "team": "#38d39c", "bg": "#3e2e50", "brow_val": 0.55, "jaw_val": 1.02,
+            "skin": "#9c7054", "hair": "#141010", "tunic": "#4a3860", "fur": "#2e2836",
+            "team": "#38d39c", "bg": "#2e2240", "brow_val": 0.55, "jaw_val": 1.00,
             "beard": False, "ochre": True, "yaw": -0.18,
         },
     }

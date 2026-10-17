@@ -724,20 +724,52 @@ export class Renderer {
       if (ov.selBuilding === b.id) { const wm = BUILDINGS[b.kind].warmth; if (wm) { const wr = wm + tierBonus(b, 'warmth') + (hasDisc(w, 'kiln') ? 3 : 0); ctx.strokeStyle = 'rgba(255,170,80,.6)'; ctx.lineWidth = 2; ctx.setLineDash([4, 6]); this.ring(cx, cy, wr + Math.max(b.w, b.h) / 2); ctx.stroke(); ctx.setLineDash([]); } }
     }
     const sel = new Set(ov.selUnits);
+    const ROLE_BADGE: Record<string, { ch: string; col: string }> = {
+      leader:   { ch: '★', col: '#ffd54a' },
+      champion: { ch: '♛', col: '#ffb347' },
+      gatherer: { ch: 'W', col: '#e2a84b' },
+      scout:    { ch: 'S', col: '#5ec8ff' },
+      hunter:   { ch: 'B', col: '#5ad47a' },
+      slinger:  { ch: 'X', col: '#7ef0a8' },
+      stalker:  { ch: 'J', col: '#38d39c' },
+      guard:    { ch: 'G', col: '#e85c4a' },
+      raider:   { ch: 'R', col: '#ff7a55' },
+      brute:    { ch: 'M', col: '#d84e28' },
+      elder:    { ch: 'E', col: '#c084fc' },
+    };
     for (const u of w.units) {
       const r = this.rigs.get(u.id); if (!r || !r.root.visible) continue;
       const x = u.ox + (u.x - u.ox) * ov.alpha, y = u.oy + (u.y - u.oy) * ov.alpha;
       const s = sel.has(u.id);
+      const isHero = u.owner < 2 && (u.kind === 'leader' || u.kind === 'champion');
       if (u.owner === 0 && u.order.t === 'research') { const p = cam.toScreen(x, y, 2.0); ctx.fillStyle = '#ffe36e'; ctx.font = '800 16px system-ui'; ctx.textAlign = 'center'; ctx.fillText('?', p.x, p.y); }
       if (u.owner === 0 && u.kills >= RANK_KILLS[0]) {
-        const rk = u.kills >= RANK_KILLS[1] ? 2 : 1, pr = cam.toScreen(x, y, this.heightAt(x, y) + 1.95);
+        const rk = u.kills >= RANK_KILLS[1] ? 2 : 1, pr = cam.toScreen(x, y, this.heightAt(x, y) + 2.02);
         ctx.strokeStyle = rk === 2 ? '#ffd54a' : '#e8e0c8'; ctx.lineWidth = 2;
         for (let i = 0; i < rk; i++) { const yy = pr.y - i * 4; ctx.beginPath(); ctx.moveTo(pr.x - 4, yy); ctx.lineTo(pr.x, yy - 3); ctx.lineTo(pr.x + 4, yy); ctx.stroke(); }
       }
+      // Always-visible subtle hero crown marker for Chieftain & Champion at tactical zoom
+      if (isHero && !s && u.hp >= u.maxHp && !ov.allBars && z >= 13) {
+        const hp = cam.toScreen(x, y, this.heightAt(x, y) + 1.92);
+        ctx.save();
+        ctx.fillStyle = 'rgba(12,9,6,.82)'; ctx.beginPath(); ctx.arc(hp.x, hp.y - 3, 7, 0, 6.283); ctx.fill();
+        ctx.strokeStyle = u.owner === 0 ? '#ffd54a' : '#ff6a55'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.fillStyle = '#ffd54a'; ctx.font = '800 9px system-ui'; ctx.textAlign = 'center'; ctx.fillText(u.kind === 'leader' ? '★' : '♛', hp.x, hp.y);
+        ctx.restore();
+      }
       if (!s && u.hp >= u.maxHp && !ov.allBars) continue;
       if (ov.allBars && u.owner !== 0 && !isVisible(w, u.x, u.y)) continue;
-      const p = cam.toScreen(x, y, this.heightAt(x, y) + 1.75), bw = Math.max(24, z * 0.75);
+      const p = cam.toScreen(x, y, this.heightAt(x, y) + 1.82), bw = Math.max(24, z * 0.75);
       this.bar(p.x - bw / 2, p.y, bw, 4, u.hp / u.maxHp, u.hp / u.maxHp > 0.4 ? '#7bd36b' : '#e0604f');
+      const rb = u.owner < 2 ? ROLE_BADGE[u.kind] : undefined;
+      if (rb && z >= 12) {
+        const bx = p.x - bw / 2 - 7, by = p.y + 2;
+        ctx.save();
+        ctx.fillStyle = 'rgba(10,8,6,.88)'; ctx.beginPath(); ctx.arc(bx, by, 5.5, 0, 6.283); ctx.fill();
+        ctx.strokeStyle = rb.col; ctx.lineWidth = 1.4; ctx.stroke();
+        ctx.fillStyle = rb.col; ctx.font = '800 7.5px system-ui'; ctx.textAlign = 'center'; ctx.fillText(rb.ch, bx, by + 2.6);
+        ctx.restore();
+      }
     }
     ctx.save(); ctx.lineWidth = 1.5; ctx.setLineDash([4, 5]);
     for (const id of ov.selUnits) {

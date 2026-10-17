@@ -1,7 +1,7 @@
 import { BUILDINGS, BUILD_ORDER } from '../data/buildings';
 import { DISCOVERIES, DISC_ORDER } from '../data/discoveries';
 import { UNITS } from '../data/units';
-import { SPECIES, SPECIES_ORDER } from '../data/species';
+import { SPECIES, SPECIES_ORDER, speciesUnitStats } from '../data/species';
 import { MAPS, MAP_ORDER } from '../data/maps';
 import { mapThumb } from './mapthumb';
 import { TECHS, techsFor } from '../data/techs';
@@ -371,26 +371,28 @@ export class Hud {
     const uniqKind: UnitKind = sp === 'human' ? 'slinger' : sp === 'neanderthal' ? 'brute' : 'stalker';
     const roster: UnitKind[] = ['leader', uniqKind, 'gatherer', 'hunter', 'guard', 'elder', 'champion'];
     const uDef = UNITS[this.previewUnit];
-    const genMult = this.previewGen >= 3 ? 1.3 : this.previewGen === 2 ? 1.15 : 1;
-    const hp = Math.round(uDef.hp * genMult);
-    const dmg = Math.round(uDef.dmg * genMult);
-    const boostBadge = this.previewGen > 1 ? ` <em class="gen-boost">+${Math.round((genMult - 1) * 100)}%</em>` : '';
+    const st = speciesUnitStats(sp, this.previewUnit, this.previewGen);
+    const fmtDelta = (pct: number) => pct === 0 ? '' : ` <em class="gen-boost ${pct < 0 ? 'neg' : ''}">${pct > 0 ? '+' : ''}${pct}%</em>`;
+    const hpBadge = fmtDelta(st.hpBonusPct);
+    const dmgBadge = fmtDelta(st.dmgBonusPct);
+    const spdBadge = fmtDelta(st.speedBonusPct);
+    const visBadge = st.visionBonus > 0 ? ` <em class="gen-boost">+${st.visionBonus}</em>` : '';
     const genInfo = this.previewGen === 1
-      ? { era: 'Era I · Stone & Hide (The First Winter)', desc: 'Primal hide attire, flint & timber weapons, and foundational hearth fire.' }
+      ? { era: 'Era I · Stone & Hide (The First Winter)', desc: `${SPECIES[sp].archetype} — Primal hide attire, flint & timber weapons, and foundational hearth fire.` }
       : this.previewGen === 2
-      ? { era: 'Era II · Bone, Ochre & Portable Fire (+15% Might)', desc: 'Mammoth-tusk bone pauldrons, predator-fang gorget, portable fire torch & clay vessels.' }
-      : { era: 'Era III · Sun-Bronze & High-Kiln Mastery (+30% Might)', desc: 'Gilded sun-bronze armor, twin ancestral clan war-banners, sun-disc medallion & temple braziers.' };
-    return { sp, rv, uniqKind, roster, uDef, hp, dmg, boostBadge, genInfo };
+      ? { era: 'Era II · Bone, Ochre & Portable Fire (+15% Might)', desc: `${SPECIES[sp].archetype} — Mammoth-tusk bone pauldrons, predator-fang gorget, portable fire torch & clay vessels.` }
+      : { era: 'Era III · Sun-Bronze & High-Kiln Mastery (+30% Might)', desc: `${SPECIES[sp].archetype} — Gilded sun-bronze armor, twin ancestral clan war-banners, sun-disc medallion & temple braziers.` };
+    return { sp, rv, uniqKind, roster, uDef, st, hpBadge, dmgBadge, spdBadge, visBadge, genInfo };
   }
 
   /** Smoothly update Clan & Character Showcase UI in-place without destroying the 3D WebGL canvas or flashing the modal. */
   private syncClanDOM(): boolean {
     const modal = $('modal');
     if (modal.classList.contains('hidden') || !document.getElementById('clan-stage-canvas')) return false;
-    const { sp, rv, roster, uDef, hp, dmg, boostBadge, genInfo } = this.clanStageMeta();
+    const { sp, rv, roster, uDef, st, hpBadge, dmgBadge, spdBadge, visBadge, genInfo } = this.clanStageMeta();
 
     const sub = modal.querySelector<HTMLElement>('.clan > .sub');
-    if (sub) sub.textContent = `Your rival will be the ${SPECIES[rv].plural}. Sculpted 3D characters, custom clan war-paint, and ancestral regalia.`;
+    if (sub) sub.textContent = `Your rival will be the ${SPECIES[rv].plural}. Sculpted 3D characters, asymmetric clan stats, and ancestral regalia.`;
 
     // Update clan cards active state & Chosen badge in-place
     for (const s of SPECIES_ORDER) {
@@ -411,7 +413,7 @@ export class Hud {
 
     // Update stage header & Generation pills
     const kicker = document.getElementById('stage-kicker');
-    if (kicker) kicker.textContent = `${SPECIES[sp].name} · Gen ${roman(this.previewGen)}`;
+    if (kicker) kicker.textContent = `${SPECIES[sp].name} · ${SPECIES[sp].archetype} · Gen ${roman(this.previewGen)}`;
     const title = document.getElementById('stage-unit-title');
     if (title) title.innerHTML = `${uDef.name}${uDef.only ? ' <i class="uniq-pill">Clan Exclusive</i>' : ''}`;
     for (const g of [1, 2, 3]) {
@@ -440,9 +442,10 @@ export class Hud {
     const unitInfo = document.getElementById('stage-unit-info');
     if (unitInfo) {
       unitInfo.innerHTML = `<div class="u-stats">
-        <span>${icon('heart')}<b>${hp}</b> HP${boostBadge}</span>
-        <span>${icon('attack')}<b>${dmg}</b> DMG${boostBadge}</span>
-        <span>${icon('move')}<b>${uDef.speed.toFixed(1)}</b> SPD</span>
+        <span>${icon('heart')}<b>${st.hp}</b> HP${hpBadge}</span>
+        <span>${icon('attack')}<b>${st.dmg}</b> DMG${dmgBadge}</span>
+        <span>${icon('move')}<b>${st.speed.toFixed(1)}</b> SPD${spdBadge}</span>
+        <span>${icon('scout')}<b>${st.vision}</b> VIS${visBadge}</span>
       </div>
       <p>${esc(uDef.desc)}</p>`;
     }
@@ -463,7 +466,7 @@ export class Hud {
 
   openClan() {
     if (this.syncClanDOM()) return;
-    const { sp, rv, roster, uDef, hp, dmg, boostBadge, genInfo } = this.clanStageMeta();
+    const { sp, rv, roster, uDef, st, hpBadge, dmgBadge, spdBadge, visBadge, genInfo } = this.clanStageMeta();
     const mp = this.pickedMap;
 
     const card = (s: Species) => {
@@ -484,13 +487,13 @@ export class Hud {
       </button>`; };
     this.openModal(`
       <div class="clan">
-        <h2>Choose Your Lineage &amp; Hero</h2><p class="sub">Your rival will be the ${SPECIES[rv].plural}. Sculpted 3D characters, custom clan war-paint, and ancestral regalia.</p>
+        <h2>Choose Your Lineage &amp; Hero</h2><p class="sub">Your rival will be the ${SPECIES[rv].plural}. Sculpted 3D characters, asymmetric clan stats, and ancestral regalia.</p>
         <div class="clan-top-grid">
           <div class="clancards three">${SPECIES_ORDER.map(card).join('')}</div>
           <div class="stage-card">
             <div class="stage-hdr">
               <div>
-                <span id="stage-kicker" class="stage-kicker">${SPECIES[sp].name} · Gen ${roman(this.previewGen)}</span>
+                <span id="stage-kicker" class="stage-kicker">${SPECIES[sp].name} · ${SPECIES[sp].archetype} · Gen ${roman(this.previewGen)}</span>
                 <h3 id="stage-unit-title">${uDef.name}${uDef.only ? ' <i class="uniq-pill">Clan Exclusive</i>' : ''}</h3>
               </div>
               <div class="gen-pills" title="Preview Generation Regalia">
@@ -509,13 +512,14 @@ export class Hud {
               <div><b>${esc(genInfo.era)}</b><small>${esc(genInfo.desc)}</small></div>
             </div>
             <div id="stage-unit-tabs" class="unit-tabs">
-              ${roster.map((k) => `<button data-act="punit:${k}" class="utab ${this.previewUnit === k ? 'on' : ''} ${UNITS[k].only ? 'uniq' : ''}" title="${esc(UNITS[k].name)}">${icon(KIND_ICON[k])}<span>${UNITS[k].name.split(' ').pop()}</span></button>`).join('')}
+              ${roster.map((k) => `<button data-act="punit:${k}" class="utab ${this.previewUnit === k ? 'on' : ''} ${UNITS[k].only ? 'uniq' : ''}" title="${esc(UNITS[k].name)}">${icon(KIND_ICON[k])}<span>${UNITS[k].name.split(' ').pop()}</span></button>`) .join('')}
             </div>
             <div id="stage-unit-info" class="stage-unit-info">
               <div class="u-stats">
-                <span>${icon('heart')}<b>${hp}</b> HP${boostBadge}</span>
-                <span>${icon('attack')}<b>${dmg}</b> DMG${boostBadge}</span>
-                <span>${icon('move')}<b>${uDef.speed.toFixed(1)}</b> SPD</span>
+                <span>${icon('heart')}<b>${st.hp}</b> HP${hpBadge}</span>
+                <span>${icon('attack')}<b>${st.dmg}</b> DMG${dmgBadge}</span>
+                <span>${icon('move')}<b>${st.speed.toFixed(1)}</b> SPD${spdBadge}</span>
+                <span>${icon('scout')}<b>${st.vision}</b> VIS${visBadge}</span>
               </div>
               <p>${esc(uDef.desc)}</p>
             </div>
@@ -792,6 +796,9 @@ export class Hud {
       const us = ids.map((i) => w._u!.get(i)!).filter(Boolean);
       if (us.length === 1) {
         const u = us[0], d = UNITS[u.kind], o = u.order;
+        const uSp: Species = u.species ?? (u.owner === 1 ? w.rivalSpecies : w.species);
+        const effSt = u.owner !== 2 ? speciesUnitStats(uSp, u.kind, u.gen) : { dmg: d.dmg, speed: d.speed, vision: d.vision };
+        const spPrefix = u.owner !== 2 ? `${SPECIES[uSp].name} · ` : '';
         const doing = o.t === 'gather' ? `Gathering ${nodeById(w, o.node)?.res ?? ''}` : o.t === 'idle' ? 'Idle' : o.t === 'research' ? 'Researching' : o.t === 'build' ? 'Building' : o.t === 'attack' ? 'Fighting' : o.t === 'move' ? 'Moving' : o.t === 'amove' ? 'Attack-moving' : o.t === 'hold' ? 'Holding' : o.t === 'patrol' ? 'Patrolling' : o.t;
         const pct = Math.max(0, u.hp / u.maxHp) * 100;
         const specs = w.specialists
@@ -802,9 +809,9 @@ export class Hud {
         const specNote = specs.length ? `<p class="fine">${icon('discover')}<b>Specialist:</b> ${esc(specs.join(', '))} (teach at a Circle or it fades if ${esc(u.name)} falls!)</p>` : '';
         const bCol = u.owner === 0 ? (w.bannerColor ?? '#27b7c6') : '#d84e28';
         html = `<div class="sp"><div class="pf p3d" style="--team:${bCol}"><canvas id="sel-portrait-canvas" width="128" height="128"></canvas><i class="pf-badge">${icon(KIND_ICON[u.kind])}</i></div>
-          <div class="si"><h3>${esc(u.name)}<small>${['', 'Veteran ', 'Elite '][rankOf(u)]}${d.name}${u.gen > 1 ? ' · Gen ' + roman(u.gen) : ''}${u.kills ? ` · ${u.kills} kills` : ''}</small><button class="mini clr" data-act="desel" aria-label="Deselect">${icon('close')}</button></h3>
+          <div class="si"><h3>${esc(u.name)}<small>${spPrefix}${['', 'Veteran ', 'Elite '][rankOf(u)]}${d.name}${u.gen > 1 ? ' · Gen ' + roman(u.gen) : ''}${u.kills ? ` · ${u.kills} kills` : ''}</small><button class="mini clr" data-act="desel" aria-label="Deselect">${icon('close')}</button></h3>
           <div class="hp ${pct < 35 ? 'low' : ''}"><i style="width:${pct}%"></i><span>${icon('heart')}${Math.ceil(u.hp)} / ${u.maxHp}</span></div>
-          <div class="stats"><span>${icon('attack')}${d.dmg}</span><span>${icon('move')}${d.speed.toFixed(1)}</span>${u.carry.n ? `<span>${icon(u.carry.res!)}${u.carry.n}</span>` : ''}<span class="st">${doing}</span></div>
+          <div class="stats"><span>${icon('attack')}${effSt.dmg}</span><span>${icon('move')}${effSt.speed.toFixed(1)}</span><span>${icon('scout')}${effSt.vision}</span>${u.carry.n ? `<span>${icon(u.carry.res!)}${u.carry.n}</span>` : ''}<span class="st">${doing}</span></div>
           <p class="desc">${esc(d.desc)}</p>${specNote}</div></div>`;
       } else {
         const counts: Record<string, number> = {}; for (const u of us) counts[u.kind] = (counts[u.kind] ?? 0) + 1;

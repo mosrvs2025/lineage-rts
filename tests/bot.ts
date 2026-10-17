@@ -44,7 +44,7 @@ export class Bot {
     const gatherers = this.units('gatherer').length;
     const pop = w.units.filter((u) => u.owner === 0).length;
     const cap = popCap(w);
-    if (pop + 3 >= cap && w.res.wood >= 25 && this.count('shelter') < 8 && !this.pending('shelter')) this.build('shelter', hx - 6 - (this.count('shelter') % 3) * 2, hy + (this.count('shelter') % 2 ? 6 : -8));
+    if (pop + 3 >= cap && w.res.wood >= 25 && this.count('shelter') < (w.gen === 1 ? 8 : 10) && !this.pending('shelter')) this.build('shelter', hx - 6 - (this.count('shelter') % 3) * 2, hy + (this.count('shelter') % 2 ? 6 : -8));
     if (gatherers < 10 && w.res.food >= 25) cmdTrain(w, hearth.id, 'gatherer');
     void gatherers;
     // stone and wood balance
@@ -130,7 +130,7 @@ export class Bot {
       this.builders = this.units('gatherer').filter((u) => u.order.t !== 'research' && u.order.t !== 'build').slice(0, 3).map((u) => u.id);
       cmdMove(w, this.builders, fx, fy);
       this.expeditionStage = 2.5;
-    } else if (stage === 2 && this.escort.some((id) => { const u = w._u?.get(id); return u && u.order.t === 'idle' && !meadow(u); })) {
+    } else if (stage === 2 && (this.escort.some((id) => { const u = w._u?.get(id); return u && u.order.t === 'idle' && !meadow(u); }) || (!w.landmarks[1].visited && scout && scout.order.t === 'idle' && !meadow(scout)))) {
       // fights interrupt the march: send idle escorts and the scout on to the meadow again
       for (const id of this.escort) { const u = w._u?.get(id); if (u && u.order.t === 'idle' && !meadow(u)) cmdMove(w, [id], MEADOW.x - 2, MEADOW.y + 1); }
       if (scout && scout.order.t === 'idle' && !meadow(scout)) cmdMove(w, [scout.id], MEADOW.x, MEADOW.y);

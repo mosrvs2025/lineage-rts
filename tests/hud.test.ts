@@ -129,9 +129,19 @@ describe('mobile playtest fixes through the real HUD event handlers', () => {
     expect(document.getElementById('stage-gen-banner')!.textContent).toContain('Era III');
     expect(document.getElementById('stage-unit-info')!.textContent).toContain('+30%');
 
+    const humanStats = document.getElementById('stage-unit-info')!.textContent;
     click('species:neanderthal');
     expect(document.getElementById('clan-stage-canvas')).toBe(canvasBefore);
     expect(document.querySelector('[data-act="punit:brute"]')).not.toBeNull();
+    const neanStats = document.getElementById('stage-unit-info')!.textContent;
+    expect(neanStats).not.toBe(humanStats);
+    expect(neanStats).toContain('-8%');
+
+    click('species:denisovan');
+    const deniStats = document.getElementById('stage-unit-info')!.textContent;
+    expect(deniStats).not.toBe(humanStats);
+    expect(deniStats).not.toBe(neanStats);
+    expect(deniStats).toContain('+1');
   });
 });
 

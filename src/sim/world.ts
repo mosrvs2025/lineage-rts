@@ -4,7 +4,7 @@ import { findPath, isBlocked, rebuildBlocked, nearestFree } from './grid';
 import type { Building, BuildingKind, Owner, ResNode, Species, Unit, UnitKind, World } from './types';
 import { FIGHTERS } from './rules';
 import { MAPS } from '../data/maps';
-import { SPECIES } from '../data/species';
+import { SPECIES, speciesUnitStats } from '../data/species';
 import { bCenter, rand, reindex } from './util';
 import { generateTerrain } from './mapgen';
 import type { MapDef } from '../data/maps';
@@ -20,10 +20,12 @@ const NAMES = ['Ara', 'Bek', 'Cor', 'Dun', 'Eda', 'Fen', 'Gar', 'Hul', 'Ima', 'J
 
 export function makeUnit(w: World, kind: UnitKind, owner: Owner, x: number, y: number): Unit {
   const d = UNITS[kind];
-  let maxHp = d.hp;
   const sp: Species = owner === 0 ? w.species : w.rivalSpecies;
-  const hb = owner !== 2 ? SPECIES[sp].hp : undefined;
-  if (hb && hb.kinds.includes(kind)) maxHp = Math.round(maxHp * hb.mult);
+  let maxHp = owner === 0
+    ? speciesUnitStats(sp, kind, w.gen).hp
+    : owner === 1
+      ? (SPECIES[sp].hp && SPECIES[sp].hp!.kinds.includes(kind) ? Math.round(d.hp * SPECIES[sp].hp!.mult) : d.hp)
+      : d.hp;
   if (owner === 0 && w.techs?.leather && FIGHTERS.includes(kind)) maxHp = Math.round(maxHp * 1.2);
   const u: Unit = {
     id: w.nextId++, kind, owner,

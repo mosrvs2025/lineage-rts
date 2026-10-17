@@ -459,15 +459,25 @@ export function personGeo(kind: UnitKind, species: Species, owner: 0 | 1, gen: n
   if (v === 2 || kind === 'leader') add('head', cone(0.065, 0.26, 6), hair, [0, 0.84, -0.15], [0.2, 0, 0]);
   add('head', cyl(hr * 1.03, hr * 1.04, 0.048, 12), team, [0, 0.955, 0.005]);                       // clan headband
   if (neo) {
-    add('head', sph(0.11, 1), '#3a2418', [0, 0.825, 0.105], undefined, [1.15, 0.85, 0.95]);         // full beard
-    add('head', cone(0.085, 0.16, 5), '#3a2418', [0, 0.75, 0.12], [Math.PI - 0.15, 0, 0]);
-  } else if (v === 1) {
-    add('head', sph(0.09, 1), hair, [0, 0.83, 0.11], undefined, [1.1, 0.65, 0.85]);
+    add('head', sph(0.11, 1), '#7a361a', [0, 0.825, 0.105], undefined, [1.15, 0.85, 0.95]);         // full russet beard
+    add('head', cone(0.085, 0.18, 5), '#7a361a', [0, 0.74, 0.12], [Math.PI - 0.15, 0, 0]);
+    // Neanderthal curved ivory temple tusks & white frost-wolf shoulder pelt
+    for (const sx of [-1, 1]) {
+      add('head', cone(0.036, 0.24, 6), '#f2ead4', [sx * 0.19, 0.96, 0.10], [0.4, 0, -sx * 0.45]);
+      add('spine', sph(0.14, 1), '#e2ded6', [sx * 0.21, 0.82, -0.04], undefined, [1.2, 0.78, 1.1]);
+    }
+  } else if (species === 'human') {
+    // Human Sun-Hawk golden side plumes & sun pectoral
+    for (const sx of [-1, 1]) add('head', cone(0.032, 0.26, 5), '#f0c254', [sx * 0.17, 1.02, -0.05], [-0.4, 0, -sx * 0.25]);
+    add('spine', sph(0.048, 0), '#38e2f7', [0, 0.75, 0.148]);
   }
   if (deni) {
-    for (const sx of [-1, 1]) add('head', box(0.032, 0.018, 0.02), '#d84e28', [sx * 0.09, 0.895, 0.148], [0, sx * 0.2, 0]); // ochre cheek paint
-    add('head', box(0.16, 0.022, 0.022), '#ede2c8', [0, 0.98, 0.155]);                                                      // carved bone brow-bar
-    for (let i = 0; i < 5; i++) add('spine', cone(0.016, 0.055, 4), i % 2 ? '#ede2c8' : '#d84e28', [-0.08 + i * 0.04, 0.78 - Math.abs(i - 2) * 0.012, 0.145], [Math.PI - 0.3, 0, 0]); // tooth & ochre necklace
+    for (const sx of [-1, 1]) {
+      add('head', box(0.032, 0.018, 0.02), '#d84e28', [sx * 0.09, 0.895, 0.148], [0, sx * 0.2, 0]); // ochre cheek paint
+      add('head', cone(0.034, 0.26, 6), '#2b2533', [sx * 0.14, 1.08, -0.04], [-0.35, 0, -sx * 0.28]); // swept ibex horns
+    }
+    add('head', cone(0.032, 0.18, 5), '#38f2b2', [0, 1.04, 0.145], [0.2, 0, 0]);                      // glowing jade forehead spire
+    for (let i = 0; i < 5; i++) add('spine', cone(0.016, 0.055, 4), i % 2 ? '#ede2c8' : '#d84e28', [-0.08 + i * 0.04, 0.78 - Math.abs(i - 2) * 0.012, 0.145], [Math.PI - 0.3, 0, 0]);
   }
 
   // Tapered anatomical arms, deltoids & hands
@@ -485,9 +495,9 @@ export function personGeo(kind: UnitKind, species: Species, owner: 0 | 1, gen: n
   if (kind === 'guard') {
     add('spine', cyl(0.22, 0.25, 0.14, 10), '#d8cfc0', [0, 0.78, 0]);
     add('spine', box(0.12, 0.12, 0.03), '#a89a84', [0, 0.71, 0.145]);
-    add('elL', cyl(0.28, 0.28, 0.045, 14), team, [-0.34, 0.45, 0.1], [0, 0, Math.PI / 2]);          // painted round shield
-    add('elL', cyl(0.29, 0.29, 0.03, 14), '#6a4a2c', [-0.335, 0.45, 0.1], [0, 0, Math.PI / 2]);     // shield rim
-    add('elL', sph(0.085, 0), '#e8bd63', [-0.365, 0.45, 0.1], undefined, [0.5, 1, 1]);              // shield boss
+    add('elL', cyl(0.32, 0.32, 0.05, 14), team, [-0.34, 0.45, 0.1], [0, 0, Math.PI / 2]);           // painted round shield
+    add('elL', cyl(0.33, 0.33, 0.035, 14), '#f0c254', [-0.335, 0.45, 0.1], [0, 0, Math.PI / 2]);    // golden shield rim
+    add('elL', sph(0.095, 0), '#ffe07d', [-0.365, 0.45, 0.1], undefined, [0.5, 1, 1]);              // shield boss
   }
   if (kind === 'elder') {
     add('hips', cyl(0.18, 0.29, 0.48, 10), tun, [0, 0.28, 0]);                                      // ceremonial robe
@@ -511,7 +521,7 @@ export function personGeo(kind: UnitKind, species: Species, owner: 0 | 1, gen: n
   }
   if (kind === 'stalker') {
     add('spine', box(0.36, 0.34, 0.04), '#7a5a3a', [0, 0.64, -0.14], [0.08, 0, 0]);                 // hide hunting cloak
-    for (let i = 0; i < 3; i++) add('spine', cyl(0.012, 0.012, 0.74, 4), '#8a6a40', [-0.11 + i * 0.05, 0.86, -0.18], [0.25, 0, 0.12]);
+    for (let i = 0; i < 3; i++) add('spine', cyl(0.016, 0.016, 0.78, 4), '#8a6a40', [-0.11 + i * 0.06, 0.86, -0.18], [0.25, 0, (i - 1) * 0.16]);
     add('head', cone(0.032, 0.24, 4), '#38d39c', [0.1, 1.09, -0.04], [0, 0, -0.38]);
   }
   if (kind === 'champion') {
@@ -523,8 +533,8 @@ export function personGeo(kind: UnitKind, species: Species, owner: 0 | 1, gen: n
     add('spine', box(0.38, 0.68, 0.03), team, [0, 0.5, -0.16], [0.1, 0, 0]);
   }
   if (kind === 'raider') { add('spine', cyl(0.22, 0.25, 0.11, 8), '#2a2a30', [0, 0.8, 0]); add('head', box(0.22, 0.04, 0.03), '#c23a2a', [0, 0.91, 0.155]); add('spine', box(0.06, 0.2, 0.02), '#c23a2a', [-0.1, 0.7, 0.14], [0, 0, 0.3]); }
-  if (kind === 'hunter') { add('spine', cyl(0.05, 0.06, 0.42, 6), '#6a4526', [-0.1, 0.72, -0.17], [0.2, 0, 0.15]); add('spine', cone(0.04, 0.1, 4), '#e6dcc4', [-0.14, 0.95, -0.19]); add('spine', box(0.03, 0.2, 0.02), '#8a8a8a', [0.12, 0.74, -0.14]); }
-  if (kind === 'scout') { add('head', cone(0.025, 0.28, 4), '#e8d8a0', [-0.1, 1.12, -0.02], [0, 0, 0.45]); add('spine', box(0.3, 0.1, 0.1), '#8a6a3c', [0, 0.52, -0.15]); }
+  if (kind === 'hunter') { add('spine', cyl(0.06, 0.07, 0.46, 6), '#6a4526', [-0.1, 0.72, -0.17], [0.2, 0, 0.15]); add('spine', cone(0.05, 0.14, 4), '#e6dcc4', [-0.14, 0.95, -0.19]); add('spine', box(0.04, 0.24, 0.03), team, [0.12, 0.74, -0.14]); }
+  if (kind === 'scout') { add('head', cone(0.03, 0.32, 4), '#ffe89e', [-0.1, 1.12, -0.02], [0, 0, 0.45]); add('spine', box(0.3, 0.1, 0.1), '#8a6a3c', [0, 0.52, -0.15]); }
   if (kind === 'leader') {
     add('spine', box(0.42, 0.72, 0.03), team, [0, 0.5, -0.15], [0.12, 0, 0]);                       // chieftain cape
     for (const sx of [-1, 1]) add('spine', sph(0.14, 1), '#5a4028', [sx * 0.19, 0.83, -0.02], undefined, [1.2, 0.7, 1.1]); // fur mantle
@@ -532,7 +542,7 @@ export function personGeo(kind: UnitKind, species: Species, owner: 0 | 1, gen: n
     add('head', sph(0.032, 0), '#e8bd63', [0, 0.965, 0.172]);                                       // golden crown gem
     add('spine', sph(0.042, 0), '#e8bd63', [0, 0.76, 0.145]);                                       // chieftain medallion
   }
-  if (kind === 'gatherer' && v === 3) add('spine', box(0.42 * bw, 0.1, 0.1), '#8a6a3c', [0, 0.58, -0.15]);
+  if (kind === 'gatherer') add('spine', box(0.32 * bw, 0.28, 0.18), '#b88b52', [0, 0.62, -0.18]);
   // Generation II+ & III+ evolutionary regalia on procedural rig
   if (gen >= 2) {
     const pCol = gen >= 3 ? '#f0c254' : '#e6dac0';
@@ -552,26 +562,86 @@ export function personGeo(kind: UnitKind, species: Species, owner: 0 | 1, gen: n
       add('spine', sph(0.035, 0), '#ffe07d', [sx * 0.19, 1.28, -0.20]);
     }
   }
-  // hand-held weapons (authored along -y from the hand, so thrusting along the arm points the weapon forward)
+  // Warcraft-scale bold, high-contrast handheld weapons (authored along -y from the hand)
   const hands: Record<string, Part[]> = {
-    guard: [{ g: cyl(0.022, 0.022, 1.6, 6), c: '#8b6a40', p: [0, -0.45, 0.0] }, { g: cyl(0.03, 0.03, 0.08, 6), c: '#5a3d25', p: [0, -1.22, 0] }, { g: cone(0.055, 0.25, 6), c: '#d0d4dc', p: [0, -1.38, 0], r: [Math.PI, 0, 0] }],
-    leader: [{ g: cyl(0.024, 0.024, 1.65, 6), c: '#8b6a40', p: [0, -0.45, 0.0] }, { g: cone(0.06, 0.26, 6), c: '#f0e2a8', p: [0, -1.4, 0], r: [Math.PI, 0, 0] }, { g: box(0.07, 0.12, 0.07), c: team, p: [0, -1.14, 0] }, { g: sph(0.038, 0), c: '#e8bd63', p: [0, -1.24, 0] }],
-    raider: [{ g: cyl(0.025, 0.025, 0.7, 5), c: '#6a4526', p: [0, -0.22, 0] }, { g: rock(0.15), c: '#80828c', p: [0, -0.6, 0], s: [0.8, 1.1, 0.8] }],
-    scout: [{ g: cyl(0.018, 0.018, 1.45, 5), c: '#a78858', p: [0, -0.42, 0] }, { g: cone(0.035, 0.16, 5), c: '#c7c9d0', p: [0, -1.2, 0], r: [Math.PI, 0, 0] }],
-    elder: [{ g: cyl(0.025, 0.03, 1.5, 6), c: '#6a4526', p: [0, -0.4, 0] }, { g: sph(0.095, 1), c: '#7fd0c0', p: [0, -1.18, 0] }, { g: box(0.22, 0.035, 0.035), c: '#e8bd63', p: [0, -1.02, 0] }],
-    slinger: [{ g: cyl(0.01, 0.01, 0.6, 4), c: '#cbb98a', p: [0, -0.3, 0] }, { g: sph(0.055, 0), c: '#9a9ca6', p: [0, -0.62, 0] }],
-    brute: [{ g: cyl(0.042, 0.052, 0.82, 6), c: '#6a4526', p: [0, -0.25, 0] }, { g: sph(0.21, 1), c: '#7a6a58', p: [0, -0.7, 0], s: [1, 1.2, 1] }, { g: cone(0.045, 0.14, 4), c: '#ede2c8', p: [0.19, -0.68, 0], r: [0, 0, -1.4] }, { g: cone(0.045, 0.14, 4), c: '#ede2c8', p: [-0.19, -0.68, 0], r: [0, 0, 1.4] }],
-    stalker: [{ g: cyl(0.016, 0.016, 1.18, 5), c: '#a07a48', p: [0, -0.36, 0] }, { g: cone(0.038, 0.18, 5), c: '#3a3a40', p: [0, -1.0, 0], r: [Math.PI, 0, 0] }],
-    champion: [{ g: cyl(0.026, 0.026, 1.82, 6), c: '#8b6a40', p: [0, -0.5, 0.0] }, { g: cone(0.07, 0.32, 6), c: '#f2ead2', p: [0, -1.56, 0], r: [Math.PI, 0, 0] }, { g: box(0.08, 0.14, 0.08), c: team, p: [0, -1.3, 0] }, { g: box(0.16, 0.05, 0.05), c: '#e8bd63', p: [0, -1.38, 0] }],
+    guard: [
+      { g: cyl(0.034, 0.036, 1.72, 7), c: '#8b6a40', p: [0, -0.48, 0.0] },
+      { g: box(0.18, 0.06, 0.08), c: '#f0c254', p: [0, -1.24, 0] },
+      { g: box(0.12, 0.22, 0.03), c: team, p: [0.06, -1.10, 0] },
+      { g: cone(0.095, 0.42, 6), c: '#e6ecf5', p: [0, -1.48, 0], r: [Math.PI, 0, 0], s: [1.1, 1, 0.48] },
+    ],
+    leader: [
+      { g: cyl(0.038, 0.040, 1.82, 8), c: '#7a542e', p: [0, -0.50, 0.0] },
+      { g: box(0.26, 0.07, 0.09), c: '#ffd86b', p: [0, -1.28, 0] },
+      { g: box(0.18, 0.28, 0.035), c: team, p: [0.09, -1.10, 0] },
+      { g: sph(0.065, 8), c: '#38e2f7', p: [0, -1.28, 0] },
+      { g: cone(0.115, 0.48, 6), c: '#fff0b8', p: [0, -1.56, 0], r: [Math.PI, 0, 0], s: [1.15, 1, 0.45] },
+    ],
+    raider: [
+      { g: cyl(0.036, 0.040, 0.88, 6), c: '#6a4526', p: [0, -0.28, 0] },
+      { g: box(0.28, 0.26, 0.07), c: '#d0d6e0', p: [0.08, -0.68, 0] },
+      { g: cone(0.065, 0.20, 5), c: '#ff4a36', p: [-0.10, -0.68, 0], r: [0, 0, 1.57] },
+    ],
+    scout: [
+      { g: cyl(0.028, 0.028, 1.55, 6), c: '#b8945e', p: [0, -0.45, 0] },
+      { g: box(0.14, 0.20, 0.025), c: '#ffe89e', p: [0.06, -1.06, 0] },
+      { g: cone(0.07, 0.30, 5), c: '#dce2ec', p: [0, -1.32, 0], r: [Math.PI, 0, 0] },
+    ],
+    elder: [
+      { g: cyl(0.036, 0.042, 1.68, 7), c: '#6a4526', p: [0, -0.44, 0] },
+      { g: box(0.34, 0.06, 0.06), c: '#f0c254', p: [0, -1.10, 0] },
+      { g: cone(0.05, 0.26, 5), c: '#f5eedc', p: [-0.18, -1.24, 0], r: [Math.PI, 0, 0.35] },
+      { g: cone(0.05, 0.26, 5), c: '#f5eedc', p: [0.18, -1.24, 0], r: [Math.PI, 0, -0.35] },
+      { g: sph(0.145, 10), c: '#48f5d8', p: [0, -1.30, 0] },
+    ],
+    slinger: [
+      { g: cyl(0.022, 0.026, 0.72, 5), c: '#d6be8a', p: [0, -0.34, 0] },
+      { g: sph(0.095, 8), c: '#ffd86b', p: [0, -0.72, 0] },
+    ],
+    brute: [
+      { g: cyl(0.052, 0.064, 1.05, 7), c: '#5c3b20', p: [0, -0.34, 0] },
+      { g: sph(0.28, 8), c: '#8a7b68', p: [0, -0.82, 0], s: [1.1, 1.3, 1.0] },
+      { g: cone(0.07, 0.24, 5), c: '#fff5dc', p: [0.26, -0.80, 0], r: [0, 0, -1.4] },
+      { g: cone(0.07, 0.24, 5), c: '#fff5dc', p: [-0.26, -0.80, 0], r: [0, 0, 1.4] },
+    ],
+    stalker: [
+      { g: cyl(0.028, 0.028, 1.42, 6), c: '#9e7442', p: [0, -0.42, 0] },
+      { g: cone(0.075, 0.34, 5), c: '#38f2b2', p: [0, -1.20, 0], r: [Math.PI, 0, 0], s: [1.1, 1, 0.5] },
+      { g: box(0.14, 0.05, 0.04), c: '#ff5232', p: [0, -1.02, 0] },
+    ],
+    champion: [
+      { g: cyl(0.040, 0.042, 1.92, 8), c: '#8b6a40', p: [0, -0.54, 0.0] },
+      { g: box(0.28, 0.08, 0.08), c: '#ffd86b', p: [0, -1.42, 0] },
+      { g: box(0.18, 0.28, 0.04), c: team, p: [0.09, -1.24, 0] },
+      { g: cone(0.12, 0.52, 6), c: '#fff5cc', p: [0, -1.70, 0], r: [Math.PI, 0, 0], s: [1.2, 1, 0.45] },
+    ],
   };
   const g: PersonGeo = {
     body: mergeSkinned(P),
     spear: merge(hands[kind] ?? [{ g: box(0.01, 0.01, 0.01), c: '#000', p: [0, 0, 0] }]),
-    bow: merge([{ g: new THREE.TorusGeometry(0.42, 0.018, 5, 16, Math.PI), c: '#6a4526', p: [0, 0, 0.05], r: [0, Math.PI / 2, Math.PI / 2] }, { g: cyl(0.004, 0.004, 0.84, 3), c: '#eeeeee', p: [0, 0, 0.05] }]),
-    toolAxe: merge([{ g: cyl(0.022, 0.022, 0.66, 5), c: '#7a5230', p: [0, -0.2, 0] }, { g: box(0.05, 0.14, 0.22), c: '#a5a7b0', p: [0, -0.5, 0.08] }]),
-    toolPick: merge([{ g: cyl(0.022, 0.022, 0.66, 5), c: '#7a5230', p: [0, -0.2, 0] }, { g: box(0.05, 0.06, 0.44), c: '#8b8d97', p: [0, -0.5, 0] }]),
-    toolHammer: merge([{ g: cyl(0.022, 0.022, 0.5, 5), c: '#7a5230', p: [0, -0.12, 0] }, { g: box(0.11, 0.11, 0.24), c: '#8b8d97', p: [0, -0.4, 0] }]),
-    torch: merge([{ g: cyl(0.02, 0.03, 0.55, 5), c: '#6a4526', p: [0, 0.1, 0] }]),
+    bow: merge([
+      { g: new THREE.TorusGeometry(0.52, 0.034, 6, 18, Math.PI), c: '#7a4e28', p: [0, 0, 0.06], r: [0, Math.PI / 2, Math.PI / 2] },
+      { g: box(0.07, 0.18, 0.07), c: team, p: [0, 0, 0.58] },
+      { g: cone(0.045, 0.16, 5), c: '#f2ead2', p: [0, 0.54, 0.06], r: [0, 0, -0.3] },
+      { g: cone(0.045, 0.16, 5), c: '#f2ead2', p: [0, -0.54, 0.06], r: [Math.PI, 0, 0.3] },
+      { g: cyl(0.008, 0.008, 1.04, 4), c: '#f7f4ec', p: [0, 0, 0.06] },
+    ]),
+    toolAxe: merge([
+      { g: cyl(0.034, 0.036, 0.78, 6), c: '#7a5230', p: [0, -0.26, 0] },
+      { g: box(0.08, 0.24, 0.34), c: '#d0d5e0', p: [0, -0.58, 0.11] },
+      { g: box(0.09, 0.08, 0.14), c: team, p: [0, -0.54, -0.02] },
+    ]),
+    toolPick: merge([
+      { g: cyl(0.034, 0.036, 0.78, 6), c: '#7a5230', p: [0, -0.26, 0] },
+      { g: box(0.08, 0.10, 0.58), c: '#c4cad6', p: [0, -0.58, 0] },
+      { g: box(0.09, 0.12, 0.12), c: '#f0c254', p: [0, -0.58, 0] },
+    ]),
+    toolHammer: merge([
+      { g: cyl(0.036, 0.038, 0.64, 6), c: '#7a5230', p: [0, -0.18, 0] },
+      { g: box(0.18, 0.18, 0.36), c: '#b8beca', p: [0, -0.48, 0] },
+      { g: box(0.19, 0.08, 0.16), c: team, p: [0, -0.48, 0] },
+    ]),
+    torch: merge([{ g: cyl(0.028, 0.038, 0.62, 6), c: '#6a4526', p: [0, 0.12, 0] }, { g: cyl(0.045, 0.035, 0.12, 6), c: '#f0c254', p: [0, 0.38, 0] }]),
   };
   personCache.set(key, g);
   return g;
