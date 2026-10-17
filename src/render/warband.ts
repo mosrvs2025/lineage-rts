@@ -520,7 +520,7 @@ export function instantiateWarband(source: GLTF, u: Unit, w: World): Warband {
     // 1. Species-defining 3D cranial silhouette (Sun-Hawk plumes / Mammoth tusks & beard / Jade ibex horns)
     const spHead = new THREE.Mesh(getSpeciesGeo('head', species, teamHex), MAT.unit);
     spHead.name = 'RegaliaSpeciesHead';
-    spHead.castShadow = true;
+    spHead.castShadow = false;
     headBone.add(spHead);
 
     // 2. Role-defining 3D headgear
@@ -528,7 +528,7 @@ export function instantiateWarband(source: GLTF, u: Unit, w: World): Warband {
     if (roleHeadGeo) {
       const roleHead = new THREE.Mesh(roleHeadGeo, MAT.unit);
       roleHead.name = 'RegaliaRoleHead';
-      roleHead.castShadow = true;
+      roleHead.castShadow = false;
       headBone.add(roleHead);
     }
 
@@ -536,12 +536,12 @@ export function instantiateWarband(source: GLTF, u: Unit, w: World): Warband {
     if (u.kind === 'leader') {
       const crown = new THREE.Mesh(getRegaliaGeo('crownLeader', genTier, teamHex), MAT.unit);
       crown.name = 'RegaliaCrown';
-      crown.castShadow = true;
+      crown.castShadow = false;
       headBone.add(crown);
     } else if (genTier >= 2 && u.kind !== 'brute' && u.kind !== 'champion') {
       const crest = new THREE.Mesh(getRegaliaGeo('headCrest', genTier, teamHex), MAT.unit);
       crest.name = 'RegaliaCrest';
-      crest.castShadow = true;
+      crest.castShadow = false;
       headBone.add(crest);
     }
   }
@@ -550,7 +550,7 @@ export function instantiateWarband(source: GLTF, u: Unit, w: World): Warband {
     // 1. Species-defining 3D torso silhouette (Sun-disc baldric / Frost-wolf pelt mantle / Dorsal jade crystals)
     const spChest = new THREE.Mesh(getSpeciesGeo('chest', species, teamHex), MAT.unit);
     spChest.name = 'RegaliaSpeciesChest';
-    spChest.castShadow = true;
+    spChest.castShadow = false;
     chestBone.add(spChest);
 
     // 2. Role-defining 3D dorsal/chest gear (Worker basket, Hunter quiver, Leader banner, Stalker javelin fan, etc.)
@@ -558,7 +558,7 @@ export function instantiateWarband(source: GLTF, u: Unit, w: World): Warband {
     if (roleChestGeo) {
       const roleChest = new THREE.Mesh(roleChestGeo, MAT.unit);
       roleChest.name = 'RegaliaRoleChest';
-      roleChest.castShadow = true;
+      roleChest.castShadow = false;
       chestBone.add(roleChest);
     }
   }
@@ -567,19 +567,19 @@ export function instantiateWarband(source: GLTF, u: Unit, w: World): Warband {
     if (armL) {
       const pL = new THREE.Mesh(getRegaliaGeo('pauldronL', genTier, teamHex), MAT.unit);
       pL.name = 'RegaliaPauldronL';
-      pL.castShadow = true;
+      pL.castShadow = false;
       armL.add(pL);
     }
     if (armR) {
       const pR = new THREE.Mesh(getRegaliaGeo('pauldronR', genTier, teamHex), MAT.unit);
       pR.name = 'RegaliaPauldronR';
-      pR.castShadow = true;
+      pR.castShadow = false;
       armR.add(pR);
     }
     if (chestBone) {
       const chestReg = new THREE.Mesh(getRegaliaGeo(genTier >= 3 ? 'chestGen3' : 'chestGen2', genTier, teamHex), MAT.unit);
       chestReg.name = 'RegaliaChest';
-      chestReg.castShadow = true;
+      chestReg.castShadow = false;
       chestBone.add(chestReg);
     }
   }

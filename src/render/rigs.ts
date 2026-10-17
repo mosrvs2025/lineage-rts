@@ -28,26 +28,37 @@ chevGeo.translate(0, 0, 0.54);
 const ease = (t: number) => t * t * (3 - 2 * t);
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
+const ringMatCache = new Map<string, THREE.MeshBasicMaterial>();
+function getRingMat(color: THREE.ColorRepresentation, opacity: number): THREE.MeshBasicMaterial {
+  const k = `${String(color)}:${opacity}`;
+  let m = ringMatCache.get(k);
+  if (!m) {
+    m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
+    ringMatCache.set(k, m);
+  }
+  return m;
+}
+
 export function createRig(u: Unit, w: World, time: number): Rig {
   const root = new THREE.Group(); root.rotation.order = 'YXZ';
   const selCol = u.owner === 0 ? (w.bannerColor || 0xfff6a0) : 0xff7a6a;
-  const selMat = new THREE.MeshBasicMaterial({ color: selCol, transparent: true, opacity: 0.95, depthWrite: false });
+  const selMat = getRingMat(selCol, 0.95);
   const sel = new THREE.Mesh(ringGeo, selMat); sel.position.y = 0.06; sel.renderOrder = 5; sel.visible = false; sel.scale.setScalar(1.15);
   const chev = new THREE.Mesh(chevGeo, selMat); chev.renderOrder = 5; sel.add(chev);
   root.add(sel);
-  const buff = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd54a, transparent: true, opacity: 0.8, depthWrite: false })); buff.position.y = 0.07; buff.scale.setScalar(1.6); buff.visible = false; root.add(buff);
+  const buff = new THREE.Mesh(ringGeo, getRingMat(0xffd54a, 0.8)); buff.position.y = 0.07; buff.scale.setScalar(1.6); buff.visible = false; root.add(buff);
 
   // Warcraft-style always-on Team Footing Circle & Hero Glow Ring for instant battlefield identification
   let teamRing: THREE.Mesh | undefined;
   let heroRing: THREE.Mesh | undefined;
   if (u.owner === 0 || u.owner === 1) {
     const tCol = u.owner === 0 ? (w.bannerColor || '#27b7c6') : '#ff4632';
-    teamRing = new THREE.Mesh(teamRingGeo, new THREE.MeshBasicMaterial({ color: tCol, transparent: true, opacity: u.owner === 0 ? 0.58 : 0.68, depthWrite: false }));
+    teamRing = new THREE.Mesh(teamRingGeo, getRingMat(tCol, u.owner === 0 ? 0.58 : 0.68));
     teamRing.position.y = 0.048; teamRing.renderOrder = 4;
     root.add(teamRing);
     if (u.kind === 'leader' || u.kind === 'champion') {
       const hCol = u.owner === 0 ? 0xffd86b : 0xff6e4a;
-      heroRing = new THREE.Mesh(heroRingGeo, new THREE.MeshBasicMaterial({ color: hCol, transparent: true, opacity: 0.52, depthWrite: false }));
+      heroRing = new THREE.Mesh(heroRingGeo, getRingMat(hCol, 0.52));
       heroRing.position.y = 0.052; heroRing.renderOrder = 4;
       root.add(heroRing);
     }
@@ -76,7 +87,7 @@ export function createRig(u: Unit, w: World, time: number): Rig {
   const bow = mk(pg.bow); bow.visible = u.kind === 'hunter'; b.handL.add(bow);
   const torch = new THREE.Group(); torch.visible = false; const tm = new THREE.Mesh(pg.torch, MAT.unit); torch.add(tm);
   const flame = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.34, 6), MAT.flame); flame.position.y = 0.45; torch.add(flame); torch.position.set(0, -0.05, 0.06); b.handL.add(torch);
-  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.16), MAT.pack.food); pack.position.set(0, 0.12, -0.24); pack.visible = false; pack.castShadow = true; b.spine.add(pack);
+  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.16), MAT.pack.food); pack.position.set(0, 0.12, -0.24); pack.visible = false; pack.castShadow = false; b.spine.add(pack);
   root.add(mesh);
   root.scale.setScalar(SPECIES[sp].scale * (SCALE[u.kind] ?? 1));
   return { root, kind: 'person', unitKind: u.kind, mesh, b, pack, axe, pick, hammer, spear, bow, torch, flame, ...base };

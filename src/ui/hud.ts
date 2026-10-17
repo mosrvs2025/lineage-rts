@@ -348,7 +348,7 @@ export class Hud {
     const m = $('modal'); m.className = kind; m.innerHTML = html;
     this.g.menuOpen = true; this.hideTip();
   }
-  closeModal() { $('modal').classList.add('hidden'); this.g.menuOpen = !this.g.world || this.g.showcase; this.refresh(true); }
+  closeModal() { const m = $('modal'); m.classList.add('hidden'); m.innerHTML = ''; this.g.menuOpen = !this.g.world || this.g.showcase; this.refresh(true); }
 
   openStart() {
     const g = this.g;
@@ -999,8 +999,9 @@ export class Hud {
   }
 
   frame3D(nowSec: number) {
-    const stageCanvas = document.getElementById('clan-stage-canvas');
-    const portraitCanvas = document.getElementById('sel-portrait-canvas');
+    const modalOpen = !$('modal').classList.contains('hidden');
+    const stageCanvas = modalOpen ? document.getElementById('clan-stage-canvas') : null;
+    const portraitCanvas = !modalOpen ? document.getElementById('sel-portrait-canvas') : null;
     if (!stageCanvas && !portraitCanvas) return;
 
     const w = this.g.world;

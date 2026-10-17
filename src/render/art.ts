@@ -73,7 +73,8 @@ export function buildHeightGrid(w: World): Float32Array {
 
 // ------------------------------------------------------------------ ground texture
 export function bakeTerrain(w: World): HTMLCanvasElement {
-  const R = 12, T = TERRAIN_PX, W = w.W, H = w.H;
+  const mobile = typeof window !== 'undefined' && (window.innerWidth < 960 || window.innerHeight < 600 || navigator.maxTouchPoints > 0);
+  const R = mobile ? 6 : 10, T = mobile ? 16 : TERRAIN_PX, W = w.W, H = w.H;
   const { water, ford, mtn, sample, warp, mtnH } = makeFields(w);
   const fc = document.createElement('canvas'); fc.width = W * R; fc.height = H * R;
   const fctx = fc.getContext('2d')!; const img = fctx.createImageData(fc.width, fc.height);

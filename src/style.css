@@ -197,8 +197,8 @@ kbd { font: 600 10px var(--ui); padding: 1px 5px; border-radius: 4px; background
 .clan .row { justify-content: center; margin-top: 22px; } .clan .row .btn { flex: 0 1 auto; min-width: 150px; }
 
 /* ---------- phones & short screens */
-@media (max-width: 899px), (max-height: 559px) {
-  :root { --hudh: 120px; }
+@media (max-width: 899px), (max-height: 559px), (pointer: coarse) {
+  :root { --hudh: 120px; --panel: linear-gradient(180deg, #342e24 0%, #1f1a14 100%); }
   body { font-size: 13px; }
   #topbar { height: 46px; padding-top: calc(5px + var(--st)); }
   .plate { height: 32px; padding: 0 10px 0 7px; font-size: 15px; gap: 6px; border-radius: 8px; } .plate .ic { font-size: 17px; }

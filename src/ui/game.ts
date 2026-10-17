@@ -242,7 +242,7 @@ export class Game {
     this.input.update(dt);
     for (const p of this.pings) p.age += dt;
     this.pings = this.pings.filter((p) => p.age < 0.7);
-    const clanStageOpen = this.showcase && !!document.getElementById('clan-stage-canvas');
+    const clanStageOpen = this.showcase && !document.getElementById('modal')?.classList.contains('hidden') && !!document.getElementById('clan-stage-canvas');
     if (w && this.showcase && !clanStageOpen) {
       w._vis?.fill(2); w._exp?.fill(1);
       const t = now / 1000, h = w.buildings.find((b) => b.owner === 0 && b.kind === 'hearth');

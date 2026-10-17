@@ -103,10 +103,11 @@ export class Renderer {
   private post: Post | null = null;
   private perfAcc = 0; private perfN = 0; private perfCool = 0;
   private dprCap = 1.5;
+  private ovDpr = 1;
   private shadowSize = 2048;
 
   private isMobile(): boolean {
-    return window.innerWidth < 900 || window.innerHeight < 560 || navigator.maxTouchPoints > 0;
+    return window.innerWidth < 960 || window.innerHeight < 600 || navigator.maxTouchPoints > 0;
   }
 
   constructor(public canvas: HTMLCanvasElement, public cam: Camera) {
@@ -114,12 +115,12 @@ export class Renderer {
     this.three = new THREE.WebGLRenderer({ canvas, antialias: !mobile, powerPreference: 'high-performance' });
     this.three.outputColorSpace = THREE.SRGBColorSpace;
     this.three.toneMapping = THREE.NeutralToneMapping;
-    this.three.shadowMap.enabled = true;
+    this.three.shadowMap.enabled = !mobile;
     this.three.shadowMap.type = mobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     this.scene.background = new THREE.Color(0x10151c);
     this.scene.fog = new THREE.Fog(0x9db0c4, 70, 170);
     this.scene.add(this.root, this.hemi, this.sun, this.sun.target, this.particles.points, this.sparks.points, this.arrows.group, this.rings.group, this.ambient.group, this.grass.mesh);
-    this.sun.castShadow = true;
+    this.sun.castShadow = !mobile;
     const sc = this.sun.shadow.camera; sc.left = -30; sc.right = 30; sc.top = 30; sc.bottom = -30; sc.near = 1; sc.far = 110;
     this.sun.shadow.bias = -0.0006; this.sun.shadow.normalBias = 0.03;
     for (let i = 0; i < 3; i++) { const l = new THREE.PointLight(0xffa050, 0, 11, 1.8); this.scene.add(l); this.lights.push(l); }
@@ -142,34 +143,41 @@ export class Renderer {
   }
   private applyQuality() {
     const q = this.quality, mobile = this.isMobile();
-    this.dprCap = q === 'high' ? (mobile ? 1.35 : 1.75) : q === 'medium' ? (mobile ? 1.1 : 1.25) : 1;
+    shared.hq.value = q === 'high' && !mobile ? 1 : 0;
+    this.dprCap = q === 'high' ? (mobile ? 1.2 : 1.75) : q === 'medium' ? (mobile ? 1.0 : 1.25) : 0.85;
     this.shadowSize = q === 'high' && !mobile ? 2048 : 1024;
-    this.sun.castShadow = q !== 'low';
-    this.three.shadowMap.enabled = q !== 'low';
+    const shadowsOn = q === 'high' || (!mobile && q === 'medium');
+    this.sun.castShadow = shadowsOn;
+    this.three.shadowMap.enabled = shadowsOn;
     this.three.shadowMap.type = q === 'high' && !mobile ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     if (this.sun.shadow.mapSize.x !== this.shadowSize) { this.sun.shadow.mapSize.set(this.shadowSize, this.shadowSize); this.sun.shadow.map?.dispose(); this.sun.shadow.map = null; }
-    this.grass.spacing = q === 'high' ? 0.19 : q === 'medium' ? (mobile ? 0.42 : 0.3) : 0.65;
-    this.grass.radius = q === 'high' ? 22 : q === 'medium' ? (mobile ? 13 : 17) : 10;
-    this.grass.mesh.visible = q !== 'low';
+    this.grass.spacing = q === 'high' ? (mobile ? 0.36 : 0.19) : 0.32;
+    this.grass.radius = q === 'high' ? (mobile ? 14 : 22) : 16;
+    this.grass.mesh.visible = q === 'high' || (!mobile && q === 'medium');
     this.resize();
     this.nodeSig = ''; this.fogTick = -99; this.fogHash = -1;
-    if (this.bakedFor) this.grass.update(this.cam.x, this.cam.y, this.bakedFor, this.heightAt, this.winterLevel, true);
+    if (this.bakedFor && this.grass.mesh.visible) this.grass.update(this.cam.x, this.cam.y, this.bakedFor, this.heightAt, this.winterLevel, true);
   }
   /** Automatic quality: step down quickly when the frame rate drops on mobile/tablets. */
   private watchPerf(dt: number) {
     if (settings.quality !== 'auto' || dt <= 0 || dt > 0.25) return;
     this.perfAcc += dt; this.perfN++; this.perfCool = Math.max(0, this.perfCool - dt);
-    if (this.perfN < 45) return;
+    if (this.perfN < 35) return;
     const avg = this.perfAcc / this.perfN; this.perfAcc = 0; this.perfN = 0;
-    if (avg > 0.029 && this.perfCool <= 0 && this.quality !== 'low') { this.quality = this.quality === 'high' ? 'medium' : 'low'; this.perfCool = 4; this.applyQuality(); }
+    if (avg > 0.026 && this.perfCool <= 0 && this.quality !== 'low') { this.quality = this.quality === 'high' ? 'medium' : 'low'; this.perfCool = 3; this.applyQuality(); }
   }
 
   resize() {
-    this.dpr = Math.min(window.devicePixelRatio || 1, this.dprCap);
     const r = this.canvas.getBoundingClientRect();
+    const mobile = this.isMobile();
+    const maxPx = this.quality === 'high' ? 820000 : this.quality === 'medium' ? 480000 : 360000;
+    const areaDpr = r.width * r.height > 0 ? Math.sqrt(maxPx / (r.width * r.height)) : 1;
+    this.dpr = Math.min(window.devicePixelRatio || 1, this.dprCap, mobile ? areaDpr : 99);
+    this.ovDpr = mobile ? Math.min(1, this.dpr) : this.dpr;
     this.three.setPixelRatio(this.dpr);
     this.three.setSize(r.width, r.height, false);
-    this.overlay.width = Math.round(r.width * this.dpr); this.overlay.height = Math.round(r.height * this.dpr);
+    this.overlay.width = Math.max(1, Math.round(r.width * this.ovDpr));
+    this.overlay.height = Math.max(1, Math.round(r.height * this.ovDpr));
     this.cam.setSize(r.width, r.height);
     this.post?.resize(r.width, r.height, this.dpr);
     this.minimapAt = -99;
@@ -301,7 +309,7 @@ export class Renderer {
       }
       this.root.add(g); this.landmarks.set(l.id, g);
     }
-    this.grass.update(this.cam.x, this.cam.y, w, this.heightAt, 0, true);
+    if (this.grass.mesh.visible) this.grass.update(this.cam.x, this.cam.y, w, this.heightAt, 0, true);
   }
 
   private inst(geo: THREE.BufferGeometry, mat: THREE.Material, cap: number) {
@@ -415,7 +423,7 @@ export class Renderer {
     this.ambient.update(time, cam.x, cam.y, (1 - L) * (1 - N * 0.6) * 0.9, N, L);
     this.updateFalling(dt);
     for (const f of this.floaters) f.age += dt; this.floaters = this.floaters.filter((f) => f.age < f.life);
-    this.grass.update(cam.x, cam.y, w, this.heightAt, L);
+    if (this.grass.mesh.visible) this.grass.update(cam.x, cam.y, w, this.heightAt, L);
 
     // ---- render: only run offscreen MSAA EffectComposer on desktop 'high' quality
     if (this.quality === 'high') {
@@ -610,17 +618,17 @@ export class Renderer {
       let r = this.rigs.get(u.id);
       if (!r) { r = createRig(u, w, time); this.root.add(r.root); this.rigs.set(u.id, r); }
       const show = u.owner === 0 || isVisible(w, u.x, u.y);
-      r.root.visible = show;
-      if (!show) continue;
+      if (!show) { r.root.visible = false; continue; }
       const x = u.ox + (u.x - u.ox) * ov.alpha, y = u.oy + (u.y - u.oy) * ov.alpha;
+      const inView = Math.abs(x - cam.x) <= spanX && Math.abs(y - cam.y) <= spanY;
+      r.root.visible = inView;
+      if (!inView) continue;
       r.root.position.set(x, this.heightAt(x, y), y);
       const isSelected = selSet.has(u.id);
       r.sel.visible = isSelected; if (isSelected) r.sel.scale.setScalar(1.15 + Math.sin(time * 5) * 0.04);
       r.buff.visible = u.buff > 0;
-      const inView = Math.abs(x - cam.x) <= spanX && Math.abs(y - cam.y) <= spanY;
-      if (!inView && r.visual && ((w.tick + u.id) & 7) !== 0) continue;
-      const moving = animateRig(r, u, { time, dt: inView ? dt : dt * 4, w, alpha: ov.alpha, selected: isSelected });
-      if (inView && moving && u.owner !== 2 && Math.random() < dt * 5 && this.quality !== 'low') this.particles.spawn(x, this.heightAt(x, y) + 0.05, y, (Math.random() - 0.5) * 0.4, 0.3, (Math.random() - 0.5) * 0.4, 0.55, 0.12, 0.32, 0xa89a78, -0.1, 1.2, 0.28);
+      const moving = animateRig(r, u, { time, dt, w, alpha: ov.alpha, selected: isSelected });
+      if (moving && u.owner !== 2 && Math.random() < dt * 5 && this.quality !== 'low') this.particles.spawn(x, this.heightAt(x, y) + 0.05, y, (Math.random() - 0.5) * 0.4, 0.3, (Math.random() - 0.5) * 0.4, 0.55, 0.12, 0.32, 0xa89a78, -0.1, 1.2, 0.28);
     }
     for (const [id, r] of this.rigs) if (!seen.has(id)) { this.rigs.delete(id); this.dying.push({ rig: r, t: 0 }); r.sel.visible = false; r.buff.visible = false; r.visual?.motion.die(); }
     for (const d of [...this.dying]) {
@@ -698,15 +706,15 @@ export class Renderer {
     for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI * 2, p = cam.toScreen(wx + Math.cos(a) * r, wy + Math.sin(a) * r, this.heightAt(wx, wy)); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); }
   }
   /** A progress ring laid on the ground around a building site. */
-  private ringArc(cx: number, cy: number, rad: number, frac: number, col: string, time: number) {
-    const { ctx } = this, cam = this.cam, N = 64;
+  private ringArc(cx: number, cy: number, rad: number, frac: number, col: string, _time: number) {
+    const { ctx } = this, cam = this.cam, N = 32;
     const pt = (i: number) => { const a = -Math.PI / 2 + (i / N) * Math.PI * 2; return cam.toScreen(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad, this.heightAt(cx, cy) + 0.06); };
     ctx.save(); ctx.lineCap = 'round';
     ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 6; ctx.beginPath(); for (let i = 0; i <= N; i++) { const p = pt(i); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); } ctx.stroke();
     const n = Math.max(1, Math.round(N * Math.max(0.02, Math.min(1, frac))));
-    ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.shadowColor = col; ctx.shadowBlur = 10 + 4 * Math.sin(time * 6);
+    ctx.strokeStyle = col; ctx.lineWidth = 4;
     ctx.beginPath(); for (let i = 0; i <= n; i++) { const p = pt(i); if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); } ctx.stroke();
-    const tip = pt(n); ctx.fillStyle = '#fff'; ctx.shadowBlur = 14; ctx.beginPath(); ctx.arc(tip.x, tip.y, 3.5, 0, 6.283); ctx.fill();
+    const tip = pt(n); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(tip.x, tip.y, 3.5, 0, 6.283); ctx.fill();
     ctx.restore();
   }
 
@@ -718,11 +726,11 @@ export class Renderer {
 
   private drawOverlay(w: World, ov: Overlay, time: number) {
     const { ctx, cam } = this, z = cam.zoom;
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.setTransform(this.ovDpr, 0, 0, this.ovDpr, 0, 0);
     ctx.clearRect(0, 0, cam.vw, cam.vh);
     ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 9]);
     const sRange = supplyRange(w);
-    for (const b of w.buildings) if (b.owner === 0 && b.done && (b.kind === 'hearth' || b.kind === 'watch')) { this.ring(b.x + b.w / 2, b.y + b.h / 2, sRange, 96); ctx.stroke(); }
+    for (const b of w.buildings) if (b.owner === 0 && b.done && (b.kind === 'hearth' || b.kind === 'watch')) { this.ring(b.x + b.w / 2, b.y + b.h / 2, sRange, 48); ctx.stroke(); }
     ctx.restore();
     for (const l of w.landmarks) {
       if (!isExplored(w, l.x, l.y) || z < 16) continue;
@@ -746,8 +754,8 @@ export class Renderer {
         ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(to.x, to.y); ctx.stroke(); ctx.setLineDash([]);
         const fh = Math.max(22, z * 0.9), wave = Math.sin(time * 5) * 3;
         ctx.strokeStyle = '#3a2614'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(to.x, to.y); ctx.lineTo(to.x, to.y - fh); ctx.stroke();
-        ctx.fillStyle = '#ffd54a'; ctx.shadowColor = '#ffb347'; ctx.shadowBlur = 10; ctx.beginPath(); ctx.moveTo(to.x, to.y - fh); ctx.quadraticCurveTo(to.x + fh * 0.35, to.y - fh + 2 + wave, to.x + fh * 0.62, to.y - fh * 0.78); ctx.lineTo(to.x, to.y - fh * 0.56); ctx.closePath(); ctx.fill();
-        ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,215,110,.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(to.x, to.y, 9, 4.5, 0, 0, 6.283); ctx.stroke(); ctx.restore();
+        ctx.fillStyle = '#ffd54a'; ctx.beginPath(); ctx.moveTo(to.x, to.y - fh); ctx.quadraticCurveTo(to.x + fh * 0.35, to.y - fh + 2 + wave, to.x + fh * 0.62, to.y - fh * 0.78); ctx.lineTo(to.x, to.y - fh * 0.56); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,215,110,.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(to.x, to.y, 9, 4.5, 0, 0, 6.283); ctx.stroke(); ctx.restore();
       }
       if (ov.selBuilding === b.id) { const wm = BUILDINGS[b.kind].warmth; if (wm) { const wr = wm + tierBonus(b, 'warmth') + (hasDisc(w, 'kiln') ? 3 : 0); ctx.strokeStyle = 'rgba(255,170,80,.6)'; ctx.lineWidth = 2; ctx.setLineDash([4, 6]); this.ring(cx, cy, wr + Math.max(b.w, b.h) / 2); ctx.stroke(); ctx.setLineDash([]); } }
     }

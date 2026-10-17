@@ -62,7 +62,8 @@ export class Preview3D {
     if (this.renderer) return this.renderer;
     try {
       const c = document.createElement('canvas');
-      this.renderer = new THREE.WebGLRenderer({ canvas: c, antialias: true, alpha: true, powerPreference: 'high-performance' });
+      const mobile = typeof window !== 'undefined' && (window.innerWidth < 960 || window.innerHeight < 600 || navigator.maxTouchPoints > 0);
+      this.renderer = new THREE.WebGLRenderer({ canvas: c, antialias: !mobile, alpha: true, powerPreference: 'high-performance' });
       this.renderer.outputColorSpace = THREE.SRGBColorSpace;
       this.renderer.toneMapping = THREE.NeutralToneMapping;
       return this.renderer;
@@ -168,17 +169,27 @@ export class Preview3D {
     target.addEventListener('pointercancel', up);
   }
 
-  private lastBustT = 0;
+  private lastStageT = 0;
+  private lastRW = 0;
+  private lastRH = 0;
 
   /** Render either the Clan Selection 3D Hero Stage or the in-game 3D Unit Portrait if visible. */
   renderFrame(nowSec: number, stageCfg: StageConfig | null, liveUnit: Unit | null, liveWorld: World | null) {
     const dt = Math.min(0.1, Math.max(0.001, nowSec - this.lastT));
     this.lastT = nowSec;
+    const mobile = window.innerWidth < 960 || window.innerHeight < 600 || navigator.maxTouchPoints > 0;
 
     const stageCanvas = document.getElementById('clan-stage-canvas') as HTMLCanvasElement | null;
     if (stageCanvas && stageCfg) {
       this.bindDrag(stageCanvas);
-      this.renderToCanvas(stageCanvas, dt, nowSec, {
+      const stKey = `${stageCfg.species}|${stageCfg.unitKind}|${stageCfg.gen}|${stageCfg.bannerColor}|${stageCfg.pose}`;
+      const stageDt = nowSec - this.lastStageT;
+      if (mobile && !this.dragging && stageDt < 0.033 && stageCanvas.dataset.stKey === stKey) {
+        return;
+      }
+      stageCanvas.dataset.stKey = stKey;
+      this.lastStageT = nowSec;
+      this.renderToCanvas(stageCanvas, Math.min(0.1, Math.max(dt, stageDt)), nowSec, {
         species: stageCfg.species,
         unitKind: stageCfg.unitKind,
         gen: stageCfg.gen,
@@ -192,26 +203,28 @@ export class Preview3D {
 
     const hudCanvas = document.getElementById('sel-portrait-canvas') as HTMLCanvasElement | null;
     if (hudCanvas && liveUnit && liveWorld) {
-      const mobile = window.innerWidth < 900 || window.innerHeight < 560 || navigator.maxTouchPoints > 0;
-      const bustDt = nowSec - this.lastBustT;
-      if (mobile && bustDt < 0.055 && this.cfgKey.startsWith(`${liveUnit.owner === 0 ? liveWorld.species : liveWorld.rivalSpecies}|${liveUnit.kind}|`)) {
+      const sp = liveUnit.owner === 0 ? liveWorld.species : liveWorld.rivalSpecies;
+      const bCol = liveUnit.owner === 0 ? (liveWorld.bannerColor || '') : '#d84a36';
+      const hasVis = !!this.rig?.visual ? '1' : '0';
+      const bustSnapKey = `${sp}|${liveUnit.kind}|${liveUnit.gen}|${bCol}|${liveUnit.id & 3}|${hasVis}`;
+      // On mobile/foldables, render the HUD portrait once per selection change so two WebGL contexts never fight during gameplay
+      if (mobile && hudCanvas.dataset.snapKey === bustSnapKey) {
         return;
       }
-      this.lastBustT = nowSec;
-      const sp = liveUnit.owner === 0 ? liveWorld.species : liveWorld.rivalSpecies;
-      const mv = Math.hypot(liveUnit.x - liveUnit.ox, liveUnit.y - liveUnit.oy) / 0.05 > 0.2;
+      hudCanvas.dataset.snapKey = bustSnapKey;
+      const mv = !mobile && Math.hypot(liveUnit.x - liveUnit.ox, liveUnit.y - liveUnit.oy) / 0.05 > 0.2;
       const pose: PreviewPose = mv
         ? 'walk'
-        : liveUnit.order.t === 'attack'
+        : !mobile && liveUnit.order.t === 'attack'
         ? 'attack'
-        : liveUnit.order.t === 'gather' || liveUnit.order.t === 'build'
+        : !mobile && (liveUnit.order.t === 'gather' || liveUnit.order.t === 'build')
         ? 'work'
         : 'idle';
-      this.renderToCanvas(hudCanvas, Math.min(0.1, Math.max(dt, bustDt)), nowSec, {
+      this.renderToCanvas(hudCanvas, dt, nowSec, {
         species: sp,
         unitKind: liveUnit.kind,
         gen: liveUnit.gen,
-        bannerColor: liveUnit.owner === 0 ? (liveWorld.bannerColor || '') : '#d84a36',
+        bannerColor: bCol,
         pose,
         variant: liveUnit.id,
         bustOnly: true,
@@ -272,7 +285,7 @@ export class Preview3D {
 
     if (opts.bustOnly) {
       this.pedestal.visible = false;
-      this.rig.root.rotation.y = Math.sin(nowSec * 0.8) * 0.28 + 0.18;
+      this.rig.root.rotation.y = 0.22;
       const isAnimal = opts.unitKind === 'deer' || opts.unitKind === 'wolf' || opts.unitKind === 'mammoth';
       const eyeY = isAnimal ? 0.95 : 1.24 * (this.rig.root.scale.y || 1.35) / 1.35;
       this.cam.position.set(0.12, eyeY + 0.05, isAnimal ? 2.2 : 1.55);
@@ -296,9 +309,9 @@ export class Preview3D {
       this.cam.lookAt(0, 0.86, 0);
     }
 
-    const mobile = window.innerWidth < 900 || window.innerHeight < 560 || navigator.maxTouchPoints > 0;
+    const mobile = window.innerWidth < 960 || window.innerHeight < 600 || navigator.maxTouchPoints > 0;
     const rect = target.getBoundingClientRect();
-    const maxDpr = opts.bustOnly ? (mobile ? 1 : 1.5) : (mobile ? 1.25 : 2);
+    const maxDpr = opts.bustOnly ? (mobile ? 1 : 1.5) : (mobile ? 1.15 : 2);
     const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
     const w = Math.max(64, Math.round((rect.width || target.width || 200) * dpr));
     const h = Math.max(64, Math.round((rect.height || target.height || 200) * dpr));
@@ -309,7 +322,11 @@ export class Preview3D {
     this.cam.aspect = w / h;
     this.cam.updateProjectionMatrix();
 
-    r.setSize(w, h, false);
+    if (this.lastRW !== w || this.lastRH !== h) {
+      this.lastRW = w;
+      this.lastRH = h;
+      r.setSize(w, h, false);
+    }
     r.render(this.scene, this.cam);
 
     const ctx = target.getContext('2d');
