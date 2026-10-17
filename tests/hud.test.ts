@@ -152,9 +152,9 @@ describe('mobile playtest fixes through the real HUD event handlers', () => {
     // Verify mobile deck tab switching (Units & Era -> Land -> Hero & Paint)
     click('clantab:map');
     expect(document.querySelector('.clan')!.getAttribute('data-tab')).toBe('map');
-    click('map:tundra');
-    expect(document.getElementById('sum-map-label')!.textContent).toContain('Glacial Steppe');
-    expect(document.getElementById('clan-impact-pills')!.textContent).toContain('Glacial Steppe');
+    click('map:glasswater');
+    expect(document.getElementById('sum-map-label')!.textContent).toContain('Glasswater');
+    expect(document.getElementById('clan-impact-pills')!.textContent).toContain('Glasswater');
 
     click('clantab:custom');
     expect(document.querySelector('.clan')!.getAttribute('data-tab')).toBe('custom');
