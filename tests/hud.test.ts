@@ -165,8 +165,8 @@ describe('mobile playtest fixes through the real HUD event handlers', () => {
     // 2. Story Campaign Modal & Chapter switching
     hud.openCampaign();
     expect(document.getElementById('modal')!.textContent).toContain('The Ancestral Saga');
-    click('camp-ch:ch3_neander_pass');
-    expect(document.getElementById('modal')!.textContent).toContain('Hold the High Pass');
+    click('camp-ch:ch3_mammoth');
+    expect(document.getElementById('modal')!.textContent).toContain('Blood of the Great Mammoth');
     click('camp-diff:ancestral');
     expect(document.querySelector('[data-act="camp-diff:ancestral"]')!.classList.contains('primary')).toBe(true);
 
